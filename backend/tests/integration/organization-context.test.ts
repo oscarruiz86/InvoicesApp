@@ -1,0 +1,74 @@
+import mongoose from 'mongoose';
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import { createOrganizationRepository, organizationModels } from '@/modules/organizations/infrastructure/mongodb/organization-repository';
+import { createContextAudit } from '@/modules/organizations/infrastructure/mongodb/context-audit';
+import { createPolicyRepository } from '@/modules/identity/infrastructure/mongodb/policy-repository';
+import { createAuthorization } from '@/modules/identity/application/authorization';
+import { createOrganizationContexts } from '@/modules/organizations/application/organization-contexts';
+import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
+
+const uri = process.env.MONGODB_TEST_URI;
+if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('MONGODB_TEST_URI must name an isolated _test database');
+const database = `invoices_context_${randomUUID().replaceAll('-', '')}_test`;
+const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 3000 });
+const reader = createOrganizationRepository(async () => connection);
+const models = organizationModels(connection);
+const policy = createPolicyRepository(async () => connection);
+const audit = createContextAudit(async () => connection);
+const authorization = createAuthorization({ organizations: reader, policies: policy, audit: { record: async () => {} }, clock: { now: () => new Date() }, ids: { next: randomUUID } });
+const contexts = createOrganizationContexts({ organizations: reader, permissions: authorization, audit, now: () => new Date(), nextId: randomUUID });
+const actor: AuthenticatedActor = { subject: 'u', roles: ['COMPANY_ADMIN', 'DRIVER'], permissions: [], username: null, name: null, email: null };
+const state = { active: true, revision: 1, updatedAt: new Date() };
+beforeAll(async () => { await connection.asPromise(); await Promise.all(Object.values(models).map(model => model.init())); await policy.initialize(); });
+afterAll(async () => {
+  if (connection.readyState === 1 && connection.name === database && /^invoices_context_[a-f0-9]{32}_test$/.test(database)) await connection.dropDatabase();
+  await connection.close();
+});
+it('reads isolated associations, enforces indexes, revalidates and captures durable events', async () => {
+  expect(await contexts.available(actor)).toEqual({ organizations: [], globalAvailable: false });
+  expect(await models.organizations.countDocuments()).toBe(0);
+  await models.organizations.create([{ id: 'c', type: 'COMPANY', name: 'Company', ...state }, { id: 't', type: 'THIRD_PARTY', name: 'Third party', ...state }, { id: 'foreign', type: 'COMPANY', name: 'Private', ...state }]);
+  await models.associations.create([{ id: 'old-direct', subject: 'u', organizationId: 'c', capability: 'COMPANY_ADMIN', ...state }]);
+  expect(await contexts.available(actor)).toEqual({ organizations: [], globalAvailable: false });
+  await models.associations.deleteOne({ id: 'old-direct' });
+  await connection.collection('organization_memberships').insertMany([{ id: 'mc', subject: 'u', organizationId: 'c', status: 'ACTIVE', origin: 'LEGACY', revision: 1 }, { id: 'mt', subject: 'u', organizationId: 't', status: 'ACTIVE', origin: 'INVITATION', revision: 1 }]);
+  await models.associations.create([{ id: 'a', subject: 'u', organizationId: 'c', capability: 'COMPANY_ADMIN', membershipId: 'mc', ...state }, { id: 'b', subject: 'u', organizationId: 't', capability: 'DRIVER', membershipId: 'mt', ...state }, { id: 'd', subject: 'u', organizationId: 't', capability: 'THIRD_PARTY_ADMIN', membershipId: 'mt', ...state }]);
+  expect((await authorization.getEffectivePermissions(actor, { kind: 'self', companyId: null, thirdPartyId: null })).permissions).toEqual(['users:read', 'drivers:read']);
+  await expect(models.associations.create({ id: 'duplicate', subject: 'u', organizationId: 't', capability: 'DRIVER', membershipId: 'mt', ...state })).rejects.toThrow();
+  expect((await contexts.available(actor)).organizations.map(value => value.organizationId)).toEqual(['c', 't']);
+  const scope = { kind: 'organization', companyId: 'c', thirdPartyId: 't' } as const;
+  await expect(authorization.getEffectivePermissions(actor, scope)).rejects.toThrow('FORBIDDEN');
+  await models.relationships.create({ companyId: 'c', thirdPartyId: 't', ...state });
+  expect((await authorization.getEffectivePermissions(actor, scope)).permissions).toContain('invoices:create');
+  const selection = { kind: 'ORGANIZATION', organizationId: 't', organizationType: 'THIRD_PARTY' } as const;
+  const first = await contexts.resolve(actor, selection, 'INITIAL');
+  expect(first.roles).toEqual(['DRIVER', 'THIRD_PARTY_ADMIN']);
+  expect((await authorization.getEffectivePermissions(actor, { kind: 'self', companyId: null, thirdPartyId: null })).roles).toEqual(['COMPANY_ADMIN', 'DRIVER', 'THIRD_PARTY_ADMIN']);
+  expect(await connection.collection('organization_context_events').countDocuments()).toBe(1);
+  await connection.collection('organization_memberships').updateOne({ id: 'mt' }, { $set: { status: 'INACTIVE' }, $inc: { revision: 1 } });
+  expect((await authorization.getEffectivePermissions(actor, { kind: 'self', companyId: null, thirdPartyId: null })).roles).toEqual(['COMPANY_ADMIN']);
+  await expect(contexts.resolve(actor, selection, 'RESTORE')).rejects.toThrow('FORBIDDEN');
+  const invalidation = await connection.collection('organization_context_events').findOne({ action: 'CONTEXT_INVALIDATED' });
+  expect(invalidation).not.toHaveProperty('organizationId');
+  expect((await reader.read('u', scope))?.revision).not.toBe(first.authorization.contextRevision);
+  await connection.collection('organization_memberships').updateOne({ id: 'mt' }, { $set: { status: 'ACTIVE' }, $inc: { revision: 1 } });
+  await models.organizations.updateOne({ id: 't' }, { $set: { active: false }, $inc: { revision: 1 } });
+  expect((await contexts.available(actor)).organizations.map(value => value.organizationId)).toEqual(['c']);
+  await models.associations.create({ id: 'bad', subject: 'u', organizationId: 'c', capability: 'DRIVER', membershipId: 'mc', ...state });
+  await expect(reader.read('u', { kind: 'organization', companyId: 'c', thirdPartyId: null })).rejects.toThrow('AUTHORIZATION_UNAVAILABLE');
+  expect(await models.organizations.countDocuments()).toBe(3);
+  await models.associations.deleteOne({ id: 'bad' });
+  const changing = createOrganizationRepository(async () => {
+    await models.organizations.updateOne({ id: 'c' }, { $inc: { revision: 1 } });
+    return connection;
+  });
+  await expect(changing.read('u', { kind: 'organization', companyId: 'c', thirdPartyId: null })).rejects.toThrow('AUTHORIZATION_UNAVAILABLE');
+});
+it('uses event identity for idempotent durable capture and strips unverified IDs', async () => {
+  const event = { eventId: randomUUID(), correlationId: randomUUID(), at: new Date().toISOString(), subject: 'u', action: 'CONTEXT_DENIED', result: 'denied', suppressed: 0,
+    selection: { kind: 'ORGANIZATION', organizationId: 'untrusted', organizationType: 'COMPANY' } } as const;
+  await audit.record(event); await audit.record(event);
+  expect(await connection.collection('organization_context_events').countDocuments({ _id: event.eventId as never })).toBe(1);
+  expect(await connection.collection('organization_context_events').findOne({ _id: event.eventId as never })).not.toHaveProperty('organizationId');
+});

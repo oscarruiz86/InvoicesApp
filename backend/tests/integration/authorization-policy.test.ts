@@ -1,0 +1,41 @@
+import mongoose from 'mongoose';
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import { createPolicyRepository } from '@/modules/identity/infrastructure/mongodb/policy-repository';
+import { grantCeiling } from '@/modules/identity/domain/permissions';
+import type { SecurityEvent } from '@/modules/identity/application/authorization-ports';
+
+const uri = process.env.MONGODB_TEST_URI;
+if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('MONGODB_TEST_URI must name an isolated _test database');
+const database = `invoices_authorization_${randomUUID().replaceAll('-', '')}_test`;
+const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 3000 });
+const repository = createPolicyRepository(async () => connection);
+beforeAll(async () => { await connection.asPromise(); });
+afterAll(async () => {
+  if (connection.readyState === 1 && connection.name === database && /^invoices_authorization_[a-f0-9]{32}_test$/.test(database)) await connection.dropDatabase();
+  await connection.close();
+});
+const event = (version: string): SecurityEvent => ({ eventId: randomUUID(), at: new Date().toISOString(), subject: 'admin-fixture', action: 'POLICY_CHANGED', result: 'allowed', reason: 'POLICY', correlationId: randomUUID(), suppressed: 0, beforeVersion: version });
+it('initializes once, commits an atomic audit revision, rejects races and fails closed', async () => {
+  await expect(repository.read()).rejects.toThrow('AUTHORIZATION_UNAVAILABLE');
+  expect(await repository.initialize()).toEqual({ version: '1', grants: grantCeiling });
+  const nextGrants = grantCeiling.filter(grant => grant.permission !== 'companies:create');
+  const results = await Promise.allSettled([repository.replace('1', nextGrants, event('1')), repository.replace('1', [], event('1'))]);
+  expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+  expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+  const policy = await repository.read();
+  expect(policy.version).toBe('2');
+  expect(await repository.initialize()).toEqual(policy);
+  const raw = await connection.collection('authorization_policies').findOne({});
+  expect(raw?.pendingEvents).toHaveLength(1);
+  expect(raw?.pendingEvents[0]).toMatchObject({ beforeVersion: '1', afterVersion: '2', permission: 'roles:manage', scope: { kind: 'global', companyId: null, thirdPartyId: null }, resource: { type: 'authorization-policy', id: 'active' } });
+  expect(Object.keys(raw!).sort()).toEqual(['_id', 'grants', 'pendingEvents', 'version']);
+  await expect(repository.replace('2', [{ role: 'APP_ADMIN', permission: 'invoices:delete', scope: 'global' }], event('2'))).rejects.toThrow('INVALID_REQUEST');
+  await expect(repository.replace('2', [], { ...event('2'), subject: '' })).rejects.toThrow('INVALID_REQUEST');
+  expect(await repository.read()).toEqual(policy);
+  await connection.collection('authorization_policies').updateOne({}, { $set: { pendingEvents: Array.from({ length: 1000 }, () => event('2')) } });
+  await expect(repository.replace('2', [], event('2'))).rejects.toThrow('POLICY_CONFLICT');
+  expect(await repository.read()).toEqual(policy);
+  await connection.collection('authorization_policies').updateOne({}, { $set: { grants: [{ role: 'APP_ADMIN', permission: 'invoices:delete', scope: 'global' }] } });
+  await expect(repository.read()).rejects.toThrow('AUTHORIZATION_UNAVAILABLE');
+});

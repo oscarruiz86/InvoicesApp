@@ -1,0 +1,5 @@
+import { z } from 'zod';
+import { applicationRoles, permissions } from '@/modules/authentication/domain/permissions';
+const id = z.string().min(1).max(128).refine(value => value.trim().length > 0).nullable();
+export const scopeSchema = z.object({ kind: z.enum(['self', 'global', 'organization']), companyId: id, thirdPartyId: id }).strict().refine(value => value.kind === 'organization' ? Boolean(value.companyId || value.thirdPartyId) : value.companyId === null && value.thirdPartyId === null);
+export const snapshotSchema = z.object({ subject: z.string().min(1), scope: scopeSchema, roles: z.array(z.enum(applicationRoles)).refine(values => values.length === new Set(values).size), permissions: z.array(z.enum(permissions)).refine(values => values.length === new Set(values).size), policyVersion: z.string().min(1), contextRevision: z.string().min(1).nullable(), evaluatedAt: z.iso.datetime(), refreshAfterSeconds: z.literal(30) }).strict().refine(value => value.scope.kind === 'organization' ? value.contextRevision !== null : value.scope.kind !== 'global' || value.contextRevision === null);

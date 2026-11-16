@@ -1,0 +1,51 @@
+{
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.15.0 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.12.1",
+  "name": "invoices-backend",
+  "dependencies": {
+    "jose": "6.2.16",
+    "mongoose": "9.12.0",
+    "next": "16.4.5",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "swagger-ui-dist": "5.34.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.76.0",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "dependency-cruiser": "18.7.2",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.5",
+    "typescript": "6.0.3",
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:architecture": "node scripts/check-architecture.mjs",
+    "check": "npm run lint && npm run typecheck && npm test && npm run test:architecture",
+    "predev": "node scripts/prepare-swagger.mjs",
+    "dev": "next dev --hostname 0.0.0.0 --port 3000",
+    "prebuild": "node scripts/prepare-swagger.mjs",
+    "build": "next build",
+    "start": "node --env-file-if-exists=.env.local .next/standalone/server.js",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:http": "node scripts/test-http.mjs",
+    "openapi:lint": "redocly lint openapi/openapi.json",
+    "postbuild": "node scripts/prepare-standalone.mjs",
+    "authorization:init": "node --env-file-if-exists=.env.local scripts/initialize-authorization.mjs",
+    "memberships:migrate": "node --env-file-if-exists=.env.local scripts/migrate-legacy-memberships.mjs",
+    "notifications:worker": "node --env-file-if-exists=.env.local --experimental-loader ./scripts/typescript-loader.mjs src/bootstrap/run-notification-worker.ts"
+  }
+}

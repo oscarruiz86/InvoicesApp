@@ -1,0 +1,29 @@
+# FASE 1 — Fundación y seguridad
+/opsx:propose initial-invoices-app
+/opsx:propose initialize-foundations
+/opsx:propose implement-authentication
+/opsx:propose implement-authorization
+/opsx:propose implement-organization-context
+
+# FASE 2 — Administración organizacional
+/opsx:propose implement-company-management
+/opsx:propose implement-third-party-management
+/opsx:propose implement-user-management
+/opsx:propose implement-role-management
+
+# FASE 3 — Gestión de flota
+/opsx:propose implement-driver-management
+/opsx:propose implement-vehicle-management
+/opsx:propose implement-driver-vehicle-assignment
+
+# FASE 4 — Facturación
+/opsx:propose implement-invoice-management
+/opsx:propose implement-invoice-qr-scanning
+/opsx:propose implement-parameter-management
+
+# FASE 5 — Calidad y despliegue
+/opsx:propose implement-api-documentation
+/opsx:propose implement-audit-logging
+/opsx:propose implement-testing-quality
+/opsx:propose implement-deployment-infrastructure
+/opsx:propose implement-production-hardening

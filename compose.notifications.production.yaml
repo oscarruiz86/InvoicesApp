@@ -1,0 +1,56 @@
+name: invoices-notifications-production
+services:
+  notification-worker:
+    image: invoices-notifications-worker:production
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: worker
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 150s
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    ports:
+      - "127.0.0.1:8090:8090"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8090/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    environment:
+      NODE_ENV: production
+      MONGODB_URI_FILE: /run/secrets/mongodb-uri
+      INVITATION_PUBLIC_ORIGIN: ${INVITATION_PUBLIC_ORIGIN:?Define el origen HTTPS público}
+      SMTP_ENABLED: "true"
+      SMTP_HOST: ${SMTP_HOST:?Define el host SMTP}
+      SMTP_PORT: ${SMTP_PORT:?Define el puerto SMTP}
+      SMTP_USERNAME: ${SMTP_USERNAME:?Define el usuario SMTP}
+      SMTP_PASSWORD_FILE: /run/secrets/smtp-password
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:?Define el remitente SMTP}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Invoices App}
+      SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-10000}
+      NOTIFICATION_PAYLOAD_KEY_FILES: ${NOTIFICATION_PAYLOAD_KEY_FILES:-1=/run/secrets/notification-payload-keys/v1}
+      NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: ${NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION:-1}
+    volumes:
+      - type: bind
+        source: ${MONGODB_URI_SECRET_FILE:?Define ruta host del archivo Mongo URI}
+        target: /run/secrets/mongodb-uri
+        read_only: true
+      - type: bind
+        source: ${SMTP_PASSWORD_SECRET_FILE:?Define ruta host del archivo de contraseña SMTP}
+        target: /run/secrets/smtp-password
+        read_only: true
+      - type: bind
+        source: ${NOTIFICATION_PAYLOAD_KEYS_DIR:?Define carpeta host de claves de payload}
+        target: /run/secrets/notification-payload-keys
+        read_only: true

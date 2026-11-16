@@ -1,0 +1,52 @@
+groups:
+  - name: notifications-production
+    rules:
+      - alert: NotificationWorkerNotReady
+        expr: notification_worker_ready == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Notification worker is not ready
+      - alert: NotificationQueueStalled
+        expr: notifications_queue_oldest_pending_seconds > 5400
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Oldest notification has waited more than 90 minutes
+      - alert: NotificationWorkerNoProgress
+        expr: time() - notification_worker_last_poll_success_unixtime > 120
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Notification worker has not completed a poll recently
+      - alert: NotificationRetriesAccumulating
+        expr: notifications_retry_pending > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notifications are being retried
+      - alert: NotificationDeliveryFailures
+        expr: notifications_terminal_failed > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Terminal notification failures need review
+      - alert: NotificationProjectionStalled
+        expr: notifications_projection_pending > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification delivery status projection is pending
+      - alert: NotificationRetentionStalled
+        expr: time() - notification_worker_last_retention_success_unixtime > 7200
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification retention cleanup has not succeeded in two hours

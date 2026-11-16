@@ -1,0 +1,29 @@
+# Dependencies and generated build/test output
+**/node_modules/
+**/dist/
+**/build/
+**/.next/
+**/.vercel/
+**/.turbo/
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/*.tsbuildinfo
+**/*.log
+backend/public/docs-assets/
+
+# Environment files and local secrets: only commit explicit example templates
+**/.env*
+!**/.env.example
+!**/.env.*.example
+**/secrets/
+
+# Local agent/editor caches, history, and generated artifacts
+/.agents/
+/.history/
+/.artifacts/
+/.npm-cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db

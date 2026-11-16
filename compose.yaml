@@ -1,0 +1,177 @@
+name: invoices-foundations
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-}
+      INVOICES_WEB_ORIGIN: ${INVOICES_WEB_ORIGIN:-http://localhost:5173}
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./keycloak/invoices-realm.json:/opt/keycloak/data/import/invoices-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000; printf \"GET /health/ready HTTP/1.0\\r\\n\\r\\n\" >&3; read -r line <&3; [[ \"$$line\" == *\"200\"* ]]'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks: [invoices]
+  keycloak-profile-init:
+    image: quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        set -e;
+        until /opt/keycloak/bin/kcadm.sh config credentials --server http://keycloak:8080 --realm master --user "$${KC_BOOTSTRAP_ADMIN_USERNAME}" --password "$${KC_BOOTSTRAP_ADMIN_PASSWORD}" >/dev/null 2>&1; do sleep 2; done;
+        /opt/keycloak/bin/kcadm.sh update realms/invoices -s registrationAllowed=true -s registrationEmailAsUsername=true -s loginWithEmailAllowed=true -s verifyEmail=true -s editUsernameAllowed=false -s 'attributes."actionTokenGeneratedByUserLifespan.verify-email"=3600';
+        CLIENT_UUID=$$(/opt/keycloak/bin/kcadm.sh get clients -r invoices -q clientId=invoices-web --fields id --format csv --noquotes); test -n "$$CLIENT_UUID"; /opt/keycloak/bin/kcadm.sh update clients/$$CLIENT_UUID -r invoices -s baseUrl="$${INVOICES_WEB_ORIGIN}/login"; /opt/keycloak/bin/kcadm.sh get clients/$$CLIENT_UUID -r invoices --fields clientId,baseUrl;
+        /opt/keycloak/bin/kcadm.sh update users/profile -r invoices -f /opt/keycloak/data/import/invoices-user-profile.json;
+        /opt/keycloak/bin/kcadm.sh get realms/invoices --fields registrationAllowed,registrationEmailAsUsername,verifyEmail,attributes
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-}
+      INVOICES_WEB_ORIGIN: ${INVOICES_WEB_ORIGIN:-http://localhost:5173}
+    volumes:
+      - ./keycloak/invoices-user-profile.json:/opt/keycloak/data/import/invoices-user-profile.json:ro
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks: [invoices]
+  mongodb:
+    image: mongo:8.0@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
+    command: ["mongod", "--replSet", "invoices-rs", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status() } catch (e) { if (e.code === 94) rs.initiate({_id:'invoices-rs',members:[{_id:0,host:'mongodb:27017'}]}); else throw e; } quit(db.hello().isWritablePrimary ? 0 : 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [invoices]
+  backend:
+    image: invoices-backend:dev
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      SCARF_ANALYTICS: "false"
+      WATCHPACK_POLLING: "true"
+      MONGODB_URI: mongodb://mongodb:27017/invoices_app?replicaSet=invoices-rs
+      INVITATION_PUBLIC_ORIGIN: ${INVITATION_PUBLIC_ORIGIN:-http://localhost:5173}
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD_FILE: ${SMTP_PASSWORD_FILE:-/run/secrets/smtp-password}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-plain}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Invoices App}
+      SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-10000}
+      NOTIFICATION_PAYLOAD_KEY_FILE: ${NOTIFICATION_PAYLOAD_KEY_FILE:-/run/secrets/notification-payload-key}
+      NOTIFICATION_PAYLOAD_KEY_FILES: ${NOTIFICATION_PAYLOAD_KEY_FILES:-}
+      NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: ${NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION:-1}
+      KEYCLOAK_ISSUER_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}/realms/invoices
+      KEYCLOAK_AUDIENCE: invoices-api
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/invoices/protocol/openid-connect/certs
+      KEYCLOAK_DIRECTORY_ISSUER_URL: http://keycloak:8080/realms/invoices
+    command: ["npm", "run", "dev", "--", "--webpack"]
+    env_file:
+      - path: ./backend/.env.local
+        required: false
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - ./backend:/app
+      - ./shared:/shared
+      - ${SMTP_SECRET_DIR:-./secrets}:/run/secrets:ro
+      - backend-modules:/app/node_modules
+      - backend-next:/app/.next
+    depends_on:
+      keycloak-profile-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    networks: [invoices]
+  notification-worker:
+    image: invoices-backend:dev
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongodb:27017/invoices_app?replicaSet=invoices-rs
+      INVITATION_PUBLIC_ORIGIN: ${INVITATION_PUBLIC_ORIGIN:-http://localhost:5173}
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD_FILE: ${SMTP_PASSWORD_FILE:-/run/secrets/smtp-password}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-plain}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Invoices App}
+      SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-10000}
+      NOTIFICATION_PAYLOAD_KEY_FILE: ${NOTIFICATION_PAYLOAD_KEY_FILE:-/run/secrets/notification-payload-key}
+      NOTIFICATION_PAYLOAD_KEY_FILES: ${NOTIFICATION_PAYLOAD_KEY_FILES:-}
+      NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: ${NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION:-1}
+    command: ["npm", "run", "notifications:worker"]
+    env_file:
+      - path: ./backend/.env.local
+        required: false
+    volumes:
+      - ./backend:/app
+      - ./shared:/shared
+      - backend-modules:/app/node_modules
+      - ${SMTP_SECRET_DIR:-./secrets}:/run/secrets:ro
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks: [invoices]
+  frontend:
+    image: invoices-frontend:dev
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: development
+    environment:
+      VITE_API_BASE_URL: /api
+      API_PROXY_TARGET: http://backend:3000
+      CONTAINER_POLLING: "true"
+      VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
+      VITE_KEYCLOAK_REALM: invoices
+      VITE_KEYCLOAK_CLIENT_ID: invoices-web
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - ./shared:/shared
+      - frontend-modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [invoices]
+networks:
+  invoices:
+    driver: bridge
+volumes:
+  keycloak-data:
+  mongodb-data:
+  frontend-modules:
+  backend-modules:
+  backend-next:

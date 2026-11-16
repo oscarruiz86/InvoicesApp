@@ -1,0 +1,15 @@
+# Límites de arquitectura
+
+Frontend y backend son aplicaciones independientes. Domain contiene únicamente conceptos e invariantes puros; Application coordina por puertos; Infrastructure implementa conexiones y transporte; Presentation contiene UI/controladores y estado de interfaz. La composición vive en frontend/src/app y backend/src/bootstrap; solo los puntos de entrada conectan el bootstrap externo.
+
+Los contextos reservados son Identity & Access (authentication/identity), Organizations, Fleet Management (vehicles/fleet), Invoice Management, Configuration y Audit. Cada contexto es propietario de su información futura. No se crean entidades, modelos ni repositorios sin una regla aprobada. Home es un módulo técnico provisional y health es un controlador técnico, no agregados de negocio.
+
+Se permiten dependencias Presentation → Application → Domain e Infrastructure → Application/Domain. Los adaptadores no se importan en Application/Domain. React, Zustand, Material UI, Next, Zod y Mongoose se mantienen fuera de las capas internas. No hay imports internos entre aplicaciones. Los controladores y componentes no acceden directamente a persistencia ni construyen infraestructura.
+
+`npm run test:architecture` comprueba el grafo real y casos negativos de imports, reexportaciones por alias y ciclos. Las capas reservadas no representan funcionalidades implementadas. Las futuras colaboraciones entre contextos usarán contratos públicos, nunca colecciones o modelos ajenos.
+
+Identity & Access usa puertos específicos para ciclo de sesión, acceso temporal a credenciales y consulta de perfil en frontend; `IdentityVerifier` y un actor puro en backend. Los roles no representan asociaciones organizacionales ni permisos de recursos. El perfil se obtiene de la identidad verificada, sin repositorios o modelos MongoDB.
+
+La composición en `frontend/src/app` y `backend/src/bootstrap` conecta implementaciones. `keycloak-js` y `jose` se limitan a Infrastructure; los controles de arquitectura incluyen ejemplos negativos de SDK en Application y de adaptadores en Presentation. Zustand almacena únicamente estado de UI y perfil, nunca tokens. Las implementaciones de prueba respetan los mismos puertos y categorías de error.
+
+Organizations posee organizaciones, asociaciones funcionales y relaciones empresa-tercero. Su lector de hechos implementa el contrato público `OrganizationAccessReader` de Identity sin llamar a autorización. Bootstrap inyecta ese lector en Authorization y después inyecta el resolver de permisos en los casos de uso de contexto: no hay recursión ni acceso de Identity a modelos ajenos. El contexto resuelto es una vista, no una sesión ni un agregado persistido. Domain reutiliza roles/scopes puros; Application consume puertos de lectura, permisos y auditoría. Los casos Select/Switch/Restore reutilizan resolución explícita; Clear es una operación local de presentación. No se crean permisos, endpoints de login ni repositorios de contexto activo.
