@@ -1,12 +1,10 @@
 name: invoices-foundations
 services:
   keycloak:
-    image: quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b}
     command: ["start-dev", "--import-realm"]
     environment:
       KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-}
       INVOICES_WEB_ORIGIN: ${INVOICES_WEB_ORIGIN:-http://localhost:5173}
       KC_HEALTH_ENABLED: "true"
     ports:
@@ -21,23 +19,50 @@ services:
       retries: 30
       start_period: 30s
     networks: [invoices]
-  keycloak-profile-init:
-    image: quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >-
-        set -e;
-        until /opt/keycloak/bin/kcadm.sh config credentials --server http://keycloak:8080 --realm master --user "$${KC_BOOTSTRAP_ADMIN_USERNAME}" --password "$${KC_BOOTSTRAP_ADMIN_PASSWORD}" >/dev/null 2>&1; do sleep 2; done;
-        /opt/keycloak/bin/kcadm.sh update realms/invoices -s registrationAllowed=true -s registrationEmailAsUsername=true -s loginWithEmailAllowed=true -s verifyEmail=true -s editUsernameAllowed=false -s 'attributes."actionTokenGeneratedByUserLifespan.verify-email"=3600';
-        CLIENT_UUID=$$(/opt/keycloak/bin/kcadm.sh get clients -r invoices -q clientId=invoices-web --fields id --format csv --noquotes); test -n "$$CLIENT_UUID"; /opt/keycloak/bin/kcadm.sh update clients/$$CLIENT_UUID -r invoices -s baseUrl="$${INVOICES_WEB_ORIGIN}/login"; /opt/keycloak/bin/kcadm.sh get clients/$$CLIENT_UUID -r invoices --fields clientId,baseUrl;
-        /opt/keycloak/bin/kcadm.sh update users/profile -r invoices -f /opt/keycloak/data/import/invoices-user-profile.json;
-        /opt/keycloak/bin/kcadm.sh get realms/invoices --fields registrationAllowed,registrationEmailAsUsername,verifyEmail,attributes
+  keycloak-bootstrap:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b}
+    profiles: [keycloak-bootstrap]
+    entrypoint: ["/bin/bash", "/opt/keycloak/project/bootstrap-admin.sh"]
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-temp-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/keycloak-bootstrap-admin-password
       INVOICES_WEB_ORIGIN: ${INVOICES_WEB_ORIGIN:-http://localhost:5173}
     volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./keycloak:/opt/keycloak/project:ro
       - ./keycloak/invoices-user-profile.json:/opt/keycloak/data/import/invoices-user-profile.json:ro
+      - ${KEYCLOAK_SECRET_DIR:-./secrets}:/run/secrets:ro
+  keycloak-profile-migrate:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b}
+    profiles: [keycloak-migrate]
+    entrypoint: ["/bin/bash", "/opt/keycloak/project/migrate-profile-client.sh"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-temp-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/keycloak-bootstrap-admin-password
+      KEYCLOAK_PROFILE_CLIENT_SECRET_FILE: /run/secrets/keycloak-profile-init-client-secret
+      INVOICES_WEB_ORIGIN: ${INVOICES_WEB_ORIGIN:-http://localhost:5173}
+    volumes:
+      - ./keycloak:/opt/keycloak/project:ro
+      - ./keycloak/invoices-user-profile.json:/opt/keycloak/data/import/invoices-user-profile.json:ro
+      - ${KEYCLOAK_SECRET_DIR:-./secrets}:/run/secrets:ro
+      - type: tmpfs
+        target: /run/kcadm
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks: [invoices]
+  keycloak-profile-init:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b}
+    entrypoint: ["/bin/bash", "/opt/keycloak/project/init-profile.sh"]
+    environment:
+      KEYCLOAK_PROFILE_CLIENT_SECRET_FILE: /run/secrets/keycloak-profile-init-client-secret
+      INVOICES_WEB_ORIGIN: ${INVOICES_WEB_ORIGIN:-http://localhost:5173}
+    volumes:
+      - ./keycloak:/opt/keycloak/project:ro
+      - ./keycloak/invoices-user-profile.json:/opt/keycloak/data/import/invoices-user-profile.json:ro
+      - ${KEYCLOAK_SECRET_DIR:-./secrets}:/run/secrets:ro
+      - type: tmpfs
+        target: /run/kcadm
     depends_on:
       keycloak:
         condition: service_healthy
@@ -84,6 +109,7 @@ services:
       KEYCLOAK_AUDIENCE: invoices-api
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/invoices/protocol/openid-connect/certs
       KEYCLOAK_DIRECTORY_ISSUER_URL: http://keycloak:8080/realms/invoices
+      KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE: /run/secrets/keycloak-directory-client-secret
     command: ["npm", "run", "dev", "--", "--webpack"]
     env_file:
       - path: ./backend/.env.local

@@ -8,6 +8,7 @@ import { connectMongo } from '@/shared/infrastructure/mongodb/connection';
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
 import { authenticatedEndpoint } from './authenticated-endpoint';
 const now = () => new Date();
-const service = createCompanies({ repository: createCompanyRepository(() => connectMongo(readServerEnvironment().MONGODB_URI), policyConfirmation),
+const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
+const service = createCompanies({ repository: createCompanyRepository(connect, policyConfirmation),
   audit: createLimitedSecurityAudit({ record: async event => { console.info('authorization.security', JSON.stringify(event)); } }, { now }), now, nextEventId: randomUUID });
 export const companyEndpoint = (operation: CompanyOperation, id?: string) => authenticatedEndpoint((actor, request) => companyResponse(service, operation, actor, request, id));

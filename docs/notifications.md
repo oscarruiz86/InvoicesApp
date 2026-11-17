@@ -1,5 +1,7 @@
 # Notificaciones por correo
 
+El formato común de secretos montados y la rotación de credenciales están descritos en [runtime-secrets.md](runtime-secrets.md).
+
 Las invitaciones organizacionales son el primer tipo de notificación. La API escribe el registro de outbox en la misma transacción MongoDB que la invitación. El worker separado reclama trabajos mediante leases; SMTP puede entregar más de una vez si el servidor acepta un mensaje y el proceso cae antes de registrar el resultado. No hay promesa exactamente una vez.
 
 ## Retención e idempotencia

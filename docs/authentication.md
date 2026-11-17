@@ -4,12 +4,19 @@ La WebApp usa OIDC Authorization Code con PKCE S256 mediante `keycloak-js`; la A
 
 ## Preparación local
 
-Copiar los ejemplos de entorno solo si no existen. Completar `KC_BOOTSTRAP_ADMIN_USERNAME` y `KC_BOOTSTRAP_ADMIN_PASSWORD` en `.env` con valores propios; no reutilizar passwords reales de otros servicios. No versionar `.env`, exportaciones con usuarios, claves privadas ni credenciales. Sin bootstrap propio no habrá credenciales de administración disponibles para crear usuarios desde la consola.
+Copiar los ejemplos de entorno solo si no existen. `KC_BOOTSTRAP_ADMIN_USERNAME` identifica al usuario temporal que se crea solo para un volumen Keycloak nuevo. Guarda la contraseña de bootstrap y el secreto del cliente de perfiles en `secrets/keycloak-bootstrap-admin-password` y `secrets/keycloak-profile-init-client-secret`, respectivamente. El segundo debe ser aleatorio y URL-safe. `secrets/` está ignorado por Git; nunca pegues valores secretos en `.env`, argumentos de comandos, logs o archivos versionados.
 
 ```powershell
 docker compose config --quiet
-docker compose up -d keycloak keycloak-profile-init mongodb
+# Solo una vez y solo para un volumen Keycloak nuevo:
+docker compose --profile keycloak-bootstrap run --rm keycloak-bootstrap
+# Para un volumen existente, omite siempre el paso anterior y conserva sus datos.
+docker compose up -d keycloak mongodb
+docker compose --profile keycloak-migrate run --rm keycloak-profile-migrate
+docker compose up -d keycloak-profile-init mongodb
 ```
+
+En un volumen existente, copia la contraseña de la cuenta administrativa vigente a `secrets/keycloak-bootstrap-admin-password` con un editor y elimina `KC_BOOTSTRAP_ADMIN_PASSWORD` de `.env`. El servicio persistente arranca sin credenciales de bootstrap. Ejecuta `keycloak-profile-migrate` una vez: crea `invoices-profile-init`, asigna sus permisos y aplica el perfil sin reinicializar ni borrar el volumen. El proceso habitual usa únicamente el cliente de servicio. La migración no rota ni borra cuentas existentes.
 
 El realm `invoices` se importa desde `keycloak/invoices-realm.json` y el servicio de inicialización aplica `keycloak/invoices-user-profile.json` mediante la API administrativa. El perfil habilita registro autónomo, usa el correo como nombre de usuario, impide que el usuario cambie ese correo y exige nombre, apellido, tipo de documento colombiano (`CC`, `CE`, `TI`, `RC`, `PA`, `PPT`) y número alfanumérico con guion de 3 a 20 caracteres. Abrir `http://localhost:8080`, acceder a la consola con los valores locales y preparar usuarios existentes cuando sea necesario. Las contraseñas se establecen únicamente en Keycloak. Asignar un rol de aplicación solo si corresponde. Ningún rol de aplicación se asigna por defecto; `/api/auth/me` acepta un usuario autenticado sin roles.
 
@@ -30,7 +37,8 @@ Para aplicaciones en host, iniciar `npm --prefix backend run dev` y `npm --prefi
 | `KEYCLOAK_PORT` | raíz: `8080` | Publicación en loopback; elegir otro puerto si está ocupado. |
 | `KEYCLOAK_PUBLIC_URL` | raíz: `http://localhost:8080` | Hostname público completo de Keycloak. Sin barra final. |
 | `INVOICES_WEB_ORIGIN` | raíz: `http://localhost:5173` | Origen exacto usado al importar las allowlists. Sin barra final. |
-| `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` | raíz: valores locales propios | Solo bootstrap de Keycloak, nunca variables Vite. |
+| `KC_BOOTSTRAP_ADMIN_USERNAME` | raíz: identificador temporal | Solo bootstrap de volumen nuevo y migración puntual; no se inyecta al servicio persistente. |
+| `secrets/keycloak-bootstrap-admin-password`, `secrets/keycloak-profile-init-client-secret` | archivos locales ignorados | Solo lectura: bootstrap/migración e inicialización habitual del perfil. |
 | `VITE_KEYCLOAK_URL` | frontend: `http://localhost:8080` | URL accesible al navegador. |
 | `VITE_KEYCLOAK_REALM` | frontend: `invoices` | Realm público. |
 | `VITE_KEYCLOAK_CLIENT_ID` | frontend: `invoices-web` | Cliente público, sin secreto. |

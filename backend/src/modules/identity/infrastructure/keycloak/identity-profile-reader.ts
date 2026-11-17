@@ -11,11 +11,11 @@ const singleAttribute = (attributes: unknown, name: string): string | null => {
   return value[0].trim() || null;
 };
 
-export function createIdentityProfileReader(configuration: () => Configuration, fetcher: typeof fetch = fetch): IdentityProfileReader {
+export function createIdentityProfileReader(configuration: () => Configuration | Promise<Configuration>, fetcher: typeof fetch = fetch): IdentityProfileReader {
   return {
     async read(subject) {
       if (!subject || subject.length > 128 || subject.trim() !== subject) return null;
-      const config = configuration();
+      const config = await configuration();
       const issuer = new URL(config.issuer);
       const directoryIssuer = new URL(config.directoryIssuer ?? config.issuer);
       const validIssuer = (url: URL) => ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash

@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import type { EncryptedPayload } from '../domain/notification';
-import type { PayloadCipher, PayloadKeyringConfiguration, SecretReader } from '../application/ports';
+import type { PayloadCipher, PayloadKeyringConfiguration } from '../application/ports';
+import type { SecretReader } from '@/shared/application/secret-reader';
 function keyBytes(secret: string): Buffer {
   const value = secret.trim(); const key = /^[a-f\d]{64}$/i.test(value) ? Buffer.from(value, 'hex') : Buffer.from(value, 'base64');
   if (key.length !== 32) throw new Error('INVALID_ENCRYPTION_KEY'); return key;

@@ -1,11 +1,11 @@
 import type { AdministratorDirectory } from '../../application/administrator-directory';
 import { ConfigurationError } from '@/shared/application/configuration-error';
 export class AdministratorDirectoryUnavailable extends Error { constructor() { super('IDENTITY_UNAVAILABLE'); } }
-export function createAdministratorDirectory(configuration: () => { issuer: string; directoryIssuer?: string; clientId: string; clientSecret: string }, fetcher: typeof fetch = fetch): AdministratorDirectory {
+export function createAdministratorDirectory(configuration: () => { issuer: string; directoryIssuer?: string; clientId: string; clientSecret: string } | Promise<{ issuer: string; directoryIssuer?: string; clientId: string; clientSecret: string }>, fetcher: typeof fetch = fetch): AdministratorDirectory {
   return {
     async isEnabledCompanyAdministrator(subject) {
       if (!subject || subject.length > 128 || subject.trim() !== subject) return false;
-      const config = configuration();
+      const config = await configuration();
       const issuer = new URL(config.issuer);
       const directoryIssuer = new URL(config.directoryIssuer ?? config.issuer);
       const validIssuer = (url: URL) => ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.search && !url.hash

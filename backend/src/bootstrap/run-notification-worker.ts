@@ -4,14 +4,18 @@ import { closeMongo, connectMongo } from '@/shared/infrastructure/mongodb/connec
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
 import { createNotificationRepository } from '@/modules/notifications/infrastructure/mongodb/notification-repository';
 import { createAesPayloadCipher } from '@/modules/notifications/infrastructure/payload-cipher';
-import { fileSecretReader } from '@/modules/notifications/infrastructure/file-secret-reader';
+import { fileSecretReader } from '@/shared/infrastructure/file-secrets/file-secret-reader';
 import { createNotificationWorker } from '@/modules/notifications/infrastructure/worker';
+import { createNotificationWorkerHealth } from '@/modules/notifications/infrastructure/worker-health';
 import { createInvitationRepository } from '@/modules/organizations/infrastructure/mongodb/invitation-repository';
 import { createSmtpTransport, type SmtpConfiguration } from '@/modules/notifications/infrastructure/smtp-transport';
 import type { MailTransport } from '@/modules/notifications/application/ports';
 
-const environment = readServerEnvironment();
-const connect = () => connectMongo(environment.MONGODB_URI);
+async function startupStage<T>(code: string, operation: () => Promise<T> | T): Promise<T> {
+  try { return await operation(); } catch { throw new Error(code); }
+}
+const environment = await startupStage('WORKER_CONFIGURATION_INVALID', () => readServerEnvironment());
+const connect = () => connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE });
 const cipher = createAesPayloadCipher(fileSecretReader, environment.NOTIFICATION_PAYLOAD_KEYRING);
 const notifications = createNotificationRepository(connect, cipher);
 const invitations = createInvitationRepository(connect);
@@ -32,29 +36,27 @@ const worker = createNotificationWorker({ repository: notifications, cipher, now
     && invitation.tokenVersion === input.tokenVersion && invitation.attemptId === input.attemptId && invitation.expiresAt.getTime() > Date.now()); },
   ...(transport ? { transport } : {}) });
 
-await notifications.prepare();
-await cipher.prepare?.();
-let stopping = false;
-let lastPollSuccess = 0;
-let lastRetentionSuccess = 0;
+await startupStage('WORKER_MONGODB_UNAVAILABLE', () => notifications.prepare());
+await startupStage('WORKER_PAYLOAD_KEY_UNAVAILABLE', () => cipher.prepare?.());
+const health = createNotificationWorkerHealth();
 let nextRetentionAt = 0;
 let processed = 0;
 let pollErrors = 0;
 let retained = 0;
-const ready = () => !stopping && lastPollSuccess > 0 && Date.now() - lastPollSuccess <= 180_000;
+const healthPort = Number(process.env.NOTIFICATION_WORKER_HEALTH_PORT ?? 8090);
 const healthServer = createServer(async (request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   if (request.url === '/health/live') { response.writeHead(200, { 'Content-Type': 'application/json' }); response.end('{"status":"alive"}'); return; }
   if (request.url === '/health/ready') {
-    response.writeHead(ready() ? 200 : 503, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ status: ready() ? 'ready' : 'not-ready' })); return;
+    response.writeHead(health.ready() ? 200 : 503, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ status: health.ready() ? 'ready' : 'not-ready' })); return;
   }
   if (request.url === '/metrics') {
     try {
       const stats = await notifications.operationalStats(new Date());
       const metrics = [
-        '# TYPE notification_worker_ready gauge', 'notification_worker_ready ' + (ready() ? 1 : 0),
-        '# TYPE notification_worker_last_poll_success_unixtime gauge', 'notification_worker_last_poll_success_unixtime ' + (lastPollSuccess ? Math.floor(lastPollSuccess / 1000) : 0),
-        '# TYPE notification_worker_last_retention_success_unixtime gauge', 'notification_worker_last_retention_success_unixtime ' + (lastRetentionSuccess ? Math.floor(lastRetentionSuccess / 1000) : 0),
+        '# TYPE notification_worker_ready gauge', 'notification_worker_ready ' + (health.ready() ? 1 : 0),
+        '# TYPE notification_worker_last_poll_success_unixtime gauge', 'notification_worker_last_poll_success_unixtime ' + Math.floor(health.snapshot().lastPollSuccess / 1000),
+        '# TYPE notification_worker_last_retention_success_unixtime gauge', 'notification_worker_last_retention_success_unixtime ' + Math.floor(health.snapshot().lastRetentionSuccess / 1000),
         '# TYPE notification_worker_processed_total counter', 'notification_worker_processed_total ' + processed,
         '# TYPE notification_worker_poll_errors_total counter', 'notification_worker_poll_errors_total ' + pollErrors,
         '# TYPE notification_worker_retained_records_total counter', 'notification_worker_retained_records_total ' + retained,
@@ -71,20 +73,23 @@ const healthServer = createServer(async (request, response) => {
   }
   response.writeHead(404); response.end();
 });
-await new Promise<void>((resolve, reject) => { healthServer.once('error', reject); healthServer.listen(8090, '0.0.0.0', resolve); });
-process.once('SIGINT', () => { stopping = true; });
-process.once('SIGTERM', () => { stopping = true; });
+await startupStage('WORKER_HEALTH_LISTENER_FAILED', () => new Promise<void>((resolve, reject) => {
+  if (!Number.isSafeInteger(healthPort) || healthPort < 1 || healthPort > 65535) { reject(new Error('WORKER_HEALTH_LISTENER_FAILED')); return; }
+  healthServer.once('error', reject); healthServer.listen(healthPort, '0.0.0.0', resolve);
+}));
+process.once('SIGINT', () => { health.beginShutdown(); });
+process.once('SIGTERM', () => { health.beginShutdown(); });
 const safeErrorCode = (error: unknown) => error instanceof Error ? error.message.replace(/[^A-Z0-9_]/g, '').slice(0, 64) || 'WORKER_ERROR' : 'WORKER_ERROR';
 try {
-  while (!stopping) {
+  while (!health.snapshot().stopping) {
     try {
       const handled = await worker.processOne();
-      lastPollSuccess = Date.now();
+      health.markPollSuccess();
       if (Date.now() >= nextRetentionAt) {
         nextRetentionAt = Date.now() + 60 * 60 * 1000;
         try {
           const count = await notifications.purgeExpired(new Date());
-          retained += count; lastRetentionSuccess = Date.now();
+          retained += count; health.markRetentionSuccess();
           if (count > 0) console.info('notifications.retention.purged', count);
         } catch (error) { console.error('notifications.retention.error', safeErrorCode(error)); }
       }

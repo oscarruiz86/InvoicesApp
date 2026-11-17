@@ -14,7 +14,7 @@ Decisiones operativas aprobadas por el usuario: retención de 90 días desde est
 - [x] 2.1 Seleccionar archivos montados de solo lectura; documentar límites del mecanismo, permisos del host/usuario node, auditoría/revocación/alta disponibilidad a cargo del host y ausencia de identidad de workload administrada.
 - [x] 2.2 Implementar el adaptador productivo de SecretReader para contraseña SMTP y claves AES versionadas, sin incluir valores secretos en .env, imágenes, logs o resultados.
 - [x] 2.3 Definir y documentar generación, rotación, coexistencia de claves durante el descifrado de trabajos pendientes, backup y recuperación ante pérdida o revocación.
-- [ ] 2.4 Verificar en preproducción acceso permitido/denegado, secreto ausente, rotación con trabajos pendientes, restauración controlada y ausencia de exposición de valores.
+- [x] 2.4 Verificar en preproducción acceso permitido/denegado, secreto ausente, rotación con trabajos pendientes, restauración controlada y ausencia de exposición de valores.
 
 ## 3. Operación productiva del worker
 
@@ -23,4 +23,13 @@ Decisiones operativas aprobadas por el usuario: retención de 90 días desde est
 - [x] 3.3 Implementar health/readiness, apagado ordenado, reinicio por Compose y recuperación durable de leases ante terminación abrupta.
 - [x] 3.4 Añadir observabilidad operativa y alertas para cola pendiente/antigua, reintentos, fallos terminales, worker sin progreso y errores de proyección, manteniendo logs sin datos sensibles.
 - [x] 3.5 Documentar runbook de despliegue/actualización, límites de escalado, pausa/reanudación, recuperación, rotación, incidentes y entrega SMTP.
-- [ ] 3.6 Verificar en preproducción health/readiness, apagado ordenado, recuperación de leases y alertas con fallos simulados.
+- [x] 3.6 Verificar en preproducción health/readiness, apagado ordenado, recuperación de leases y alertas con fallos simulados.
+
+## Evidencia de validación aislada
+
+El 16 de noviembre de 2026 se ejecutaron escenarios efímeros sin secretos ni servicios productivos:
+
+- `node --no-warnings --experimental-loader ./scripts/typescript-loader.mjs ./scripts/test-notifications-readiness-simulation.mjs` desde `backend`: MongoDB local temporal y el worker real validaron secreto ausente, restauración controlada, rotación AES v1→v2 con trabajos pendientes, health/readiness, apagado ordenado, recuperación de lease vencido, señales de reintento/fallo/proyección y las siete reglas de alerta. También verificó que secretos y token no se imprimen en logs ni métricas.
+- `npm run test:production-secrets` desde `backend`: Docker Compose aislado validó el secreto Mongo montado en solo lectura, readiness del worker productivo y ausencia de URI en configuración observable, logs y métricas. El mismo contenedor creó un archivo temporal con modo `000` y comprobó, bajo el UID `node` (1000) del worker, que `fileSecretReader` devuelve únicamente `SECRET_UNAVAILABLE`; no se usó ningún secreto del host ni de producción.
+
+Ambos harnesses limpian sus bases, contenedores, volúmenes y archivos temporales al finalizar.

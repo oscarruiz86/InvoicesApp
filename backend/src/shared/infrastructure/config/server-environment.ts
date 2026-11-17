@@ -12,10 +12,14 @@ const publicOrigin = z.string().url().refine(value => {
 });
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  MONGODB_URI: z.string().trim().refine(value => {
+  MONGODB_URI: optional(z.string().trim().refine(value => {
     try { const url = new URL(value); return ['mongodb:', 'mongodb+srv:'].includes(url.protocol) && Boolean(url.hostname); }
     catch { return false; }
-  }),
+  })),
+  MONGODB_URI_FILE: optional(z.string().trim().min(1)),
+  KEYCLOAK_DIRECTORY_CLIENT_ID: optional(z.string().trim().min(1)),
+  KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE: optional(z.string().trim().min(1)),
+  KEYCLOAK_DIRECTORY_CLIENT_SECRET: optional(z.string().min(1)),
   KEYCLOAK_ISSUER_URL: optional(identityUrl),
   KEYCLOAK_AUDIENCE: optional(z.string().trim().min(1)),
   KEYCLOAK_JWKS_URL: optional(identityUrl),
@@ -35,6 +39,24 @@ const schema = z.object({
   NOTIFICATION_PAYLOAD_KEY_FILES: optional(z.string().trim().min(1)),
   NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: z.preprocess(value => value === '' || value === undefined ? 1 : Number(value), z.number().int().min(1).max(255)),
 }).superRefine((value, context) => {
+  if (value.NODE_ENV === 'production') {
+    if (!value.MONGODB_URI_FILE || value.MONGODB_URI) context.addIssue({ code: 'custom', path: ['MONGODB_URI_FILE'], message: 'Producción requiere solo MONGODB_URI_FILE' });
+    if (value.KEYCLOAK_DIRECTORY_CLIENT_SECRET || value.KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE && !value.KEYCLOAK_DIRECTORY_CLIENT_ID)
+      context.addIssue({ code: 'custom', path: ['KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE'], message: 'Credencial de directorio inválida' });
+  }
+  if (value.MONGODB_URI_FILE && value.MONGODB_URI) context.addIssue({ code: 'custom', path: ['MONGODB_URI_FILE'], message: 'Configure Mongo mediante una sola fuente' });
+  if (value.KEYCLOAK_DIRECTORY_CLIENT_SECRET && value.KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE)
+    context.addIssue({ code: 'custom', path: ['KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE'], message: 'Configure el secreto de directorio mediante una sola fuente' });
+  if (value.NODE_ENV !== 'production' && !value.MONGODB_URI && !value.MONGODB_URI_FILE)
+    context.addIssue({ code: 'custom', path: ['MONGODB_URI'], message: 'Se requiere configuración Mongo' });
+  if (value.MONGODB_URI) {
+    try {
+      const uri = new URL(value.MONGODB_URI);
+      const localMongoHosts = ['localhost', '127.0.0.1', '[::1]', 'mongodb'];
+      if (value.NODE_ENV === 'production' || uri.username || uri.password || !localMongoHosts.includes(uri.hostname))
+        context.addIssue({ code: 'custom', path: ['MONGODB_URI'], message: 'La URI inline solo se admite sin credenciales en Mongo local fuera de producción' });
+    } catch { /* The schema field reports the invalid URI without exposing its value. */ }
+  }
   if (value.SMTP_ENABLED) {
     for (const field of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_TLS_MODE', 'SMTP_FROM_ADDRESS', 'INVITATION_PUBLIC_ORIGIN'] as const)
       if (!value[field]) context.addIssue({ code: 'custom', path: [field], message: 'Configuración SMTP/notificaciones incompleta' });

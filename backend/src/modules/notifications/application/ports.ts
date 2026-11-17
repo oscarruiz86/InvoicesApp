@@ -7,7 +7,6 @@ export interface NotificationRepository {
 }
 export interface PayloadCipher { prepare?(): Promise<void>; encrypt(value: unknown): Promise<EncryptedPayload>; decrypt<T>(value: EncryptedPayload): Promise<T> }
 export interface PayloadKeyringConfiguration { readonly activeVersion: number; readonly keyFiles: Readonly<Record<number, string>> }
-export interface SecretReader { read(reference: string): Promise<string> }
 export interface MailMessage { readonly to: string; readonly fromAddress: string; readonly fromName: string; readonly subject: string; readonly text: string; readonly html?: string }
 export interface MailTransport { send(message: MailMessage): Promise<{ readonly serverReference: string | null }> }
 export interface InvitationDeliveryProjection { update(input: { invitationId: string; tokenVersion: number; attemptId: string; status: 'LOGGED' | 'FAILED'; now: Date }): Promise<void> }

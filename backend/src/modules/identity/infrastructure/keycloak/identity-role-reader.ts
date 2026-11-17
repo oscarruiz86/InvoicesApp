@@ -4,11 +4,11 @@ import { IdentityProfileUnavailable } from '../../application/identity-profile-r
 
 type Configuration = { issuer: string; directoryIssuer?: string; clientId: string; clientSecret: string };
 
-export function createIdentityRoleReader(configuration: () => Configuration, fetcher: typeof fetch = fetch): IdentityRoleReader {
+export function createIdentityRoleReader(configuration: () => Configuration | Promise<Configuration>, fetcher: typeof fetch = fetch): IdentityRoleReader {
   return {
     async read(subject) {
       if (!subject || subject.length > 128 || subject.trim() !== subject) return null;
-      const config = configuration();
+      const config = await configuration();
       const issuer = new URL(config.issuer);
       const directoryIssuer = new URL(config.directoryIssuer ?? config.issuer);
       if (directoryIssuer.pathname !== issuer.pathname || !config.clientId || !config.clientSecret) throw new IdentityProfileUnavailable();

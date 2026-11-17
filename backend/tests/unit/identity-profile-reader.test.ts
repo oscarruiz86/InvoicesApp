@@ -9,6 +9,14 @@ const complete = (overrides: Partial<IdentityProfile> = {}): IdentityProfile => 
 });
 
 describe('Keycloak identity profile reader', () => {
+  it('accepts asynchronously loaded configuration for mounted credentials', async () => {
+    const http = vi.fn().mockResolvedValueOnce(Response.json({ access_token: 'service-token' })).mockResolvedValueOnce(Response.json({ id: 'subject-1', enabled: true }));
+    const readConfiguration = vi.fn(async () => configuration());
+    await expect(createIdentityProfileReader(readConfiguration, http).read('subject-1')).resolves.toMatchObject({ subject: 'subject-1' });
+    expect(readConfiguration).toHaveBeenCalledOnce();
+    expect(http.mock.calls[0][1]?.body?.toString()).toContain('client_secret=private');
+  });
+
   it('reads only the current authorized profile and derives completeness', async () => {
     const http = vi.fn()
       .mockResolvedValueOnce(Response.json({ access_token: 'service-token' }))

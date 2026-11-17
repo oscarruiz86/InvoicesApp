@@ -3,6 +3,7 @@
 **/dist/
 **/build/
 **/.next/
+**/.next-http-test/
 **/.vercel/
 **/.turbo/
 **/coverage/

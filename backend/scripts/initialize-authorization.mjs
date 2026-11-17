@@ -10,7 +10,7 @@ try {
   close = closeMongo;
   const { createPolicyRepository } = await server.ssrLoadModule('/src/modules/identity/infrastructure/mongodb/policy-repository.ts');
   const environment = readServerEnvironment();
-  const policy = await createPolicyRepository(() => connectMongo(environment.MONGODB_URI)).initialize();
+  const policy = await createPolicyRepository(() => connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE })).initialize();
   console.log(`Authorization policy ready; revision ${policy.version}. Existing revisions are preserved.`);
 } catch { console.error('Authorization initialization failed. Check database and configuration.'); process.exitCode = 1; }
 finally { await close?.(); await server.close(); }

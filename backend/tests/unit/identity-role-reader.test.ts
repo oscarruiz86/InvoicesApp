@@ -15,6 +15,11 @@ it('reads only current realm roles through the read-only directory client', asyn
   expect(JSON.stringify(fetcher.mock.calls)).not.toContain('APP_ADMIN');
 });
 
+it('accepts asynchronously loaded configuration', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(response({ access_token: 'service-token' })).mockResolvedValueOnce(response([{ name: 'DRIVER' }]));
+  await expect(createIdentityRoleReader(async () => configuration, fetcher).read('subject-1')).resolves.toEqual(['DRIVER']);
+});
+
 it('returns no roles for a missing user and fails closed on malformed provider data', async () => {
   const missing = vi.fn().mockResolvedValueOnce(response({ access_token: 'service-token' })).mockResolvedValueOnce(response({}, 404));
   await expect(createIdentityRoleReader(() => configuration, missing).read('absent')).resolves.toBeNull();

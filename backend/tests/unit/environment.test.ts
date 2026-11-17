@@ -13,6 +13,13 @@ describe('runtime environment and identity configuration', () => {
   it.each([{}, { MONGODB_URI: '' }, { MONGODB_URI: 'https://invalid' }])('rejects invalid MongoDB configuration: %j', env => {
     expect(() => readServerEnvironment(env)).toThrow(ConfigurationError);
   });
+  it('requires a mounted Mongo URI in production and rejects plaintext or collisions', () => {
+    expect(readServerEnvironment({ NODE_ENV: 'production', MONGODB_URI_FILE: '/run/secrets/mongo' }).MONGODB_URI_FILE).toBe('/run/secrets/mongo');
+    expect(() => readServerEnvironment({ NODE_ENV: 'production', MONGODB_URI: 'mongodb://db/app' })).toThrow(ConfigurationError);
+    expect(() => readServerEnvironment({ ...base, MONGODB_URI_FILE: '/run/secrets/mongo' })).toThrow(ConfigurationError);
+    expect(() => readServerEnvironment({ MONGODB_URI: 'mongodb://user:password@127.0.0.1:27017/app' })).toThrow(ConfigurationError);
+    expect(() => readServerEnvironment({ MONGODB_URI: 'mongodb://database.internal:27017/app' })).toThrow(ConfigurationError);
+  });
   it.each([{ KEYCLOAK_AUDIENCE: 'api' }, { KEYCLOAK_ISSUER_URL: 'https://identity.invalid/realm' }])('rejects partial identity configuration: %j', fields => {
     expect(() => readServerEnvironment({ ...base, ...fields })).toThrow(ConfigurationError);
   });

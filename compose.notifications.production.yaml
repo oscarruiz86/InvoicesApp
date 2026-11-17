@@ -41,6 +41,7 @@ services:
       SMTP_TIMEOUT_MS: ${SMTP_TIMEOUT_MS:-10000}
       NOTIFICATION_PAYLOAD_KEY_FILES: ${NOTIFICATION_PAYLOAD_KEY_FILES:-1=/run/secrets/notification-payload-keys/v1}
       NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: ${NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION:-1}
+      NOTIFICATION_WORKER_HEALTH_PORT: "8090"
     volumes:
       - type: bind
         source: ${MONGODB_URI_SECRET_FILE:?Define ruta host del archivo Mongo URI}

@@ -9,7 +9,7 @@ try {
   const { inspectLegacyMemberships, migrateLegacyMemberships } = await server.ssrLoadModule('/src/modules/organizations/infrastructure/mongodb/legacy-membership-migration.ts');
   close = closeMongo;
   const environment = readServerEnvironment();
-  const connection = await connectMongo(environment.MONGODB_URI);
+  const connection = await connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE });
   const result = process.argv.includes('--apply') ? await migrateLegacyMemberships(connection) : await inspectLegacyMemberships(connection);
   const { groups, organizations, ...summary } = result;
   console.log(JSON.stringify(summary, null, 2));

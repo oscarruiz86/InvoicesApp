@@ -5,7 +5,7 @@ import { createInvitationDelegation } from '@/modules/organizations/application/
 import { createInvitationRepository, InvitationRepositoryError } from '@/modules/organizations/infrastructure/mongodb/invitation-repository';
 import { createNotificationRepository } from '@/modules/notifications/infrastructure/mongodb/notification-repository';
 import { createAesPayloadCipher } from '@/modules/notifications/infrastructure/payload-cipher';
-import { fileSecretReader } from '@/modules/notifications/infrastructure/file-secret-reader';
+import { fileSecretReader } from '@/shared/infrastructure/file-secrets/file-secret-reader';
 import { issueInvitationCredential } from '@/modules/organizations/infrastructure/invitation-tokens';
 import { createIdentityProfileReader } from '@/modules/identity/infrastructure/keycloak/identity-profile-reader';
 import { createIdentityRoleReader } from '@/modules/identity/infrastructure/keycloak/identity-role-reader';
@@ -17,11 +17,14 @@ import { invitationResponse, type InvitationOperation } from '@/modules/organiza
 import { membershipResponse, type MembershipOperation } from '@/modules/organizations/presentation/memberships';
 import { errorResponse } from '@/shared/presentation/http/errors';
 
-const connect = () => connectMongo(readServerEnvironment().MONGODB_URI);
-const identityConfiguration = () => {
+const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
+const identityConfiguration = async () => {
   const environment = readServerEnvironment();
+  const clientSecret = environment.KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE
+    ? await fileSecretReader.read(environment.KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE)
+    : environment.NODE_ENV !== 'production' ? environment.KEYCLOAK_DIRECTORY_CLIENT_SECRET ?? '' : '';
   return { issuer: String(environment.KEYCLOAK_ISSUER_URL ?? ''), directoryIssuer: String(environment.KEYCLOAK_DIRECTORY_ISSUER_URL ?? environment.KEYCLOAK_ISSUER_URL ?? ''),
-    clientId: process.env.KEYCLOAK_DIRECTORY_CLIENT_ID ?? '', clientSecret: process.env.KEYCLOAK_DIRECTORY_CLIENT_SECRET ?? '' };
+    clientId: environment.KEYCLOAK_DIRECTORY_CLIENT_ID ?? '', clientSecret };
 };
 const identity = createIdentityProfileReader(identityConfiguration);
 const identityRoles = createIdentityRoleReader(identityConfiguration);

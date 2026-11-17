@@ -9,9 +9,10 @@ import { readServerEnvironment } from '@/shared/infrastructure/config/server-env
 import { authenticatedEndpoint } from './authenticated-endpoint';
 
 const clock = { now: () => new Date() };
-export const organizationReader = createOrganizationRepository(() => connectMongo(readServerEnvironment().MONGODB_URI));
+const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
+export const organizationReader = createOrganizationRepository(connect);
 export const authorization = createAuthorization({
-  policies: createPolicyRepository(() => connectMongo(readServerEnvironment().MONGODB_URI)),
+  policies: createPolicyRepository(connect),
   organizations: organizationReader,
   audit: createLimitedSecurityAudit({ record: async event => { console.info('authorization.security', JSON.stringify(event)); } }, clock),
   clock, ids: { next: randomUUID },

@@ -8,8 +8,9 @@ import { readServerEnvironment } from '@/shared/infrastructure/config/server-env
 import { authorization, organizationReader } from './authorization-endpoint';
 import { authenticatedEndpoint } from './authenticated-endpoint';
 
+const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
 const contexts = createOrganizationContexts({ organizations: organizationReader, permissions: authorization,
-  audit: createLimitedContextAudit(createContextAudit(() => connectMongo(readServerEnvironment().MONGODB_URI)), Date.now),
+  audit: createLimitedContextAudit(createContextAudit(connect), Date.now),
   now: () => new Date(), nextId: randomUUID });
 export const availableContextsEndpoint = authenticatedEndpoint((actor, request) => availableContextsResponse(contexts, actor, request));
 export const resolveContextEndpoint = authenticatedEndpoint((actor, request) => resolveContextResponse(contexts, actor, request));
