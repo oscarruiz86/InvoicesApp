@@ -1,13 +1,15 @@
 schema: spec-driven
 
-# Project context (optional)
-# Add only constraints that should guide OpenSpec artifacts and workflows.
-# Include constraints an agent cannot infer by reading the code.
-# Keep general project documentation and discoverable codebase facts out.
-# Example:
-#   context: |
-#     Designs and tasks must cover Windows, macOS, and Linux
-#     Write all artifacts in Spanish
+context: |
+  El repositorio tiene dos ramas principales: `main` para producción y
+  `development` para integración de desarrollo. Ambas están protegidas:
+  no se aceptan commits ni pushes directos; los cambios llegan mediante un
+  pull request aprobado.
+
+  Cada propuesta OpenSpec activa se implementa en una rama exclusiva con el
+  nombre `openspec/<id-de-la-propuesta>`, creada desde `development`. Su pull
+  request se dirige a `development`. Las entregas a producción se promueven
+  desde `development` hacia `main` mediante un pull request aprobado.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
