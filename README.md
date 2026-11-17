@@ -35,7 +35,9 @@ En el entorno preparado se usa `MONGO_PORT=27019`, porque 27017 ya estaba ocupad
 | backend: variables `KEYCLOAK_*` | Issuer/audiencia juntos; JWKS opcional. Obligatorios para `/api/auth/me`; técnicos públicos funcionan sin el grupo. |
 | raíz: `FRONTEND_PORT`, `BACKEND_PORT`, `MONGO_PORT` | Publicaciones locales de Compose; por defecto 5173, 3000 y 27017. |
 | raíz: `KEYCLOAK_PORT`, `KEYCLOAK_PUBLIC_URL`, `INVOICES_WEB_ORIGIN` | Por defecto 8080, `http://localhost:8080` y `http://localhost:5173`; alinear cuando se cambian puertos/orígenes. |
-| raíz: `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` | Valores propios en `.env` ignorado; solo Keycloak, nunca Vite. |
+| raíz: `KC_BOOTSTRAP_ADMIN_USERNAME` | Identificador temporal; su contraseña se guarda en `secrets/keycloak-bootstrap-admin-password`. |
+| `secrets/keycloak-profile-init-client-secret` | Secreto del cliente local de perfiles, ignorado por Git y montado como archivo de solo lectura. |
+| `secrets/keycloak-directory-client-secret` | Secreto del cliente de directorio Keycloak. `backend/.env.local` usa `KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE=../secrets/keycloak-directory-client-secret`; Compose lo monta como `/run/secrets/keycloak-directory-client-secret`. |
 
 El puerto interno Next.js es 3000. Si se necesita un puerto distinto para un proceso manual, se pasa al CLI/proceso; no se configura mediante `backend/.env.local`. Cambiar variables Vite exige reiniciar desarrollo o reconstruir el bundle estático.
 
