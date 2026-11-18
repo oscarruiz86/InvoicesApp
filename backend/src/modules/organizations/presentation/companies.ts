@@ -11,7 +11,7 @@ const querySchema = z.object({ scope: z.enum(['global', 'organization']), compan
   page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().min(1).max(100).optional(), status: z.enum(['ACTIVE', 'INACTIVE']).optional(), documentType: z.literal('NIT').optional(),
   country: z.string().trim().min(1).max(128).optional(), department: z.string().trim().min(1).max(128).optional(), city: z.string().trim().min(1).max(128).optional(),
-  sort: z.enum(['businessName', 'documentNumber', 'createdAt', 'updatedAt', 'status']).default('createdAt'), direction: z.enum(['asc', 'desc']).default('desc'), active: z.enum(['true', 'false']).optional(),
+  sort: z.enum(['businessName', 'documentNumber', 'createdAt', 'updatedAt', 'status', 'country', 'department', 'city']).default('createdAt'), direction: z.enum(['asc', 'desc']).default('desc'), active: z.enum(['true', 'false']).optional(),
 }).strict().refine(value => value.scope === 'global' ? !value.companyId : Boolean(value.companyId));
 export type CompanyOperation = 'list' | 'create' | 'get' | 'update' | 'status' | 'administrators';
 export function companyResponse(service: Companies, operation: CompanyOperation, actor: AuthenticatedActor, request: Request, companyId?: string) {

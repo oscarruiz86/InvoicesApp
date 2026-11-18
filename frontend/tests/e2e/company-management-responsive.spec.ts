@@ -8,13 +8,22 @@ for (const width of [360, 1280]) test(`company screens fit ${width}px and remain
   await mkdir(evidence, { recursive: true });
   await page.setViewportSize({ width, height: 900 });
   await page.goto('/tests/e2e/company-management-harness.html');
+  expect(await page.locator('body').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(244, 246, 250)');
+  if (width <= 600) {
+    await page.getByRole('button', { name: 'Abrir navegación' }).click();
+    await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeHidden();
+  } else {
+    await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeVisible();
+  }
   await expect(page.getByRole('heading', { name: 'Empresas' })).toBeVisible();
   await expect(page.getByLabel('Buscar por nombre o documento')).toBeVisible();
   await expect(page.getByText('Empresa de prueba')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: path.join(evidence, `companies-${width}.png`), fullPage: true });
 
-  await page.getByRole('link', { name: 'Ver empresa' }).click();
+  await page.getByRole('link', { name: width <= 600 ? 'Ver empresa' : 'Ver', exact: true }).click();
   await page.getByRole('button', { name: 'Desactivar empresa' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();

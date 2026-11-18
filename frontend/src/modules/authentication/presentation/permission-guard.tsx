@@ -16,12 +16,15 @@ export function PermissionGuard({ store, permission, eligible = true, children, 
 }
 export function AuthorizationFeedback({ store }: { store: AuthorizationStore }) {
   const state = useStore(store);
-  if (state.status === 'idle' || state.status === 'loading') return <Alert severity="info" role="status">Verificando permisos…</Alert>;
+  // Permission reads run silently. Protected content remains gated until its
+  // first decision; same-scope refreshes retain the authorized screen.
+  if (state.status === 'idle' || state.status === 'loading' || state.status === 'refreshing') return null;
   if (state.status === 'denied' || state.status === 'ready') return <Alert severity="warning">Acceso denegado.</Alert>;
   return <Stack spacing={2}><Alert severity="error">{errorMessage(state.error)}</Alert><Button onClick={() => void state.refresh()}>Reintentar permisos</Button></Stack>;
 }
 function PermissionRoute({ authorization, permission, children }: { authorization: AuthorizationStore; permission: Permission; children: ReactNode }) {
-  const allowed = usePermission(authorization, permission);
+  useStore(authorization);
+  const allowed = authorization.getState().has(permission);
   return allowed ? children : <AuthorizationFeedback store={authorization} />;
 }
 export function ProtectedRoute({ authentication, authorization, permission, children }: { authentication: AuthenticationStore; authorization: AuthorizationStore; permission: Permission; children: ReactNode }) {

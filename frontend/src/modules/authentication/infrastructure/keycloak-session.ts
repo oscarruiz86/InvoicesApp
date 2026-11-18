@@ -3,7 +3,7 @@ import { ApplicationError } from '@/shared/application/application-error';
 import type { AccessTokenPort, LoginOptions, SessionPort, SessionSnapshot, SessionFailure } from '../application/session-ports';
 import type { OidcConfiguration } from './oidc-configuration';
 
-export type OidcClient = Pick<Keycloak, 'init' | 'createLoginUrl' | 'createLogoutUrl' | 'updateToken' | 'isTokenExpired' | 'clearToken' | 'authenticated' | 'token' | 'refreshToken' | 'idToken' | 'onTokenExpired'>;
+export type OidcClient = Pick<Keycloak, 'init' | 'createLoginUrl' | 'createLogoutUrl' | 'updateToken' | 'isTokenExpired' | 'clearToken' | 'authenticated' | 'token' | 'refreshToken' | 'idToken' | 'onTokenExpired'> & Partial<Pick<Keycloak, 'accountManagement'>>;
 const logoutKey = 'invoices.logout';
 const loginReturnPathKey = 'invoices.login-return-path';
 const loginReturnPaths = new Set(['/session', '/invitations/accept', '/invitations/received']);
@@ -120,7 +120,13 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
         if (loginHint && (loginHint.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginHint))) throw new Error('INVALID_LOGIN_HINT');
         const url = await bounded(instance.createLoginUrl({ redirectUri: window.location.origin + '/auth/callback', scope: 'openid profile email', ...(loginHint ? { loginHint } : {}), ...(loginOptions.action === 'register' ? { action: 'register' } : {}), ...(loginOptions.action === 'switch-account' ? { prompt: 'login' } : {}) }));
         if (epoch === generation) navigate(url);
-      } catch { try { sessionStorage.removeItem(loginReturnPathKey); } catch {} if (epoch === generation) discard('AUTHENTICATION'); }
+      } catch { try { sessionStorage.removeItem(loginReturnPathKey); } catch { /* Ignore storage cleanup failures. */ } if (epoch === generation) discard('AUTHENTICATION'); }
+    },
+    async openAccountManagement() {
+      const instance = client;
+      if (!instance || !['authenticated', 'refreshing'].includes(snapshot.status)) throw new ApplicationError('UNAUTHENTICATED');
+      if (!instance.accountManagement) throw new ApplicationError('UNEXPECTED');
+      await instance.accountManagement();
     },
     async getAccessToken() {
       const instance = client;
@@ -147,7 +153,7 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
     invalidate() { discard('SESSION_EXPIRED'); },
     async logout() {
       if (!configuration) { discard(); return; }
-      try { sessionStorage.removeItem(loginReturnPathKey); } catch {}
+      try { sessionStorage.removeItem(loginReturnPathKey); } catch { /* Ignore storage cleanup failures. */ }
       let url: URL;
       try {
         // Reinitialization permits retrying remote logout without retaining an old credential.

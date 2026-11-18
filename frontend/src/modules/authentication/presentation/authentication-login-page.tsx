@@ -15,7 +15,7 @@ export function AuthenticationLoginPage({ authentication }: { authentication: Au
   const authenticated = ['authenticated', 'refreshing'].includes(state.status);
   const busy = ['initializing', 'authenticating', 'refreshing', 'signingOut'].includes(state.status);
   if (authenticated) return <Navigate to="/session" replace />;
-  return <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, maxWidth: 560, mx: 'auto' }}><Stack spacing={2}>
+  return <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, maxWidth: 440, mx: 'auto' }}><Stack spacing={2}>
     <Typography variant="h4" component="h1">Iniciar sesión</Typography>
     <Alert severity="info">Tu contraseña se actualizó. Para continuar a Invoices App y revisar tus invitaciones, inicia sesión con el correo y la contraseña de tu cuenta.</Alert>
     {state.error && <Alert severity="error">{messages[state.error]}</Alert>}

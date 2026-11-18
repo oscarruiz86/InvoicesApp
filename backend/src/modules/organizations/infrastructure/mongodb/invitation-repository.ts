@@ -368,7 +368,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         return updated as Membership;
       } catch (error) { return mapError(error); }
     },
-    async listMemberships(input: { organizationId: string; organizationType: OrganizationType; status?: 'ACTIVE' | 'INACTIVE'; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[] }[]; readonly total: number }> {
+    async listMemberships(input: { organizationId: string; organizationType: OrganizationType; status?: 'ACTIVE' | 'INACTIVE'; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[] }[]; readonly total: number }> {
       if (!input.organizationId || !Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) {
         throw new InvitationRepositoryError('INVALID_RECORD');
       }
@@ -376,7 +376,14 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         const connection = await connect();
         await initialize(connection);
         const memberships = membershipModel(connection);
-        const filter = { organizationId: input.organizationId, ...(input.status ? { status: input.status } : {}) };
+        if (input.subjects && !input.subjects.length) return { items: [], total: 0 };
+        const filter: Record<string, unknown> = { organizationId: input.organizationId, ...(input.status ? { status: input.status } : {}), ...(input.subjects ? { subject: { $in: input.subjects } } : {}) };
+        if (input.role) {
+          const assignments = await connection.collection('organization_associations').find({ organizationId: input.organizationId, capability: input.role, assigned: { $ne: false } }, { projection: { membershipId: 1, _id: 0 } }).toArray();
+          const membershipIds = assignments.map(value => value.membershipId).filter((value): value is string => typeof value === 'string');
+          if (!membershipIds.length) return { items: [], total: 0 };
+          filter.id = { $in: membershipIds };
+        }
         const [values, total] = await Promise.all([
           memberships.find(filter).sort({ subject: 1, id: 1 }).skip((input.page - 1) * input.pageSize).limit(input.pageSize).lean().exec(),
           memberships.countDocuments(filter).exec(),
@@ -391,6 +398,53 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
           const roles = [...new Set(assignments.filter(assignment => assignment.membershipId === membership.id && assignment.subject === membership.subject && assignment.assigned !== false)
             .map(assignment => String(assignment.capability)))];
           return { membership, roles: validatedRoles(input.organizationType, roles) };
+        });
+        return { items, total };
+      } catch (error) { return mapError(error); }
+    },
+    async listMembershipsByCompany(input: { companyId: string; status?: 'ACTIVE' | 'INACTIVE'; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly organization: { readonly id: string; readonly organizationType: OrganizationType; readonly name: string } }[]; readonly total: number }> {
+      if (!input.companyId || !Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) {
+        throw new InvitationRepositoryError('INVALID_RECORD');
+      }
+      try {
+        const connection = await connect();
+        await initialize(connection);
+        const companies = connection.collection('organizations');
+        const company = await companies.findOne({ id: input.companyId, type: 'COMPANY', active: true }, { projection: { _id: 0, id: 1, type: 1, name: 1 } });
+        if (!company) throw new InvitationRepositoryError('RECORD_NOT_FOUND');
+        const relations = await connection.collection('company_third_party_relations').find({ companyId: input.companyId, active: true }, { projection: { thirdPartyId: 1, _id: 0 } }).toArray();
+        const thirdPartyIds = relations.map(value => value.thirdPartyId).filter((value): value is string => typeof value === 'string');
+        const organizations = await companies.find({ $or: [{ id: input.companyId, type: 'COMPANY', active: true },
+          { id: { $in: thirdPartyIds }, type: 'THIRD_PARTY', active: true }] }, { projection: { _id: 0, id: 1, type: 1, name: 1 } }).toArray();
+        const organizationById = new Map(organizations.map(value => [String(value.id), {
+          id: String(value.id), organizationType: value.type as OrganizationType, name: String(value.name),
+        }]));
+        const organizationIds = [...organizationById.keys()];
+        if (!organizationIds.length || input.subjects?.length === 0) return { items: [], total: 0 };
+        const memberships = membershipModel(connection);
+        const filter: Record<string, unknown> = { organizationId: { $in: organizationIds }, ...(input.status ? { status: input.status } : {}),
+          ...(input.subjects ? { subject: { $in: input.subjects } } : {}) };
+        if (input.role) {
+          const matchingAssignments = await connection.collection('organization_associations').find({ organizationId: { $in: organizationIds }, capability: input.role,
+            assigned: { $ne: false } }, { projection: { membershipId: 1, _id: 0 } }).toArray();
+          const membershipIds = matchingAssignments.map(value => value.membershipId).filter((value): value is string => typeof value === 'string');
+          if (!membershipIds.length) return { items: [], total: 0 };
+          filter.id = { $in: membershipIds };
+        }
+        const [values, total] = await Promise.all([
+          memberships.find(filter).sort({ organizationId: 1, subject: 1, id: 1 }).skip((input.page - 1) * input.pageSize).limit(input.pageSize).lean().exec(),
+          memberships.countDocuments(filter).exec(),
+        ]);
+        if (!values.length) return { items: [], total };
+        const ids = values.map(value => String(value.id));
+        const assignments = await connection.collection('organization_associations').find({ organizationId: { $in: organizationIds }, membershipId: { $in: ids } }).sort({ capability: 1 }).toArray();
+        const items = values.flatMap(value => {
+          const membership = value as Membership;
+          const organization = organizationById.get(membership.organizationId);
+          if (!organization) return [];
+          const roles = [...new Set(assignments.filter(assignment => assignment.organizationId === membership.organizationId && assignment.membershipId === membership.id
+            && assignment.subject === membership.subject && assignment.assigned !== false).map(assignment => String(assignment.capability)))];
+          return [{ membership, roles: validatedRoles(organization.organizationType, roles), organization }];
         });
         return { items, total };
       } catch (error) { return mapError(error); }

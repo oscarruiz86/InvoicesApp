@@ -107,8 +107,9 @@ describe('authorization state and context generations', () => {
     await store.getState().refresh(); expect(store.getState().has('invoices:read')).toBe(true);
     read.mockImplementationOnce(() => new Promise(() => {}));
     await vi.advanceTimersByTimeAsync(30_000);
-    expect(store.getState().has('invoices:read')).toBe(false); expect(store.getState().status).toBe('loading');
-    publish({ status: 'refreshing' }); expect(store.getState().snapshot).toBeNull();
+    expect(store.getState().has('invoices:read')).toBe(true); expect(store.getState().status).toBe('refreshing');
+    expect(store.getState().snapshot?.permissions).toContain('invoices:read');
+    publish({ status: 'refreshing' }); expect(store.getState().snapshot?.permissions).toContain('invoices:read');
     publish({ status: 'authenticated', credentialRevision: 2 });
     await vi.advanceTimersByTimeAsync(0); expect(store.getState().status).toBe('ready');
     expect(read).toHaveBeenCalledTimes(3);
@@ -132,13 +133,20 @@ describe('authorization state and context generations', () => {
   });
 });
 describe('permission routes, actions and navigation', () => {
-  it('hides private content during loading and combines permission with instance eligibility', async () => {
-    const { store, port } = setup();
+  it('gates the initial permission load, keeps an authorized page during refresh, and combines permission with instance eligibility', async () => {
+    const { store, port, read } = setup();
     const authentication = createAuthenticationStore(createAuthentication(port, { read: async () => ({ id: 'u1', username: null, name: null, email: null, roles: ['DRIVER'] }) }));
     render(<MemoryRouter><ProtectedRoute authentication={authentication} authorization={store} permission="invoices:read"><div>Private invoices</div></ProtectedRoute><PermissionGuard store={store} permission="invoices:update" eligible={false}><button>Edit QR</button></PermissionGuard></MemoryRouter>);
     expect(screen.queryByText('Private invoices')).not.toBeInTheDocument();
+    expect(screen.queryByText('Verificando permisos…')).not.toBeInTheDocument();
     await act(() => store.getState().refresh());
     expect(screen.getByText('Private invoices')).toBeInTheDocument(); expect(screen.queryByText('Edit QR')).not.toBeInTheDocument();
+    let resolveRefresh!: (value: PermissionsSnapshot) => void;
+    read.mockImplementationOnce(scope => new Promise(resolve => { resolveRefresh = resolve; void scope; }));
+    let pending!: Promise<void>;
+    act(() => { pending = store.getState().refresh(); });
+    expect(store.getState().status).toBe('refreshing'); expect(screen.getByText('Private invoices')).toBeInTheDocument();
+    await act(async () => { resolveRefresh(snapshot(selfScope)); await pending; });
     act(() => store.getState().invalidate()); expect(screen.queryByText('Private invoices')).not.toBeInTheDocument();
   });
   it('keeps DRIVER away from administration and only renders permitted THIRD_PARTY_ADMIN modules', async () => {
@@ -163,5 +171,17 @@ describe('permission routes, actions and navigation', () => {
     view.rerender(<AuthorizationFeedback store={unavailable.store} />); expect(screen.getByRole('button', { name: 'Reintentar permisos' })).toBeInTheDocument();
     const expired = setup(vi.fn(async () => { throw new ApplicationError('UNAUTHENTICATED'); })); await expired.store.getState().refresh();
     expect(expired.port.invalidate).toHaveBeenCalledOnce(); expect(expired.store.getState().snapshot).toBeNull();
+  });
+  it('keeps an in-flight permission read silent and only displays a message after failure', async () => {
+    let rejectRead!: (error: unknown) => void;
+    const failed = setup(vi.fn(() => new Promise<PermissionsSnapshot>((_resolve, reject) => { rejectRead = reject; })));
+    const view = render(<AuthorizationFeedback store={failed.store} />);
+    expect(view.container).toBeEmptyDOMElement();
+    let pending!: Promise<void>;
+    act(() => { pending = failed.store.getState().refresh(); });
+    expect(view.container).toBeEmptyDOMElement();
+    await act(async () => { rejectRead(new ApplicationError('UNAVAILABLE')); await pending; });
+    expect(screen.getByRole('alert')).toHaveTextContent('El servicio no está disponible. Puedes reintentar.');
+    expect(screen.getByRole('button', { name: 'Reintentar permisos' })).toBeInTheDocument();
   });
 });

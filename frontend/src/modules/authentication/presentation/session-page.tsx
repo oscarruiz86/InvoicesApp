@@ -1,10 +1,10 @@
 import { useEffect, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import { Link, Navigate, useLocation } from 'react-router';
-import { Alert, Button, Chip, CircularProgress, Paper, Stack, Typography } from '@mui/material';
+import { Navigate, useLocation, useNavigate } from 'react-router';
+import { Alert, Avatar, Button, Chip, CircularProgress, Divider, Menu, MenuItem, Paper, Snackbar, Stack, Typography } from '@mui/material';
+import { useState } from 'react';
 import type { AuthenticationStore } from './authentication-store';
 import type { AuthorizationStore } from './authorization-store';
-import { AuthorizedNavigation } from './authorized-navigation';
 import { errorMessage } from '@/shared/components/error-messages';
 import { getRoleLabel } from '@shared/role-labels';
 
@@ -27,16 +27,24 @@ export function SessionFeedback({ store }: { store: AuthenticationStore }) {
 export function AuthenticationActions({ store, authorization }: { store: AuthenticationStore; authorization?: AuthorizationStore }) {
   const state = useStore(store);
   const location = useLocation();
-  const authenticated = ['authenticated', 'refreshing'].includes(state.status);
-  const busy = ['initializing', 'authenticating', 'signingOut'].includes(state.status);
-  return <Stack spacing={2} sx={{ mb: 4 }}>
-    <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-      {authorization ? <AuthorizedNavigation store={authorization} items={[{ label: 'Inicio', path: '/' }, { label: 'Mi perfil', path: '/session' }]} /> : <><Button component={Link} to="/">Inicio</Button><Button component={Link} to="/session">Mi perfil</Button></>}
-      {authenticated && <Button component={Link} to="/invitations/received">Mis invitaciones</Button>}
-      {location.pathname !== '/login' && <Button variant="outlined" disabled={busy} onClick={() => void (authenticated ? state.logout() : state.login(state.returnPath))}>{authenticated ? 'Cerrar sesión' : 'Iniciar sesión'}</Button>}
-    </Stack>
-    {state.error && location.pathname === '/' && <SessionFeedback store={store} />}
-  </Stack>;
+  void authorization;
+  return state.error && location.pathname === '/' ? <Stack spacing={2} sx={{ mb: 4 }}><SessionFeedback store={store} /></Stack> : null;
+}
+
+export function AccountMenu({ store, context }: { store: AuthenticationStore; context?: { activeContext: { kind: 'GLOBAL'; roles: readonly string[] } | { kind: 'ORGANIZATION'; organizationName: string; organizationType: 'COMPANY' | 'THIRD_PARTY'; roles: readonly string[] } | null; openSelector(): Promise<boolean> } }) {
+  const state = useStore(store); const [anchor, setAnchor] = useState<HTMLElement | null>(null); const [accountError, setAccountError] = useState(false); const navigate = useNavigate();
+  const initials = (state.user?.name ?? state.user?.username ?? 'Usuario').split(/\s+/).map(value => value[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  const active = context?.activeContext;
+  const contextLabel = !active ? 'Sin contexto seleccionado' : active.kind === 'GLOBAL' ? 'Administración global' : `${active.organizationName} · ${active.organizationType === 'COMPANY' ? 'Empresa' : 'Tercero'}`;
+  const roles = active?.roles ?? [];
+  const changeContext = async () => { setAnchor(null); if (context && await context.openSelector()) navigate('/organizations/select'); };
+  return <><Button variant="text" aria-label="Abrir menú de usuario" onClick={event => setAnchor(event.currentTarget)} sx={{ minWidth: 42, width: 42, height: 42, p: 0, borderRadius: '50%' }}><Avatar sx={{ width: 42, height: 42, bgcolor: 'primary.main' }}>{initials}</Avatar></Button>
+    <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)} slotProps={{ paper: { sx: { minWidth: 270, p: 1 } } }}>
+      <MenuItem disabled>{state.user?.name ?? state.user?.username ?? 'Usuario'}</MenuItem><Divider />
+      <MenuItem disabled sx={{ opacity: '1 !important', alignItems: 'flex-start', flexDirection: 'column' }}><Typography variant="caption" color="text.secondary">Contexto actual</Typography><Typography variant="body2">{contextLabel}</Typography></MenuItem>
+      <MenuItem disabled sx={{ opacity: '1 !important', alignItems: 'flex-start', flexDirection: 'column' }}><Typography variant="caption" color="text.secondary">Rol actual</Typography><Typography variant="body2">{roles.length ? roles.map(getRoleLabel).join(', ') : 'Sin rol asignado'}</Typography></MenuItem>
+      <Divider /><MenuItem onClick={() => void changeContext()}>Cambiar contexto</MenuItem><MenuItem onClick={() => { setAnchor(null); navigate('/session'); }}>Mi perfil</MenuItem><MenuItem onClick={() => { setAnchor(null); void state.openAccountManagement().catch(() => setAccountError(true)); }}>Cambiar contraseña</MenuItem><MenuItem onClick={() => { setAnchor(null); void state.logout(); }}>Cerrar sesión</MenuItem>
+    </Menu><Snackbar open={accountError} autoHideDuration={6000} onClose={() => setAccountError(false)}><Alert severity="error" onClose={() => setAccountError(false)}>No fue posible abrir la gestión de cuenta.</Alert></Snackbar></>;
 }
 
 export function PrivateRoute({ store, children }: { store: AuthenticationStore; children: ReactNode }) {

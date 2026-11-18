@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import { createInvitations } from '@/modules/organizations/application/invitations';
-import { createMemberships } from '@/modules/organizations/application/memberships';
+import { createMemberships, MembershipUseCaseError } from '@/modules/organizations/application/memberships';
 import { createInvitationDelegation } from '@/modules/organizations/application/invitation-delegation';
 import { createInvitationRepository, InvitationRepositoryError } from '@/modules/organizations/infrastructure/mongodb/invitation-repository';
 import { createNotificationRepository } from '@/modules/notifications/infrastructure/mongodb/notification-repository';
@@ -14,7 +15,7 @@ import { connectMongo } from '@/shared/infrastructure/mongodb/connection';
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
 import { authenticatedEndpoint } from './authenticated-endpoint';
 import { invitationResponse, type InvitationOperation } from '@/modules/organizations/presentation/invitations';
-import { membershipResponse, type MembershipOperation } from '@/modules/organizations/presentation/memberships';
+import { membershipResponse, membershipUserSearchQuery, type MembershipOperation } from '@/modules/organizations/presentation/memberships';
 import { errorResponse } from '@/shared/presentation/http/errors';
 
 const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
@@ -118,7 +119,54 @@ export function membershipUseCases() {
 }
 
 export const invitationEndpoint = (operation: InvitationOperation, id?: string) => authenticatedEndpoint((actor, request) => invitationResponse(invitationUseCases(), operation, actor, request, id));
-export const membershipEndpoint = (operation: MembershipOperation, id?: string) => authenticatedEndpoint((actor, request) => membershipResponse(membershipUseCases(), operation, actor, request, id));
+async function thirdPartyOptionsResponse(actor: import('@/modules/identity/domain/actor').AuthenticatedActor, request: Request) {
+  try {
+    const params = new URL(request.url).searchParams;
+    const companyId = params.get('companyId')?.trim() ?? '';
+    const search = params.get('q')?.trim() ?? '';
+    if (params.get('lookup') !== 'third-parties' || !companyId || companyId.length > 128 || search.length > 120
+      || [...params.keys()].some(key => !['lookup', 'companyId', 'q'].includes(key) || params.getAll(key).length !== 1)) {
+      return Response.json({ error: { code: 'INVALID_REQUEST', message: 'La solicitud no es válida.' } }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    }
+    const scope = actor.roles.includes('APP_ADMIN') ? { kind: 'global', companyId: null, thirdPartyId: null } as const
+      : { kind: 'organization', companyId, thirdPartyId: null } as const;
+    await authorization.requirePermission(actor, 'users:read', scope);
+    const connection = await connect();
+    const company = await connection.collection('organizations').findOne({ id: companyId, type: 'COMPANY', active: true }, { projection: { _id: 0 } });
+    if (!company) return Response.json({ error: { code: 'NOT_FOUND', message: 'La empresa no está disponible.' } }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
+    const relations = await connection.collection('company_third_party_relations').find({ companyId, active: true }, { projection: { thirdPartyId: 1, _id: 0 } }).toArray();
+    const ids = relations.map(value => value.thirdPartyId).filter((value): value is string => typeof value === 'string');
+    if (!ids.length) return Response.json({ items: [] }, { headers: { 'Cache-Control': 'no-store' } });
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const items = await connection.collection('organizations').find({ id: { $in: ids }, type: 'THIRD_PARTY', active: true, name: { $regex: escaped, $options: 'i' } },
+      { projection: { _id: 0, id: 1, name: 1 } }).sort({ name: 1, id: 1 }).limit(50).toArray();
+    return Response.json({ items: items.map(value => ({ id: value.id, name: value.name })) }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) { return errorResponse(error); }
+}
+async function identityOptionsResponse(actor: import('@/modules/identity/domain/actor').AuthenticatedActor, request: Request) {
+  try {
+    const params = new URL(request.url).searchParams;
+    const raw: Record<string, string> = {};
+    for (const [key, value] of params) { if (key in raw) return Response.json({ error: { code: 'INVALID_REQUEST', message: 'La solicitud no es válida.' } }, { status: 400 }); raw[key] = value; }
+    if (raw.lookup !== 'users') return Response.json({ error: { code: 'INVALID_REQUEST', message: 'La solicitud no es válida.' } }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    delete raw.lookup;
+    const result = await membershipUseCases().searchUsers(actor, membershipUserSearchQuery(raw));
+    return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    if (error instanceof z.ZodError) return Response.json({ error: { code: 'INVALID_REQUEST', message: 'La solicitud no es válida.' } }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    if (error instanceof MembershipUseCaseError) {
+      const values = { INVALID_REQUEST: [400, 'INVALID_REQUEST', 'La solicitud no es válida.'], NOT_FOUND: [404, 'NOT_FOUND', 'La organización no está disponible.'],
+        FORBIDDEN: [403, 'FORBIDDEN', 'No tiene permisos para esta operación.'], CONFLICT: [409, 'CONFLICT', 'El registro cambió; vuelve a consultar.'], UNAVAILABLE: [503, 'UNAVAILABLE', 'El servicio no está disponible.'] } as const;
+      const [status, code, message] = values[error.code];
+      return Response.json({ error: { code, message } }, { status, headers: { 'Cache-Control': 'no-store' } });
+    }
+    return errorResponse(error);
+  }
+}
+export const membershipEndpoint = (operation: MembershipOperation, id?: string) => authenticatedEndpoint((actor, request) =>
+  operation === 'list' && new URL(request.url).searchParams.get('lookup') === 'third-parties' ? thirdPartyOptionsResponse(actor, request)
+    : operation === 'list' && new URL(request.url).searchParams.get('lookup') === 'users' ? identityOptionsResponse(actor, request)
+      : membershipResponse(membershipUseCases(), operation, actor, request, id));
 export const publicInvitationEndpoint = (operation: 'preview') => async (request: Request) => {
   try { return await invitationResponse(invitationUseCases(), operation, null, request); }
   catch (error) { return errorResponse(error); }

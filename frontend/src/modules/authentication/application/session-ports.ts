@@ -7,6 +7,7 @@ export interface LoginOptions { readonly action?: 'register' | 'switch-account';
 export interface SessionPort {
   initialize(): Promise<void>;
   login(returnPath?: string, options?: LoginOptions): Promise<void>;
+  openAccountManagement?(): Promise<void>;
   logout(): Promise<void>;
   invalidate(): void;
   snapshot(): SessionSnapshot;

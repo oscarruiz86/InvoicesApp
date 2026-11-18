@@ -1,12 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createKeycloakSession, type OidcClient } from '@/modules/authentication/infrastructure/keycloak-session';
 import { readOidcConfiguration } from '@/modules/authentication/infrastructure/oidc-configuration';
 import { createHttpCurrentUser } from '@/modules/authentication/infrastructure/http-current-user';
 import type { SessionPort, SessionSnapshot } from '@/modules/authentication/application/session-ports';
 
 const configuration = { url: 'http://localhost:8080', realm: 'invoices', clientId: 'invoices-web' };
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); });
 function sdk(): OidcClient {
-  return { init: vi.fn(async () => true), createLoginUrl: vi.fn(async () => 'https://identity.invalid/auth'), createLogoutUrl: vi.fn(() => 'https://identity.invalid/logout'), updateToken: vi.fn(async () => true), isTokenExpired: vi.fn(() => false), clearToken: vi.fn(async () => {}), authenticated: true, token: 'access-in-memory', refreshToken: 'refresh-in-memory', idToken: 'identity-in-memory' };
+  return { init: vi.fn(async () => true), createLoginUrl: vi.fn(async () => 'https://identity.invalid/auth'), createLogoutUrl: vi.fn(() => 'https://identity.invalid/logout'), accountManagement: vi.fn(async () => {}), updateToken: vi.fn(async () => true), isTokenExpired: vi.fn(() => false), clearToken: vi.fn(async () => {}), authenticated: true, token: 'access-in-memory', refreshToken: 'refresh-in-memory', idToken: 'identity-in-memory' };
 }
 afterEach(() => { vi.useRealTimers(); window.history.replaceState(null, '', '/'); localStorage.clear(); sessionStorage.clear(); });
 
@@ -23,6 +24,16 @@ describe('public OIDC configuration', () => {
 });
 
 describe('OIDC session lifecycle', () => {
+  it('opens the identity provider account management only for an authenticated session', async () => {
+    const client = sdk(); const session = createKeycloakSession(configuration, { factory: () => client });
+    await session.initialize();
+    await session.openAccountManagement?.();
+    expect(client.accountManagement).toHaveBeenCalledOnce();
+
+    const anonymous = createKeycloakSession(configuration, { factory: () => ({ ...sdk(), init: vi.fn(async () => false) }) });
+    await anonymous.initialize();
+    await expect(anonymous.openAccountManagement?.()).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+  });
   it('cleans callback credentials even when OIDC configuration is absent', async () => {
     window.history.replaceState(null, '', '/auth/callback?code=invalid&state=invalid#callback');
     const factory = vi.fn(sdk);
@@ -42,7 +53,11 @@ describe('OIDC session lifecycle', () => {
     expect(client.createLoginUrl).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` }));
     expect(navigate).toHaveBeenCalledWith('https://identity.invalid/auth');
     expect(JSON.stringify(session.snapshot())).not.toContain('in-memory');
-    expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0);
+    expect(localStorage.length).toBe(0);
+    const callbackState = JSON.parse(sessionStorage.getItem('invoices.login-return-path')!);
+    expect(callbackState).toMatchObject({ path: '/session' });
+    const storedValues = Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.getItem(sessionStorage.key(index)!)).join(' ');
+    expect(storedValues).not.toMatch(/access-in-memory|refresh-in-memory|identity-in-memory/);
   });
   it('keeps the exact Keycloak callback and pre-fills the invited email during registration', async () => {
     const navigate = vi.fn();

@@ -14,6 +14,7 @@ export interface IdentityProfile {
 
 export interface IdentityProfileReader {
   read(subject: string): Promise<IdentityProfile | null>;
+  search?(input: { readonly text?: string; readonly documentNumber?: string; readonly emailOnly?: boolean }): Promise<readonly IdentityProfile[]>;
 }
 
 export class IdentityProfileUnavailable extends Error {

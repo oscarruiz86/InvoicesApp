@@ -5,6 +5,7 @@ export function createAuthentication(session: SessionPort, users: CurrentUserPor
     initialize: () => session.initialize(),
     login: (returnPath = '/session', options?: LoginOptions) => session.login(
       returnPath === '/invitations/accept' || returnPath === '/invitations/received' ? returnPath : '/session', options),
+    openAccountManagement: () => session.openAccountManagement?.() ?? Promise.reject(new Error('Account management is unavailable')),
     logout: () => session.logout(),
     invalidate: () => session.invalidate(),
     snapshot: () => session.snapshot(),
