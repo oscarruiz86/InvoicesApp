@@ -35,14 +35,9 @@
 - [x] 5.1 Ejecutar compilación, pruebas de componentes y recorridos de escritorio y móvil para los cuatro roles definidos, y registrar la evidencia de permisos, foco, cambio de contexto y estados de página. Verificación actualizada: 121 pruebas unitarias, 12 recorridos Playwright a 360/1280 px, lint sin errores, chequeo de tipos, arquitectura y build.
 - [x] 5.2 Actualizar la guía de integración del template con los contratos de registro de módulos, Usuarios y entregas de notificaciones, y verificar que los ejemplos no requieren datos sensibles. Ver `integration-guide.md`.
 
-**Complemento backend pendiente (se integra al desarrollar esos módulos):**
+## Integraciones en sus módulos
 
-- [ ] 6.1 Implementar las rutas autorizadas de consulta, actualización y cambio de estado para conductores y vehículos; respaldar los permisos `drivers:*` y `vehicles:*`, versión de concurrencia y el conductor vigente del vehículo. Después, conectar los adaptadores HTTP a `FleetApi`.
-- [ ] 6.2 Publicar `notifications:deliveries:read` y una ruta de lectura de entregas paginada y con detalle, acotada por alcance de autorización y con el DTO seguro definido en `notifications/application/delivery-api.ts`.
-- [ ] 6.3 Conectar `NotificationDeliveryReadPort` al transporte HTTP autenticado cuando exista el contrato backend y añadir pruebas de contrato para paginación, autorización y rechazo de campos sensibles.
+Las tareas 3.8, 4.1 y 4.2 quedan cerradas para el alcance del template: las pantallas, acciones, permisos y puertos frontend están implementados y verificados. Las rutas, permisos backend y adaptadores HTTP se abordarán dentro de los cambios de Flota y Notificaciones cuando se desarrollen esos módulos. No quedan tareas abiertas en esta propuesta de template.
 
-Las tareas 3.8, 4.1 y 4.2 cierran su entrega frontend: las pantallas, los estados, los permisos y los puertos quedan listos y cubiertos por pruebas con fuentes controladas. Los servicios reales y sus adaptadores se completarán dentro de las tareas 6.1–6.3.
+Consulta `integration-guide.md` para los contratos preparados y los puntos de conexión pendientes.
 
-## Workflow follow-up
-
-- Revisar el cambio antes de archivarlo y sincronizar las especificaciones cuando corresponda.

@@ -25,4 +25,4 @@ Ninguna. Las reglas de negocio, los permisos y la entrega SMTP continúan bajo s
 
 ## Impact
 
-La implementación afectará el frontend React, Vite, TypeScript, Material UI, React Router y Zustand. Requiere contratos de lectura para identidad, contexto, usuarios y asociaciones, además del historial técnico de entregas, sin exponer secretos SMTP, tokens de invitación, cuerpos de correo ni destinatarios completos.
+La implementación afecta el frontend React, Vite, TypeScript, Material UI, React Router y Zustand. El template define los puertos de presentación para identidad, contexto, usuarios, asociaciones, flota y entregas de notificaciones; cada módulo conecta sus rutas y adaptadores backend en su propio ciclo de desarrollo. La UI no expone secretos SMTP, tokens de invitación, cuerpos de correo ni destinatarios completos.
