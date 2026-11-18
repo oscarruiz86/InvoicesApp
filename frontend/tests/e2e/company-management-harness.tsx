@@ -31,6 +31,7 @@ createRoot(document.getElementById('root')!).render(<ThemeProvider theme={theme}
       <Route path="/companies" element={<CompanyPage api={api} context={context} authorization={authorization} mode="list" />} />
       <Route path="/companies/new" element={<CompanyPage api={api} context={context} authorization={authorization} mode="create" />} />
       <Route path="/companies/:id" element={<CompanyPage api={api} context={context} authorization={authorization} mode="detail" />} />
+      <Route path="/companies/:id/edit" element={<CompanyPage api={api} context={context} authorization={authorization} mode="edit" />} />
     </Routes>
   </AppLayout>
 </MemoryRouter></ThemeProvider>);

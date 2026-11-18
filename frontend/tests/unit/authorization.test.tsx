@@ -11,7 +11,7 @@ import { createHttpPermissions } from '@/modules/authentication/infrastructure/h
 import { createProtectedHttp } from '@/modules/authentication/infrastructure/protected-http';
 import { createKeycloakSession, type OidcClient } from '@/modules/authentication/infrastructure/keycloak-session';
 import type { SessionPort, SessionSnapshot } from '@/modules/authentication/application/session-ports';
-import { selfScope, type PermissionScope, type PermissionsSnapshot } from '@/modules/authentication/domain/permissions';
+import { selfScope, type ApplicationRole, type Permission, type PermissionScope, type PermissionsSnapshot } from '@/modules/authentication/domain/permissions';
 import { ApplicationError } from '@/shared/application/application-error';
 
 const stores: AuthorizationStore[] = [];
@@ -118,7 +118,7 @@ describe('authorization state and context generations', () => {
     let visible = true; const { store, read } = setup(undefined, { automatic: true, visible: () => visible });
     await Promise.resolve(); await Promise.resolve(); await store.getState().refresh();
     visible = false; document.dispatchEvent(new Event('visibilitychange'));
-    expect(store.getState().snapshot).toBeNull();
+    expect(store.getState().snapshot?.permissions).toContain('invoices:read');
     visible = true; window.dispatchEvent(new Event('focus')); await Promise.resolve(); await Promise.resolve();
     expect(read.mock.calls.length).toBeGreaterThan(1);
     expect(JSON.stringify(store.getState())).not.toMatch(/SECRET|keycloak|accessToken/);
@@ -153,14 +153,46 @@ describe('permission routes, actions and navigation', () => {
     const driver = setup(); await driver.store.getState().refresh();
     const third = setup(vi.fn(async scope => ({ ...snapshot(scope), permissions: ['vehicles:read', 'drivers:read'] as const })));
     await third.store.getState().setContext(scopeA);
-    const items = [{ label: 'Empresas', path: '/companies', permission: 'companies:read' as const }, { label: 'Facturas', path: '/invoices', permission: 'invoices:read' as const }, { label: 'Vehículos', path: '/vehicles', permission: 'vehicles:read' as const },
+    const items = [{ label: 'Empresas', path: '/companies', permission: 'companies:read' as const }, { label: 'Facturas', path: '/invoices', permission: 'invoices:read' as const, context: 'organization' as const }, { label: 'Vehículos', path: '/vehicles', permission: 'vehicles:read' as const, context: 'organization' as const },
       { label: 'Gestionar invitaciones', path: '/invitations', anyPermission: ['users:read', 'drivers:read'] as const }];
-    const view = render(<MemoryRouter><AuthorizedNavigation store={driver.store} items={items} /></MemoryRouter>);
+    const view = render(<MemoryRouter><AuthorizedNavigation store={driver.store} items={items} contextKind="ORGANIZATION" /></MemoryRouter>);
     expect(screen.queryByText('Empresas')).not.toBeInTheDocument(); expect(screen.getByText('Facturas')).toBeInTheDocument();
     expect(screen.queryByText('Gestionar invitaciones')).not.toBeInTheDocument();
-    view.rerender(<MemoryRouter><AuthorizedNavigation store={third.store} items={items} /></MemoryRouter>);
+    view.rerender(<MemoryRouter><AuthorizedNavigation store={third.store} items={items} contextKind="GLOBAL" /></MemoryRouter>);
+    expect(screen.queryByText('Facturas')).not.toBeInTheDocument(); expect(screen.queryByText('Vehículos')).not.toBeInTheDocument();
+    view.rerender(<MemoryRouter><AuthorizedNavigation store={third.store} items={items} contextKind="ORGANIZATION" /></MemoryRouter>);
     expect(screen.queryByText('Facturas')).not.toBeInTheDocument(); expect(screen.getByText('Vehículos')).toBeInTheDocument();
     expect(screen.getByText('Gestionar invitaciones')).toBeInTheDocument();
+  });
+  it('renders only the modules granted to each of the four application roles', async () => {
+    const items = [
+      { label: 'Empresas', path: '/companies', permission: 'companies:read' as const },
+      { label: 'Usuarios', path: '/users', permission: 'associations:read' as const, context: 'organization' as const },
+      { label: 'Vehículos', path: '/vehicles', permission: 'vehicles:read' as const, context: 'organization' as const },
+      { label: 'Conductores', path: '/drivers', permission: 'drivers:read' as const, context: 'organization' as const },
+      { label: 'Facturas', path: '/invoices', permission: 'invoices:read' as const, context: 'organization' as const },
+      { label: 'Asignaciones', path: '/assignments', permission: 'assignments:read' as const, context: 'organization' as const },
+    ];
+    const scenarios: { role: ApplicationRole; scope: PermissionScope; contextKind: 'GLOBAL' | 'ORGANIZATION'; permissions: readonly Permission[]; visible: readonly string[] }[] = [
+      { role: 'APP_ADMIN', scope: { kind: 'global', companyId: null, thirdPartyId: null }, contextKind: 'GLOBAL', permissions: ['companies:read', 'associations:read', 'vehicles:read', 'drivers:read', 'invoices:read', 'assignments:read'], visible: ['Empresas'] },
+      { role: 'COMPANY_ADMIN', scope: scopeA, contextKind: 'ORGANIZATION', permissions: ['companies:read', 'associations:read', 'vehicles:read', 'invoices:read'], visible: ['Empresas', 'Usuarios', 'Vehículos', 'Facturas'] },
+      { role: 'THIRD_PARTY_ADMIN', scope: scopeA, contextKind: 'ORGANIZATION', permissions: ['associations:read', 'drivers:read', 'invoices:read'], visible: ['Usuarios', 'Conductores', 'Facturas'] },
+      { role: 'DRIVER', scope: scopeA, contextKind: 'ORGANIZATION', permissions: ['invoices:read', 'assignments:read'], visible: ['Facturas', 'Asignaciones'] },
+    ];
+
+    let view: ReturnType<typeof render> | undefined;
+    for (const scenario of scenarios) {
+      const authorization = setup(vi.fn(async scope => ({ ...snapshot(scope), roles: [scenario.role], permissions: scenario.permissions })));
+      await act(async () => { await authorization.store.getState().setContext(scenario.scope); });
+      const tree = <MemoryRouter><AuthorizedNavigation store={authorization.store} items={items} contextKind={scenario.contextKind} /></MemoryRouter>;
+      if (view) view.rerender(tree);
+      else view = render(tree);
+      for (const item of items) {
+        const visible = scenario.visible.includes(item.label);
+        if (visible) expect(screen.getByRole('link', { name: item.label })).toBeInTheDocument();
+        else expect(screen.queryByRole('link', { name: item.label })).not.toBeInTheDocument();
+      }
+    }
   });
   it('shows 403/503 recovery while 401 invalidates identity', async () => {
     const forbidden = setup(vi.fn(async () => { throw new ApplicationError('FORBIDDEN'); }));

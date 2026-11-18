@@ -1,6 +1,7 @@
 import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router';
 import { useStore } from 'zustand';
-import { Box, Button, CssBaseline, Stack, ThemeProvider, Typography } from '@mui/material';
+import type { ReactNode } from 'react';
+import { Alert, Box, Button, CssBaseline, Stack, ThemeProvider, Typography } from '@mui/material';
 import { theme } from '@/shared/theme/theme';
 import { AppLayout } from '@/shared/components/app-layout';
 import { ErrorBoundary } from '@/shared/components/error-boundary';
@@ -21,15 +22,27 @@ import { InvitationAcceptancePage } from '@/modules/user-invitations/presentatio
 import { MembershipPage } from '@/modules/user-invitations/presentation/membership-page';
 import { ReceivedInvitationsPage } from '@/modules/user-invitations/presentation/received-invitations-page';
 import { AuthenticationLoginPage } from '@/modules/authentication/presentation/authentication-login-page';
+import { markerModules, MarkerModulePage, type MarkerModuleDefinition } from './module-registry';
+import { RouteHeadingFocus } from '@/shared/components/route-heading-focus';
 
 function OrganizationManagementNavigation({ authorization, context, invitationsAvailable }: { authorization: AuthorizationStore; context: ContextStore; invitationsAvailable: boolean }) {
   const state = useStore(context);
   if (state.status !== 'ready' || !state.activeContext) return null;
-  return <AuthorizedNavigation store={authorization} items={[{ label: 'Empresas', path: '/companies', permission: 'companies:read' },
+  return <AuthorizedNavigation store={authorization} contextKind={state.activeContext.kind} items={[{ label: 'Empresas', path: '/companies', permission: 'companies:read' },
     ...(invitationsAvailable ? [
       { label: 'Invitaciones', path: '/invitations', permission: 'associations:read' as const },
       { label: 'Usuarios', path: '/organization-memberships', permission: 'associations:read' as const },
-    ] : [])]} />;
+    ] : []), ...markerModules.map(({ label, path, permission, context }) => ({ label, path, permission, context }))]} />;
+}
+
+
+function MarkerModuleContext({ module, context, children }: { module: MarkerModuleDefinition; context: ContextStore; children: ReactNode }) {
+  const state = useStore(context);
+  if (state.status !== 'ready' || !state.activeContext) return null;
+  if (module.context === 'organization' && state.activeContext.kind !== 'ORGANIZATION') {
+    return <Alert severity="warning">Selecciona una organización para continuar.</Alert>;
+  }
+  return children;
 }
 
 function ShellNavigation({ authorization, context, invitationsAvailable }: { authorization?: AuthorizationStore; context?: ContextStore; invitationsAvailable: boolean }) {
@@ -51,7 +64,7 @@ function ShellAccountWithContext({ authentication, context }: { authentication: 
 export function App({ store, authentication, authorization, organizationContext, companies, invitations }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; invitations?: InvitationApi }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
-  const content = <><AuthenticationActions store={authentication} authorization={authorization} />
+  const content = <><RouteHeadingFocus /><AuthenticationActions store={authentication} authorization={authorization} />
     {organizationContext && <ContextSessionBootstrap authentication={authentication} />}
     <Routes>
     <Route path="/" element={<HomePage store={store} authorization={authorization} />} />
@@ -61,6 +74,7 @@ export function App({ store, authentication, authorization, organizationContext,
     {invitations && <Route path="/invitations/received" element={<PrivateRoute store={authentication}><ReceivedInvitationsPage api={invitations} context={organizationContext} /></PrivateRoute>} />}
     {invitations && authorization && organizationContext && <Route path="/organization-memberships" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MembershipPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
     {invitations && <Route path="/invitations/accept" element={<InvitationAcceptancePage api={invitations} authentication={authentication} context={organizationContext} />} />}
+    {organizationContext && authorization && markerModules.map(module => <Route key={module.key} path={module.path} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={module.permission}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MarkerModuleContext module={module} context={organizationContext}><MarkerModulePage module={module} /></MarkerModuleContext></OrganizationContextGuard></ProtectedRoute>} />)}
     <Route path="/auth/callback" element={<AuthenticationCallback store={authentication} />} />
     <Route path="/session" element={<PrivateRoute store={authentication}>{organizationContext && authorization ? <OrganizationContextGuard store={organizationContext} authorization={authorization}><SessionPage store={authentication} /></OrganizationContextGuard> : <SessionPage store={authentication} />}</PrivateRoute>} />
     {organizationContext && <Route path="/organizations/select" element={<PrivateRoute store={authentication}><OrganizationSelectionPage store={organizationContext} authentication={authentication} invitationsAvailable={Boolean(invitations)} /></PrivateRoute>} />}

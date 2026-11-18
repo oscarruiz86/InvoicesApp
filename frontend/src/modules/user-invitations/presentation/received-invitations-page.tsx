@@ -8,7 +8,7 @@ import { errorMessage } from '@/shared/components/error-messages';
 import { getRoleLabel } from '@shared/role-labels';
 import { DataPagination } from '@/shared/components/data-pagination';
 import { SuccessNotice } from '@/shared/components/success-notice';
-import type { InvitationApi, InvitationRole, InvitationStatus, ReceivedInvitation } from '../application/invitation-api';
+import type { InvitationApi, InvitationStatus, ReceivedInvitation } from '../application/invitation-api';
 import { activateInvitationContext } from './activate-invitation-context';
 
 const statusLabel: Record<InvitationStatus, string> = { PENDING: 'Pendiente', ACCEPTED: 'Aceptada', REJECTED: 'Rechazada', CANCELLED: 'Cancelada', EXPIRED: 'Vencida' };

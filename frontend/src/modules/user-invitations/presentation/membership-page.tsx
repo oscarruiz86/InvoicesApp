@@ -169,7 +169,9 @@ export function MembershipPage({ api, context, authorization, companies }: { api
     setDraftOrganizationType(organizationTypeFilter); setDraftStatus(status); setDraftRole(roleFilter); setPendingSearch(search); setFiltersOpen(true);
   };
   const openInvite = () => {
-    setError(null); setInviteEmail(''); setInviteOrganizationType(target?.organizationType === 'THIRD_PARTY' || roles.includes('COMPANY_ADMIN') ? 'THIRD_PARTY' : 'COMPANY'); setInviteOpen(true);
+    const nextOrganizationType = target?.organizationType === 'THIRD_PARTY' || roles.includes('COMPANY_ADMIN') ? 'THIRD_PARTY' : 'COMPANY';
+    const nextRole = nextOrganizationType === 'COMPANY' ? 'COMPANY_ADMIN' : roles.includes('COMPANY_ADMIN') ? 'THIRD_PARTY_ADMIN' : 'DRIVER';
+    setError(null); setInviteEmail(''); setInviteOrganizationType(nextOrganizationType); setInviteRole(nextRole); setInviteOpen(true);
   };
   const openCompanyPicker = () => {
     setCompanyQuery(''); setCompanyPage(1); setCompanyResults(null); setCompanyPickerError(null); setCompanyPickerLoading(true); setCompanyPickerOpen(true);

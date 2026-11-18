@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor, waitForElementToBeRemoved } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { createAuthorizationStore, type AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
@@ -41,7 +41,9 @@ it('renders scoped list filters and announces empty results', async () => {
   const user = userEvent.setup(); const f = setup(); await act(() => f.authorization.getState().setContext(globalScope));
   f.renderPage('list', '/companies');
   await expect(screen.findByText('Empresa')).resolves.toBeTruthy();
-  await user.type(screen.getByLabelText('Buscar por nombre o documento'), '001');
+  await user.click(screen.getByRole('button', { name: 'Filtro' }));
+  await user.type(screen.getByRole('textbox', { name: 'Buscar por nombre o documento' }), '001');
+  await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
   await waitFor(() => expect(f.context.capture).toHaveBeenCalled());
 }, 15000);
 
@@ -52,9 +54,11 @@ it('resets pagination when list filters change', async () => {
   await act(() => f.authorization.getState().setContext(globalScope));
   f.renderPage('list', '/companies');
   await screen.findByText('Empresa');
-  await user.click(screen.getByRole('button', { name: 'Go to page 2' }));
+  await user.click(screen.getByRole('button', { name: 'Ir a la página 2' }));
   await waitFor(() => expect(list.mock.calls.at(-1)?.[1].page).toBe('2'));
-  await user.type(screen.getByLabelText('Buscar por nombre o documento'), '001');
+  await user.click(screen.getByRole('button', { name: 'Filtro' }));
+  await user.type(screen.getByRole('textbox', { name: 'Buscar por nombre o documento' }), '001');
+  await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
   await waitFor(() => expect(list.mock.calls.at(-1)?.[1]).toMatchObject({ page: '1', q: '001' }));
 }, 15000);
 
@@ -70,7 +74,9 @@ it('discards a stale list response after a newer filter query completes', async 
   await act(() => f.authorization.getState().setContext(globalScope));
   f.renderPage('list', '/companies');
   await waitFor(() => expect(list).toHaveBeenCalled());
-  await user.type(screen.getByLabelText('Buscar por nombre o documento'), 'vigente');
+  await user.click(screen.getByRole('button', { name: 'Filtro' }));
+  await user.type(await screen.findByLabelText('Buscar por nombre o documento'), 'vigente');
+  await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
   expect(await screen.findByText('Resultado vigente')).toBeTruthy();
   await act(async () => resolveInitial({ items: [{ company: stale, version: '1' }], page: 1, pageSize: 20, total: 1 }));
   expect(screen.queryByText('Resultado obsoleto')).toBeNull();
@@ -104,9 +110,9 @@ it('lets the user retry a failed company list request', async () => {
 it('validates required fields and submits only validated company data', async () => {
   const user = userEvent.setup(); const create = vi.fn(async () => record); const f = setup({ ...api, create }); await act(() => f.authorization.getState().setContext(globalScope));
   f.renderPage('create', '/companies/new');
-  await user.click(screen.getByRole('button', { name: 'Guardar empresa' }));
-  expect(await screen.findByText('Revisa los campos indicados.')).toBeTruthy(); expect(create).not.toHaveBeenCalled();
-  await user.type(screen.getByLabelText(/Número de documento/), '001'); await user.type(screen.getByLabelText(/Razón social/), 'Empresa nueva'); await user.type(screen.getByLabelText(/Correo electrónico/), ' CONTACT@example.com ');
+  expect(screen.getByRole('button', { name: 'Guardar empresa' })).toBeDisabled();
+  expect(create).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText(/Número de documento/), '001'); await user.type(screen.getByLabelText(/Razón social/), 'Empresa nueva'); await user.type(screen.getByLabelText(/Correo electrónico/), 'contact@example.com');
   await user.click(screen.getByRole('button', { name: 'Guardar empresa' }));
   await waitFor(() => expect(create).toHaveBeenCalledWith(globalScope, expect.objectContaining({ businessName: 'Empresa nueva', documentNumber: '001' }), expect.any(AbortSignal)));
 }, 15000);
@@ -130,10 +136,10 @@ it('requires confirmation and waits for the server before changing status', asyn
   const user = userEvent.setup(); const status = vi.fn(async () => ({ ...record, company: { ...company, status: 'INACTIVE' as const } })); const get = vi.fn().mockResolvedValueOnce(record).mockResolvedValue({ ...record, company: { ...company, status: 'INACTIVE' as const } }); const f = setup({ ...api, get, status }); await act(() => f.authorization.getState().setContext(globalScope));
   f.renderPage('detail', `/companies/${company.id}`);
   await user.click(await screen.findByRole('button', { name: 'Desactivar empresa' }));
-  await user.click(screen.getByRole('button', { name: 'Cancelar' })); await waitForElementToBeRemoved(() => screen.queryByRole('dialog')); expect(status).not.toHaveBeenCalled();
+  await user.click(within(screen.getByRole('dialog', { name: 'Desactivar empresa' })).getByRole('button', { name: 'Cancelar' })); await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Desactivar empresa' })); expect(status).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Desactivar empresa' })); await user.click(screen.getByRole('button', { name: 'Confirmar' }));
   await waitFor(() => expect(status).toHaveBeenCalledWith(globalScope, company.id, '1', 'INACTIVE', expect.any(AbortSignal)));
-  expect(await screen.findByText('Inactiva')).toBeTruthy();
+  expect((await screen.findAllByText('Inactiva')).length).toBeGreaterThan(0);
 }, 15000);
 
 it('keeps the active state visible when the server rejects a status change', async () => {
@@ -145,7 +151,7 @@ it('keeps the active state visible when the server rejects a status change', asy
   await user.click(await screen.findByRole('button', { name: 'Desactivar empresa' }));
   await user.click(screen.getByRole('button', { name: 'Confirmar' }));
   expect(await screen.findByText('La empresa cambió. Recarga los datos antes de volver a guardar.')).toBeTruthy();
-  expect(screen.getByText('Activa')).toBeTruthy();
+  expect(screen.getAllByText('Activa').length).toBeGreaterThan(0);
 }, 15000);
 
 it('registers the form with the context guard and exposes the draft as dirty', async () => {

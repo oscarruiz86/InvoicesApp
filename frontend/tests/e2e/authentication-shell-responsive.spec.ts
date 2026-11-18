@@ -4,7 +4,7 @@ for (const width of [360, 1280]) {
   test(`anonymous session hides the application shell at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/tests/e2e/authentication-shell-harness.html?session=anonymous');
-    await expect(page.getByRole('heading', { name: 'Todo empieza con una buena base.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Inicio' })).toBeVisible();
     await expect(page.getByRole('banner')).toHaveCount(0);
     await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
     await expect(page.getByText('Invoices App', { exact: true })).toHaveCount(0);

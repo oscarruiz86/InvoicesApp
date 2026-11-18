@@ -63,16 +63,16 @@ export function OrganizationContextGuard({ store, authorization, children, organ
   // context. Initial permission loads still gate protected content.
   if (permissions.status === 'refreshing' && permissions.snapshot) return <section key={state.generation}>{children}</section>;
   if (permissions.status === 'idle' || permissions.status === 'loading' || permissions.status === 'refreshing') return null;
-  if (permissions.status === 'error') return <Stack spacing={2}><Alert severity="error">{errorMessage(permissions.error)}</Alert><Button onClick={() => void authorization.getState().refresh()}>Reintentar permisos</Button></Stack>;
-  if (permissions.status === 'denied') return <Alert severity="warning">Acceso denegado.</Alert>;
-  if (permissions.status !== 'ready' || permissions.expiresAt <= Date.now()) return <Stack spacing={2}><Alert severity="error">No fue posible actualizar los permisos.</Alert><Button onClick={() => void authorization.getState().refresh()}>Reintentar permisos</Button></Stack>;
-  if (organizationRequired && state.activeContext.kind === 'GLOBAL') return <Alert severity="warning">Selecciona una organización para continuar.</Alert>;
+  if (permissions.status === 'error') return <Stack spacing={2}><Typography component="h1" variant="h4">No se pudieron verificar los permisos</Typography><Alert severity="error">{errorMessage(permissions.error)}</Alert><Button onClick={() => void authorization.getState().refresh()}>Reintentar permisos</Button></Stack>;
+  if (permissions.status === 'denied') return <Stack spacing={2}><Typography component="h1" variant="h4">Acceso denegado</Typography><Alert severity="warning">No tienes permiso para consultar esta página.</Alert></Stack>;
+  if (permissions.status !== 'ready' || permissions.expiresAt <= Date.now()) return <Stack spacing={2}><Typography component="h1" variant="h4">No se pudieron actualizar los permisos</Typography><Alert severity="error">No fue posible actualizar los permisos.</Alert><Button onClick={() => void authorization.getState().refresh()}>Reintentar permisos</Button></Stack>;
+  if (organizationRequired && state.activeContext.kind === 'GLOBAL') return <Stack spacing={2}><Typography component="h1" variant="h4">Selecciona una organización</Typography><Alert severity="warning">Selecciona una organización para continuar.</Alert></Stack>;
   return <section key={state.generation}>{children}</section>;
 }
 export function ContextSessionBootstrap({ authentication }: { authentication: AuthenticationStore }) {
   const state = useStore(authentication);
   const { status, profileStatus, loadUser } = state;
   useEffect(() => { if (status === 'authenticated' && profileStatus === 'idle') void loadUser(); }, [status, profileStatus, loadUser]);
-  if (profileStatus === 'error') return <Stack><Alert severity="error">{errorMessage(state.profileError)}</Alert><Button onClick={() => void loadUser()}>Reintentar sesión</Button></Stack>;
+  if (profileStatus === 'error') return <Stack><Typography component="h1" variant="h4">No se pudo cargar el perfil</Typography><Alert severity="error">{errorMessage(state.profileError)}</Alert><Button onClick={() => void loadUser()}>Reintentar sesión</Button></Stack>;
   return null;
 }

@@ -25,16 +25,20 @@ it('shows only the shared profile fields and prevents removing the final role', 
   const member = { id: 'membership-1', status: 'ACTIVE' as const, roles: ['COMPANY_ADMIN' as const], revision: 1,
     profile: { fullName: 'Ana Ejemplo', documentType: 'CC' as const, documentNumber: '12345', email: 'ana@example.invalid' } };
   const memberships = vi.fn(async () => ({ items: [member], page: 1, pageSize: 20, total: 1 }));
-  const api = { memberships, changeRoles: vi.fn(), changeStatus: vi.fn() } as unknown as InvitationApi;
+  const api = { memberships, profile: vi.fn(async () => member), changeRoles: vi.fn(), changeStatus: vi.fn() } as unknown as InvitationApi;
   await act(() => authorization.getState().setContext(scope));
   render(<MemoryRouter><MembershipPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization} /></MemoryRouter>);
-  expect(await screen.findByText('Ana Ejemplo')).toBeTruthy();
-  expect(screen.getByText('Documento: CC · 12345')).toBeTruthy();
-  expect(screen.getByText('Correo: ana@example.invalid')).toBeTruthy();
-  expect(screen.getByText('Roles: Administrador de empresa')).toBeTruthy();
-  expect(screen.queryByRole('button', { name: /quitar/i })).toBeNull();
+  expect((await screen.findAllByText('Ana Ejemplo')).length).toBeGreaterThan(0);
+  expect(screen.queryByText('Correo: ana@example.invalid')).toBeNull();
+  expect(screen.queryByRole('button', { name: /Quitar Administrador de empresa/i })).toBeNull();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Ver' }));
+  const details = await screen.findByRole('dialog', { name: 'Detalle del usuario' });
+  expect(details.textContent).toContain('CC · 12345');
+  expect(details.textContent).toContain('ana@example.invalid');
+  expect(details.textContent).toContain('Administrador de empresa');
+  expect(within(details).queryByRole('button', { name: /editar|quitar/i })).toBeNull();
   expect(screen.queryByLabelText(/nombre|correo|documento/i)).toBeNull();
-  expect(memberships).toHaveBeenCalledWith(scope, { organizationId: 'company-1', organizationType: 'COMPANY', companyId: null }, '', 1, expect.any(AbortSignal));
+  expect(memberships).toHaveBeenCalledWith(scope, { organizationId: 'company-1', organizationType: 'COMPANY', companyId: null }, '', 1, { search: '', role: undefined }, expect.any(AbortSignal), 20);
 });
 
 it('discards a profile response from a previous organization context', async () => {
@@ -64,16 +68,16 @@ it('invites an associate by email from a modal', async () => {
     profile: { fullName: 'Ana Ejemplo', documentType: 'CC' as const, documentNumber: '12345', email: 'ana@example.invalid' } };
   const memberships = vi.fn(async () => ({ items: [member], page: 1, pageSize: 20, total: 1 }));
   const create = vi.fn(async () => ({ id: 'invite-1', organizationId: 'company-1', organizationType: 'COMPANY', companyId: 'company-1', recipientEmail: 'nuevo@example.invalid', roles: ['COMPANY_ADMIN'], status: 'PENDING', expiresAt: new Date().toISOString(), version: 1, deliveryStatus: 'UNKNOWN', createdAt: new Date().toISOString(), resolvedAt: null }));
-  const api = { memberships, create } as unknown as InvitationApi;
+  const api = { memberships, create, searchUsers: vi.fn(async () => []) } as unknown as InvitationApi;
   await act(() => authorization.getState().setContext(scope));
   render(<MemoryRouter><MembershipPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization} /></MemoryRouter>);
-  await screen.findByText('Ana Ejemplo');
+  await screen.findAllByText('Ana Ejemplo');
   await user.click(screen.getByRole('button', { name: 'Asociar usuario' }));
-  await user.type(screen.getByRole('textbox', { name: 'Correo del usuario' }), 'nuevo@example.invalid');
+  await user.type(await screen.findByLabelText('Correo del usuario'), 'nuevo@example.invalid');
   await user.click(screen.getByRole('button', { name: 'Enviar invitación' }));
   expect(await screen.findByText('Cambios guardados.')).toBeInTheDocument();
   expect(create).toHaveBeenCalledWith(scope, { organizationId: 'company-1', organizationType: 'COMPANY', companyId: null }, 'nuevo@example.invalid', ['COMPANY_ADMIN'], expect.any(AbortSignal));
-});
+}, 15000);
 
 it('opens associate details and confirms suspension in a dialog', async () => {
   const user = userEvent.setup();
@@ -84,7 +88,7 @@ it('opens associate details and confirms suspension in a dialog', async () => {
   const api = { memberships, profile, changeStatus } as unknown as InvitationApi;
   await act(() => authorization.getState().setContext(scope));
   render(<MemoryRouter><MembershipPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization} /></MemoryRouter>);
-  await screen.findByText('Ana Ejemplo');
+  await screen.findAllByText('Ana Ejemplo');
   await user.click(screen.getByRole('button', { name: 'Ver' }));
   expect(await screen.findByRole('dialog', { name: 'Detalle del usuario' })).toBeInTheDocument();
   expect(profile).toHaveBeenCalledWith(scope, { organizationId: 'company-1', organizationType: 'COMPANY', companyId: null }, 'membership-1', expect.any(AbortSignal));

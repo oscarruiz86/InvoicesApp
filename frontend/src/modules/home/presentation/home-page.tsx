@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router';
 import { useStore } from 'zustand';
-import { Alert, Box, Button, Chip, CircularProgress, Divider, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, Paper, Stack, Typography } from '@mui/material';
 import type { HealthStore } from './health-store';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import { errorMessage } from '@/shared/components/error-messages';

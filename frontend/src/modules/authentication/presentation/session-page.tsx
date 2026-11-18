@@ -18,10 +18,11 @@ const authenticationMessages = {
 export function SessionFeedback({ store }: { store: AuthenticationStore }) {
   const state = useStore(store);
   if (state.error) return <Stack spacing={2}>
+    <Typography component="h1" variant="h4">{state.error === 'SESSION_EXPIRED' ? 'Sesión expirada' : state.error === 'LOGOUT_UNCONFIRMED' ? 'No se pudo cerrar la sesión' : 'No se pudo iniciar sesión'}</Typography>
     <Alert severity="error">{authenticationMessages[state.error]}</Alert>
     {state.error !== 'CONFIGURATION' && <Button onClick={() => void (state.error === 'LOGOUT_UNCONFIRMED' ? state.logout() : state.login(state.returnPath))}>{state.error === 'LOGOUT_UNCONFIRMED' ? 'Reintentar cierre remoto' : 'Volver a iniciar sesión'}</Button>}
   </Stack>;
-  return <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}><CircularProgress size={24} aria-label="Verificando sesión" /><Typography>{state.status === 'signingOut' ? 'Cerrando sesión…' : 'Verificando sesión…'}</Typography></Stack>;
+  return <Stack spacing={2}><Typography component="h1" variant="h4">{state.status === 'signingOut' ? 'Cerrando sesión' : 'Verificando sesión'}</Typography><Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}><CircularProgress size={24} aria-label="Verificando sesión" /><Typography>{state.status === 'signingOut' ? 'Cerrando sesión…' : 'Verificando sesión…'}</Typography></Stack></Stack>;
 }
 
 export function AuthenticationActions({ store, authorization }: { store: AuthenticationStore; authorization?: AuthorizationStore }) {
@@ -67,7 +68,7 @@ export function SessionPage({ store }: { store: AuthenticationStore }) {
   const state = useStore(store);
   const { profileStatus, loadUser } = state;
   useEffect(() => { if (profileStatus === 'idle') void loadUser(); }, [profileStatus, loadUser]);
-  if (state.profileStatus === 'error') return <Stack spacing={2}><Alert severity="error">{errorMessage(state.profileError)}</Alert><Button onClick={() => void state.loadUser()}>Reintentar sesión</Button></Stack>;
+  if (state.profileStatus === 'error') return <Stack spacing={2}><Typography component="h1" variant="h4">No se pudo cargar el perfil</Typography><Alert severity="error">{errorMessage(state.profileError)}</Alert><Button onClick={() => void state.loadUser()}>Reintentar sesión</Button></Stack>;
   if (!state.user || state.profileStatus !== 'success') return <SessionFeedback store={store} />;
   return <Paper variant="outlined" sx={{ p: { xs: 2, md: 4 }, overflowWrap: 'anywhere' }}><Stack spacing={2}>
     <Typography variant="h4" component="h1">Mi perfil</Typography>

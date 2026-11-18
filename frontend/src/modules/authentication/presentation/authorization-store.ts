@@ -60,8 +60,9 @@ export function createAuthorizationStore(read: ReadPermissions, session: Session
     previous = snapshot;
     if (snapshot.status !== 'authenticated' && snapshot.status !== 'refreshing') store.getState().invalidate();
     else if (changed && snapshot.status === 'authenticated') {
-      // Credentials renewed for the same live session require fresh permissions,
-      // but the last safe screen may remain while the read is in flight.
+      // A fresh credential revision must supersede any permission request sent
+      // with the previous token while the authorized same-scope screen remains visible.
+      active?.abort(); active = undefined;
       queueMicrotask(() => { if (!disposed && session.snapshot().status === 'authenticated') void store.getState().refresh(); });
     }
     if (!['authenticated', 'refreshing'].includes(snapshot.status)) store.setState({ scope: { ...selfScope } });
