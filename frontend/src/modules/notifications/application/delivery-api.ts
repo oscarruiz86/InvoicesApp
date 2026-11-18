@@ -1,9 +1,10 @@
 export type NotificationDeliveryStatus = 'pending' | 'sent' | 'failed';
+export type NotificationDeliveryType = 'INVITATION_CREATED' | 'INVITATION_RESENT';
 
-/** Closed presentation DTO: only safe, already-masked delivery metadata can cross into UI state. */
+/** Closed presentation DTO: sensitive worker fields cannot reach UI state. */
 export interface NotificationDeliveryDto {
   readonly id: string;
-  readonly type: string;
+  readonly type: NotificationDeliveryType;
   readonly channel: 'EMAIL';
   readonly createdAt: string;
   readonly status: NotificationDeliveryStatus;
@@ -11,18 +12,35 @@ export interface NotificationDeliveryDto {
   readonly nextAttemptAt: string | null;
   readonly recipientMasked: string;
   readonly resultCode: string | null;
-  readonly providerReference: string | null;
 }
 
-const deliveryKeys = ['id', 'type', 'channel', 'createdAt', 'status', 'attempts', 'nextAttemptAt', 'recipientMasked', 'resultCode', 'providerReference'] as const;
-type ParseResult = { readonly success: true; readonly data: NotificationDeliveryDto } | { readonly success: false; readonly error: Error };
+export interface NotificationDeliveryQuery {
+  readonly page: number;
+  readonly pageSize: number;
+  readonly status?: NotificationDeliveryStatus;
+}
+
+export interface NotificationDeliveryPageDto {
+  readonly items: readonly NotificationDeliveryDto[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
+const deliveryKeys = ['id', 'type', 'channel', 'createdAt', 'status', 'attempts', 'nextAttemptAt', 'recipientMasked', 'resultCode'] as const;
+const pageKeys = ['items', 'page', 'pageSize', 'total'] as const;
+type ParseResult<T> = { readonly success: true; readonly data: T } | { readonly success: false; readonly error: Error };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isBoundedString(value: unknown, maximum: number, allowEmpty = false): value is string {
-  return typeof value === 'string' && value.length <= maximum && (allowEmpty || value.length > 0);
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  return Object.keys(value).length === keys.length && keys.every(key => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function isBoundedString(value: unknown, maximum: number): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= maximum;
 }
 
 function isIsoDate(value: unknown): value is string {
@@ -30,49 +48,53 @@ function isIsoDate(value: unknown): value is string {
 }
 
 function parseDelivery(value: unknown): NotificationDeliveryDto {
-  if (!isRecord(value) || Object.keys(value).some(key => !deliveryKeys.includes(key as (typeof deliveryKeys)[number])) ||
-    deliveryKeys.some(key => !Object.prototype.hasOwnProperty.call(value, key))) {
-    throw new Error('Invalid notification delivery DTO.');
-  }
-
-  const masked = value.recipientMasked;
-  if (!isBoundedString(value.id, 128) || !isBoundedString(value.type, 80) || value.channel !== 'EMAIL' ||
+  if (!isRecord(value) || !hasExactKeys(value, deliveryKeys)) throw new Error('Invalid notification delivery DTO.');
+  if (!isBoundedString(value.id, 128) || !['INVITATION_CREATED', 'INVITATION_RESENT'].includes(String(value.type)) || value.channel !== 'EMAIL' ||
     !isIsoDate(value.createdAt) || !['pending', 'sent', 'failed'].includes(String(value.status)) ||
     typeof value.attempts !== 'number' || !Number.isSafeInteger(value.attempts) || value.attempts < 0 || value.attempts > 1000 ||
     !(value.nextAttemptAt === null || isIsoDate(value.nextAttemptAt)) ||
-    !isBoundedString(masked, 254) || !/^[^@\s]{1,2}[*•…]+@[^@\s]+$/.test(masked) ||
-    !(value.resultCode === null || isBoundedString(value.resultCode, 80, true)) ||
-    !(value.providerReference === null || isBoundedString(value.providerReference, 128, true))) {
+    !isBoundedString(value.recipientMasked, 254) || !/^[^@\s]{1,2}[*•…]{2,}@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value.recipientMasked) ||
+    !(value.resultCode === null || (typeof value.resultCode === 'string' && /^[A-Z0-9_.-]{1,80}$/.test(value.resultCode)))) {
     throw new Error('Invalid notification delivery DTO.');
   }
-
   return {
     id: value.id,
-    type: value.type,
+    type: value.type as NotificationDeliveryType,
     channel: 'EMAIL',
     createdAt: value.createdAt,
     status: value.status as NotificationDeliveryStatus,
     attempts: value.attempts,
     nextAttemptAt: value.nextAttemptAt,
-    recipientMasked: masked,
+    recipientMasked: value.recipientMasked,
     resultCode: value.resultCode,
-    providerReference: value.providerReference,
   };
 }
 
-/** Minimal runtime schema API avoids bringing adapters or infrastructure libraries into application code. */
+function parsePage(value: unknown): NotificationDeliveryPageDto {
+  if (!isRecord(value) || !hasExactKeys(value, pageKeys) || !Array.isArray(value.items) ||
+    typeof value.page !== 'number' || !Number.isSafeInteger(value.page) || value.page < 1 ||
+    typeof value.pageSize !== 'number' || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1 || value.pageSize > 100 ||
+    typeof value.total !== 'number' || !Number.isSafeInteger(value.total) || value.total < 0 || value.items.length > value.pageSize) {
+    throw new Error('Invalid notification delivery page.');
+  }
+  return { items: value.items.map(parseDelivery), page: value.page, pageSize: value.pageSize, total: value.total };
+}
+
+/** Runtime schemas keep the browser contract narrow without exposing infrastructure models. */
 export const notificationDeliverySchema = {
   parse: parseDelivery,
-  safeParse(value: unknown): ParseResult {
-    try {
-      return { success: true, data: parseDelivery(value) };
-    } catch {
-      return { success: false, error: new Error('Invalid notification delivery DTO.') };
-    }
+  parsePage,
+  safeParse(value: unknown): ParseResult<NotificationDeliveryDto> {
+    try { return { success: true, data: parseDelivery(value) }; }
+    catch { return { success: false, error: new Error('Invalid notification delivery DTO.') }; }
+  },
+  safeParsePage(value: unknown): ParseResult<NotificationDeliveryPageDto> {
+    try { return { success: true, data: parsePage(value) }; }
+    catch { return { success: false, error: new Error('Invalid notification delivery page.') }; }
   },
 };
 
-export interface NotificationDeliveryQuery { readonly page: number; readonly pageSize: number; readonly status?: NotificationDeliveryStatus }
-export interface NotificationDeliveryPageDto { readonly items: readonly NotificationDeliveryDto[]; readonly page: number; readonly pageSize: number; readonly total: number }
-/** This read port can be bound only to a future authorized backend contract. */
-export interface NotificationDeliveryReadPort { read(query: NotificationDeliveryQuery, signal?: AbortSignal): Promise<NotificationDeliveryPageDto> }
+export interface NotificationDeliveryReadPort {
+  list(query: NotificationDeliveryQuery, signal?: AbortSignal): Promise<NotificationDeliveryPageDto>;
+  get(id: string, signal?: AbortSignal): Promise<NotificationDeliveryDto>;
+}

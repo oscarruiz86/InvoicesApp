@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { notificationDeliverySchema } from '@/modules/notifications/application/delivery-api';
 
-const valid = { id: 'delivery-1', type: 'INVITATION', channel: 'EMAIL', createdAt: '2026-11-18T12:00:00.000Z', status: 'pending', attempts: 1, nextAttemptAt: null, recipientMasked: 'a***@example.invalid', resultCode: null, providerReference: null } as const;
+const valid = { id: 'delivery-1', type: 'INVITATION_CREATED', channel: 'EMAIL', createdAt: '2026-11-18T12:00:00.000Z', status: 'pending', attempts: 1, nextAttemptAt: null, recipientMasked: 'a***@example.invalid', resultCode: null } as const;
 
 describe('notification delivery presentation contract', () => {
   it('accepts only the safe, masked delivery fields', () => {

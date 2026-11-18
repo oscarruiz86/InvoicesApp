@@ -47,7 +47,7 @@ La asociación usa Empresa y Tipo de organización. El formulario recibe un corr
 
 ### Entregas de notificaciones como vista técnica protegida
 
-La ruta de entregas será un módulo de lectura que consume un DTO específico. El DTO admitirá identificador, tipo, canal, fecha, estado, destinatario enmascarado, intentos, próximo intento, código saneado y referencia del proveedor. Nunca aceptará ni renderizará cuerpo, HTML, token, clave de idempotencia, configuración SMTP o credenciales. La vista se registrará solo si el contrato de autorización entrega un permiso apropiado. Reutilizar una vista genérica de auditoría podría aumentar accidentalmente la superficie de datos expuestos.
+La pantalla de entregas es un módulo frontend de lectura que consume `NotificationDeliveryReadPort` y el DTO específico. El DTO admite identificador, tipo, canal, fecha, estado, destinatario enmascarado, intentos, próximo intento y código saneado; excluye la referencia del proveedor. Nunca acepta ni renderiza cuerpo, HTML, token, clave de idempotencia, configuración SMTP o credenciales. El frontend registra `/notification-deliveries` con `notifications:deliveries:read`; la ruta y su navegación se muestran solo cuando autorización concede ese permiso. El servicio HTTP y la publicación del permiso son complemento backend pendiente. Reutilizar una vista genérica de auditoría podría aumentar accidentalmente la superficie de datos expuestos.
 
 ## Risks / Trade-offs
 
@@ -60,7 +60,7 @@ La ruta de entregas será un módulo de lectura que consume un DTO específico. 
 
 1. Adaptar el shell existente y sus rutas de estado conservando las páginas y contratos funcionales.
 2. Registrar de forma incremental las rutas de módulos disponibles.
-3. Integrar la vista de entregas cuando `notifications` publique su contrato de lectura autorizado.
+3. Conectar los puertos de Flota y entregas a los servicios backend en las tareas complementarias 6.1–6.3.
 4. Deshacer el cambio retirando el registro del shell y sus rutas. Los módulos no deberán depender de componentes internos no sustituidos.
 
-El permiso de lectura de entregas se resolverá mediante la definición de navegación y el contrato de identidad que publique autorización. La ruta no se registrará para una sesión que no incluya ese permiso.
+La ruta de entregas está registrada en frontend, pero `ProtectedRoute` y la navegación solo la exponen para sesiones cuyo snapshot de permisos incluya `notifications:deliveries:read`; backend debe publicar ese permiso y las reglas de alcance antes de habilitarla en un entorno real.

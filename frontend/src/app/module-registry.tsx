@@ -9,8 +9,9 @@ export interface MarkerModuleDefinition {
 
 /** Marker registrations keep menu and route metadata together until each domain module is implemented. */
 export const markerModules = [
-  { key: 'drivers', path: '/drivers', label: 'Conductores', permission: 'drivers:read', context: 'organization', description: 'Punto de integración para la administración de conductores.' },
-  { key: 'vehicles', path: '/vehicles', label: 'Vehículos', permission: 'vehicles:read', context: 'organization', description: 'Punto de integración para la administración de vehículos.' },
+  { key: 'drivers', path: '/drivers', label: 'Conductores', permission: 'drivers:read', context: 'organization', description: 'Lista, edición y estado de conductores.' },
+  { key: 'vehicles', path: '/vehicles', label: 'Vehículos', permission: 'vehicles:read', context: 'organization', description: 'Lista, edición y estado de vehículos.' },
+  { key: 'notification-deliveries', path: '/notification-deliveries', label: 'Entregas de notificaciones', permission: 'notifications:deliveries:read', context: 'active', description: 'Consulta el estado de entrega de notificaciones sin exponer contenido ni credenciales.' },
   { key: 'assignments', path: '/assignments', label: 'Asignaciones', permission: 'assignments:read', context: 'organization', description: 'Punto de integración para la administración de asignaciones.' },
   { key: 'invoices', path: '/invoices', label: 'Facturas', permission: 'invoices:read', context: 'organization', description: 'Punto de integración para la administración de facturas.' },
   { key: 'parameters', path: '/parameters', label: 'Parámetros', permission: 'parameters:read', context: 'active', description: 'Punto de integración para la configuración de parámetros.' },
@@ -19,8 +20,9 @@ export const markerModules = [
 ] as const satisfies readonly MarkerModuleDefinition[];
 
 export function MarkerModulePage({ module }: { readonly module: MarkerModuleDefinition }) {
+  const integrationPending = module.key === 'drivers' || module.key === 'vehicles' || module.key === 'notification-deliveries';
   return <Stack spacing={1.5}>
     <Typography component="h1" variant="h4">{module.label}</Typography>
-    <Alert severity="info">{module.description} Este módulo aún no incluye operaciones.</Alert>
+    <Alert severity="info">{module.description} {integrationPending ? 'La interfaz frontend está preparada; falta conectar el servicio del módulo.' : 'Este módulo aún no incluye operaciones.'}</Alert>
   </Stack>;
 }

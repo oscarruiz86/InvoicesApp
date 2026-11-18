@@ -149,6 +149,24 @@ describe('permission routes, actions and navigation', () => {
     await act(async () => { resolveRefresh(snapshot(selfScope)); await pending; });
     act(() => store.getState().invalidate()); expect(screen.queryByText('Private invoices')).not.toBeInTheDocument();
   });
+  it('protects the notification delivery route and menu with its dedicated read permission', async () => {
+    const denied = setup();
+    const authDenied = createAuthenticationStore(createAuthentication(denied.port, { read: async () => ({ id: 'u1', username: null, name: null, email: null, roles: ['DRIVER'] }) }));
+    const items = [{ label: 'Entregas de notificaciones', path: '/notification-deliveries', permission: 'notifications:deliveries:read' as const }];
+    const view = render(<MemoryRouter><AuthorizedNavigation store={denied.store} items={items} contextKind="GLOBAL" /><ProtectedRoute authentication={authDenied} authorization={denied.store} permission="notifications:deliveries:read"><div>Private deliveries</div></ProtectedRoute></MemoryRouter>);
+    await act(() => denied.store.getState().refresh());
+    expect(screen.queryByText('Entregas de notificaciones')).not.toBeInTheDocument();
+    expect(screen.queryByText('Private deliveries')).not.toBeInTheDocument();
+    expect(screen.getByText('Acceso denegado.')).toBeInTheDocument();
+    view.unmount();
+
+    const granted = setup(vi.fn(async scope => ({ ...snapshot(scope), permissions: [...snapshot(scope).permissions, 'notifications:deliveries:read'] as Permission[] })));
+    const authGranted = createAuthenticationStore(createAuthentication(granted.port, { read: async () => ({ id: 'u1', username: null, name: null, email: null, roles: ['APP_ADMIN'] }) }));
+    render(<MemoryRouter><AuthorizedNavigation store={granted.store} items={items} contextKind="GLOBAL" /><ProtectedRoute authentication={authGranted} authorization={granted.store} permission="notifications:deliveries:read"><div>Private deliveries</div></ProtectedRoute></MemoryRouter>);
+    await act(() => granted.store.getState().refresh());
+    expect(screen.getByText('Entregas de notificaciones')).toBeInTheDocument();
+    expect(screen.getByText('Private deliveries')).toBeInTheDocument();
+  });
   it('keeps DRIVER away from administration and only renders permitted THIRD_PARTY_ADMIN modules', async () => {
     const driver = setup(); await driver.store.getState().refresh();
     const third = setup(vi.fn(async scope => ({ ...snapshot(scope), permissions: ['vehicles:read', 'drivers:read'] as const })));

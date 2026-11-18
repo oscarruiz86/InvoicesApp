@@ -4,7 +4,7 @@
 
 El shell conserva la composición en `frontend/src/app/app.tsx`. Los módulos de marcador se registran en `frontend/src/app/module-registry.tsx`, con `key`, `path`, `label`, permiso de lectura, requisito de contexto y descripción. La navegación se construye desde ese registro y `AuthorizedNavigation` oculta entradas sin permiso; las rutas usan `ProtectedRoute` y `OrganizationContextGuard`, por lo que la visibilidad del menú no sustituye la autorización del servidor.
 
-Al reemplazar un marcador, conserva su ruta y permiso si el contrato sigue vigente, cambia `MarkerModulePage` por la pantalla del módulo y añade el puerto de aplicación y su adaptador bajo el módulo. No importes adaptadores HTTP o credenciales desde componentes de presentación. Para un nuevo módulo, registra su permiso en el vocabulario público de `authentication/domain/permissions.ts` solo cuando el backend ya lo publique.
+Al conectar un módulo, conserva su ruta y permiso si el contrato sigue vigente y añade el adaptador HTTP junto al módulo. No importes adaptadores HTTP o credenciales desde componentes de presentación. El vocabulario público incluye los permisos que requieren las pantallas; la navegación y las rutas siguen bloqueadas hasta que la autorización de backend los conceda.
 
 ## Usuarios y asociaciones
 
@@ -14,7 +14,11 @@ Los contratos de sesión, permisos y contexto están en `authentication/applicat
 
 ## Entregas de notificaciones
 
-`notifications/application/delivery-api.ts` define un DTO cerrado que admite estado, canal, fechas, intentos, destinatario enmascarado y resultado saneado. Su esquema rechaza campos adicionales como cuerpo, HTML, tokens, claves de idempotencia o credenciales. Todavía no existe una ruta backend de lectura administrativa ni un permiso de entregas en el contrato de autorización. Por eso no registres la ruta ni expongas datos hasta que backend publique ambos contratos y sus reglas de alcance. No adaptes la API del worker directamente al navegador.
+`notifications/application/delivery-api.ts` define un DTO cerrado y `NotificationDeliveryReadPort` define las operaciones de lista y detalle. La pantalla de `/notification-deliveries` presenta estados `pending`, `sent` y `failed`, fechas, intentos, destinatario enmascarado y resultado saneado; su registro requiere `notifications:deliveries:read`. El esquema rechaza campos adicionales como cuerpo, HTML, tokens, claves de idempotencia o credenciales. La ruta HTTP administrativa y el permiso backend todavía deben implementarse; hasta entonces la composición no inyecta el puerto y presenta el estado de integración pendiente. No adaptes la API del worker directamente al navegador.
+
+## Flota frontend lista para integración
+
+`fleet/application/fleet-api.ts` define los puertos de listado, actualización y estado para conductores y vehículos. Las páginas `/drivers` y `/vehicles` ya incluyen tablas ordenables, estados, paginación, edición y activación/desactivación condicionadas por `drivers:update`, `drivers:deactivate`, `vehicles:update` y `vehicles:deactivate`. Los campos son deliberadamente mínimos: nombre e identificación del conductor; placa, estado y conductor vigente del vehículo. Inyecta `FleetApi` al implementar las rutas backend; hasta entonces las páginas indican que el servicio no está conectado.
 
 ## Seguridad y verificación
 

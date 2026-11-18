@@ -17,30 +17,31 @@
 
 - [x] 3.1 Implementar los componentes de listado con búsqueda, filtros, paginación, carga, vacío, error y reintento no bloqueante, y verificar el estado de recuperación con una fuente de datos de prueba que falle y se recupere sin ocultar contenido seguro. Para empresas, incluir búsqueda por NIT, razón social o nombre comercial y filtros de estado, tipo de documento, país, departamento y ciudad.
 - [x] 3.2 Implementar formularios, detalles, resumen de validación y confirmaciones, y verificar que se conservan valores seguros y se muestran errores de campo y del servidor.
-- [x] 3.3 Integrar rutas de marcador para empresas, flota, facturas, parámetros, roles y auditoría usando los patrones comunes, y verificar que los módulos pueden registrar una pantalla sin acoplarse al shell. Los marcadores pendientes de implementación se registran como Conductores, Vehículos, Asignaciones, Facturas, Parámetros, Roles y Auditoría.
+- [x] 3.3 Integrar rutas modulares declarativas usando los patrones comunes, y verificar que los módulos pueden registrar una pantalla sin acoplarse al shell. Conductores y Vehículos tienen páginas preparadas para conectar sus puertos; Asignaciones, Facturas, Parámetros, Roles y Auditoría conservan marcadores.
 - [x] 3.4 Implementar el módulo Usuarios con selección obligatoria de empresa, selector precargado y ordenado por razón social, lista de asociaciones y un solo campo para buscar por nombre/correo/documento; conservar los nombres disponibles de usuarios suspendidos y cerrar avisos de éxito automáticamente. Evitar repetir el nombre de Empresa en Organización; permitir Tipo de organización Todos con asociaciones directas y de terceros de la empresa. Añadir ordenamiento por columnas y paginación. Verificar chips removibles, filtros en cascada y columnas sin correo.
 - [x] 3.5 Implementar la asociación por empresa con el buscador existente de empresas por nombre/NIT, tipo Empresa/Tercero y selector modal de terceros limitado a la empresa; no incluir búsquedas separadas de usuario/documento en el formulario, que recibe el correo para la invitación. Autocompletar coincidencias de usuarios al escribir correo. Verificar que Tercero solo aparece para ese tipo y que rol/opciones dependen del destino.
 - [x] 3.6 Implementar el detalle de usuario en solo lectura con tipo y número de documento, correo, empresa, organización, rol y estado; verificar que no se ofrece editar perfil.
 - [x] 3.7 Implementar suspensión de una asociación con confirmación explícita y opciones Aceptar/Cancelar; verificar que Cancelar no envía cambios.
-- [ ] 3.8 Implementar acciones de editar y desactivar en listados autorizados de empresa, conductor y vehículo, y verificar que cada acción abre el flujo correspondiente.
+- [x] 3.8 Implementar acciones frontend de editar y desactivar en listados autorizados de empresa, conductor y vehículo, y verificar que cada acción abre el flujo correspondiente. Empresas usa su API actual; Flota define tablas, formularios, confirmaciones y permisos detrás de `FleetApi`.
 
 ## 4. Entregas de notificaciones
 
-- [ ] 4.1 Implementar la ruta de lectura de entregas de notificaciones con registro condicionado por permiso, y verificar que una sesión sin permiso no obtiene acceso a la ruta ni a su navegación.
-- [ ] 4.2 Implementar listado y detalle de entrega con tipo, canal, fecha, estado, intentos, próximo intento, destinatario enmascarado y resultado saneado, y verificar que `pending`, `sent` y `failed` son distinguibles.
+- [x] 4.1 Registrar la vista de entregas con el permiso `notifications:deliveries:read` y bloquear ruta y navegación cuando no se concede; verificar acceso concedido y denegado. El permiso de frontend queda listo; backend aún debe publicarlo.
+- [x] 4.2 Implementar listado y detalle frontend de entrega con tipo, canal, fecha, estado, intentos, próximo intento, destinatario enmascarado y resultado saneado a través de `NotificationDeliveryReadPort`; verificar que `pending`, `sent` y `failed` son distinguibles.
 - [x] 4.3 Agregar pruebas de presentación que rechacen DTOs con cuerpos de correo, tokens, claves de idempotencia, secretos SMTP o credenciales, y verificar que no se renderiza ninguno de esos valores. El esquema estricto bloquea esos campos antes de alcanzar una vista.
 
 ## 5. Verificación integrada
 
-- [x] 5.1 Ejecutar compilación, pruebas de componentes y recorridos de escritorio y móvil para los cuatro roles definidos, y registrar la evidencia de permisos, foco, cambio de contexto y estados de página. Verificación: 116 pruebas unitarias, 12 recorridos Playwright a 360/1280 px, lint, chequeo de tipos, arquitectura y build.
+- [x] 5.1 Ejecutar compilación, pruebas de componentes y recorridos de escritorio y móvil para los cuatro roles definidos, y registrar la evidencia de permisos, foco, cambio de contexto y estados de página. Verificación actualizada: 121 pruebas unitarias, 12 recorridos Playwright a 360/1280 px, lint sin errores, chequeo de tipos, arquitectura y build.
 - [x] 5.2 Actualizar la guía de integración del template con los contratos de registro de módulos, Usuarios y entregas de notificaciones, y verificar que los ejemplos no requieren datos sensibles. Ver `integration-guide.md`.
 
-**Pendiente por dependencia de módulos y contratos:**
+**Complemento backend pendiente (se integra al desarrollar esos módulos):**
 
-- 3.8: las acciones de editar/desactivar de empresas están implementadas y cubiertas por Playwright. Conductores y vehículos aún son rutas de marcador; el backend no tiene módulos ni rutas CRUD para esos recursos, por lo que no hay listados autorizados donde cerrar esas acciones.
-- 4.1 y 4.2: el backend implementa el worker y almacenamiento de notificaciones, pero no expone una ruta de lectura de entregas ni permiso asociado. La propuesta excluye explícitamente agregar endpoints, autorización de backend, trabajos o correo; hacerlo requiere ampliar ese alcance y definir el contrato de lectura.
+- [ ] 6.1 Implementar las rutas autorizadas de consulta, actualización y cambio de estado para conductores y vehículos; respaldar los permisos `drivers:*` y `vehicles:*`, versión de concurrencia y el conductor vigente del vehículo. Después, conectar los adaptadores HTTP a `FleetApi`.
+- [ ] 6.2 Publicar `notifications:deliveries:read` y una ruta de lectura de entregas paginada y con detalle, acotada por alcance de autorización y con el DTO seguro definido en `notifications/application/delivery-api.ts`.
+- [ ] 6.3 Conectar `NotificationDeliveryReadPort` al transporte HTTP autenticado cuando exista el contrato backend y añadir pruebas de contrato para paginación, autorización y rechazo de campos sensibles.
 
-La verificación integrada de 5.1 quedó completa. Estas tres tareas permanecen abiertas para evitar simular operaciones o exponer datos sin contratos backend autorizados.
+Las tareas 3.8, 4.1 y 4.2 cierran su entrega frontend: las pantallas, los estados, los permisos y los puertos quedan listos y cubiertos por pruebas con fuentes controladas. Los servicios reales y sus adaptadores se completarán dentro de las tareas 6.1–6.3.
 
 ## Workflow follow-up
 

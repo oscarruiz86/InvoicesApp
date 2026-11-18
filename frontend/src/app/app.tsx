@@ -24,6 +24,10 @@ import { ReceivedInvitationsPage } from '@/modules/user-invitations/presentation
 import { AuthenticationLoginPage } from '@/modules/authentication/presentation/authentication-login-page';
 import { markerModules, MarkerModulePage, type MarkerModuleDefinition } from './module-registry';
 import { RouteHeadingFocus } from '@/shared/components/route-heading-focus';
+import type { FleetApi } from '@/modules/fleet/application/fleet-api';
+import { FleetResourcePage } from '@/modules/fleet/presentation/fleet-resource-page';
+import type { NotificationDeliveryReadPort } from '@/modules/notifications/application/delivery-api';
+import { NotificationDeliveriesPage } from '@/modules/notifications/presentation/notification-deliveries-page';
 
 function OrganizationManagementNavigation({ authorization, context, invitationsAvailable }: { authorization: AuthorizationStore; context: ContextStore; invitationsAvailable: boolean }) {
   const state = useStore(context);
@@ -61,7 +65,7 @@ function ShellAccountWithContext({ authentication, context }: { authentication: 
   return <AccountMenu store={authentication} context={{ activeContext: current.activeContext, openSelector: current.openSelector }} />;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, invitations }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; invitations?: InvitationApi }) {
+export function App({ store, authentication, authorization, organizationContext, companies, invitations, fleet, notificationDeliveries }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; invitations?: InvitationApi; fleet?: FleetApi; notificationDeliveries?: NotificationDeliveryReadPort }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const content = <><RouteHeadingFocus /><AuthenticationActions store={authentication} authorization={authorization} />
@@ -74,7 +78,7 @@ export function App({ store, authentication, authorization, organizationContext,
     {invitations && <Route path="/invitations/received" element={<PrivateRoute store={authentication}><ReceivedInvitationsPage api={invitations} context={organizationContext} /></PrivateRoute>} />}
     {invitations && authorization && organizationContext && <Route path="/organization-memberships" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MembershipPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
     {invitations && <Route path="/invitations/accept" element={<InvitationAcceptancePage api={invitations} authentication={authentication} context={organizationContext} />} />}
-    {organizationContext && authorization && markerModules.map(module => <Route key={module.key} path={module.path} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={module.permission}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MarkerModuleContext module={module} context={organizationContext}><MarkerModulePage module={module} /></MarkerModuleContext></OrganizationContextGuard></ProtectedRoute>} />)}
+    {organizationContext && authorization && markerModules.map(module => <Route key={module.key} path={module.path} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={module.permission}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MarkerModuleContext module={module} context={organizationContext}>{module.key === 'drivers' && fleet ? <FleetResourcePage resource="drivers" api={fleet} context={organizationContext} authorization={authorization} /> : module.key === 'vehicles' && fleet ? <FleetResourcePage resource="vehicles" api={fleet} context={organizationContext} authorization={authorization} /> : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} /> : <MarkerModulePage module={module} />}</MarkerModuleContext></OrganizationContextGuard></ProtectedRoute>} />)}
     <Route path="/auth/callback" element={<AuthenticationCallback store={authentication} />} />
     <Route path="/session" element={<PrivateRoute store={authentication}>{organizationContext && authorization ? <OrganizationContextGuard store={organizationContext} authorization={authorization}><SessionPage store={authentication} /></OrganizationContextGuard> : <SessionPage store={authentication} />}</PrivateRoute>} />
     {organizationContext && <Route path="/organizations/select" element={<PrivateRoute store={authentication}><OrganizationSelectionPage store={organizationContext} authentication={authentication} invitationsAvailable={Boolean(invitations)} /></PrivateRoute>} />}
