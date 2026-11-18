@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Alert, Button, Pagination, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Button, Paper, Stack, Typography } from '@mui/material';
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
 import { ApplicationError } from '@/shared/application/application-error';
 import { RequestError } from '@/shared/application/request-error';
 import { errorMessage } from '@/shared/components/error-messages';
 import { getRoleLabel } from '@shared/role-labels';
-import type { InvitationApi, InvitationRole, InvitationStatus, ReceivedInvitation } from '../application/invitation-api';
+import { DataPagination } from '@/shared/components/data-pagination';
+import { SuccessNotice } from '@/shared/components/success-notice';
+import type { InvitationApi, InvitationStatus, ReceivedInvitation } from '../application/invitation-api';
 import { activateInvitationContext } from './activate-invitation-context';
 
 const statusLabel: Record<InvitationStatus, string> = { PENDING: 'Pendiente', ACCEPTED: 'Aceptada', REJECTED: 'Rechazada', CANCELLED: 'Cancelada', EXPIRED: 'Vencida' };
@@ -19,7 +21,7 @@ function failureMessage(error: unknown) {
 
 export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; context?: ContextStore }) {
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(20);
   const [result, setResult] = useState<{ items: readonly ReceivedInvitation[]; page: number; pageSize: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true); const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null); const [notice, setNotice] = useState<string | null>(null);
@@ -31,14 +33,14 @@ export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; 
     const request = ++generation.current;
     setLoading(true); setError(null);
     try {
-      const value = await api.received(page, active.signal);
+      const value = await api.received(page, active.signal, pageSize);
       if (request === generation.current && !active.signal.aborted) setResult(value);
     } catch (failure) {
       if (request === generation.current && !active.signal.aborted) setError(failureMessage(failure));
     } finally {
       if (request === generation.current && !active.signal.aborted) setLoading(false);
     }
-  }, [api, page]);
+  }, [api, page, pageSize]);
   useEffect(() => { void load(); return () => { generation.current++; controller.current?.abort(); }; }, [load]);
 
   const resolve = async (item: ReceivedInvitation, action: 'accept' | 'reject') => {
@@ -71,12 +73,12 @@ export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; 
     await openOrganizations();
   };
 
-  return <Stack spacing={2} sx={{ minWidth: 0, '& button': { minHeight: 44 } }}>
+  return <Stack spacing={2} sx={{ minWidth: 0 }}>
     <Typography variant="h4" component="h1">Mis invitaciones</Typography>
     <Typography>Las invitaciones se buscan con el correo verificado de tu cuenta. Puedes volver aquí después de crear la cuenta o cambiar de navegador.</Typography>
     <Typography color="text.secondary">Al aceptar, compartirás con la organización tu nombre completo, tipo y número de documento y correo electrónico. Crear tu cuenta no acepta una invitación automáticamente.</Typography>
     {error && <Alert severity="error">{error}</Alert>}
-    {notice && <Alert severity="success">{notice}</Alert>}
+    {notice && <SuccessNotice onClose={() => setNotice(null)}>{notice}</SuccessNotice>}
     {notice?.startsWith('Aceptaste') && <Button variant="contained" onClick={() => void continueAfterAcceptance()}>{contextSelected ? 'Continuar a Invoices App' : 'Elegir organización y entrar'}</Button>}
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
       <Button variant="outlined" onClick={() => void load()} disabled={loading || Boolean(busyId)}>Actualizar lista</Button>
@@ -96,6 +98,7 @@ export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; 
         </Stack>}
       </Stack></Paper>;
     })}
-    {result && result.total > result.pageSize && <Pagination page={page} count={Math.ceil(result.total / result.pageSize)} onChange={(_event, value) => setPage(value)} aria-label="Páginas de mis invitaciones" />}
+    {result && <DataPagination page={page} pageSize={result.pageSize} total={result.total} disabled={loading || Boolean(busyId)} label="Páginas de mis invitaciones"
+      onPageChange={setPage} onPageSizeChange={value => { setPageSize(value); setPage(1); }} />}
   </Stack>;
 }

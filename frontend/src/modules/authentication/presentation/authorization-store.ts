@@ -5,7 +5,7 @@ import type { ReadPermissions } from '../application/read-permissions';
 import type { SessionPort, SessionSnapshot } from '../application/session-ports';
 
 export interface AuthorizationState {
-  status: 'idle' | 'loading' | 'ready' | 'denied' | 'error'; scope: PermissionScope;
+  status: 'idle' | 'loading' | 'refreshing' | 'ready' | 'denied' | 'error'; scope: PermissionScope;
   snapshot: PermissionsSnapshot | null; expiresAt: number; error?: ErrorCode;
   refresh(): Promise<void>; setContext(scope: PermissionScope): Promise<void>; invalidate(): void;
   has(permission: Permission): boolean;
@@ -22,11 +22,16 @@ export function createAuthorizationStore(read: ReadPermissions, session: Session
       set({ status: 'idle', snapshot: null, expiresAt: 0, error: undefined });
     },
     async refresh() {
-      get().invalidate();
+      // Focus and visibility can fire together. Keep the current read instead
+      // of aborting it and starting another permissions request.
+      if (active && !active.signal.aborted) return;
+      const previous = get();
+      generation++; active?.abort(); active = undefined; clearTimeout(expiry);
       if (disposed || session.snapshot().status !== 'authenticated' || !visible()) return;
       const epoch = generation; const started = now(); const scope = { ...get().scope };
       const controller = new AbortController(); active = controller;
-      set({ status: 'loading' });
+      const retained = previous.snapshot && sameScope(previous.scope, previous.snapshot.scope) ? previous.snapshot : null;
+      set({ status: retained ? 'refreshing' : 'loading', snapshot: retained, expiresAt: retained ? previous.expiresAt : 0, error: undefined });
       try {
         const snapshot = await read(scope, controller.signal);
         if (disposed || generation !== epoch || controller.signal.aborted) return;
@@ -43,18 +48,30 @@ export function createAuthorizationStore(read: ReadPermissions, session: Session
       } finally { if (active === controller) active = undefined; }
     },
     async setContext(scope) { get().invalidate(); set({ scope: { ...scope } }); await get().refresh(); },
-    has(permission) { const state = get(); return state.status === 'ready' && state.expiresAt > now() && Boolean(state.snapshot && sameScope(state.scope, state.snapshot.scope) && state.snapshot.permissions.includes(permission)); },
+    has(permission) {
+      const state = get();
+      const current = (state.status === 'ready' && state.expiresAt > now()) || state.status === 'refreshing';
+      return current && Boolean(state.snapshot && sameScope(state.scope, state.snapshot.scope) && state.snapshot.permissions.includes(permission));
+    },
   }));
   let previous: SessionSnapshot = session.snapshot();
   const unsubscribe = session.subscribe(snapshot => {
     const changed = previous.status !== snapshot.status || previous.credentialRevision !== snapshot.credentialRevision;
     previous = snapshot;
-    if (snapshot.status !== 'authenticated') store.getState().invalidate();
-    else if (changed) { store.getState().invalidate(); queueMicrotask(() => { if (!disposed && session.snapshot().status === 'authenticated') void store.getState().refresh(); }); }
+    if (snapshot.status !== 'authenticated' && snapshot.status !== 'refreshing') store.getState().invalidate();
+    else if (changed && snapshot.status === 'authenticated') {
+      // A fresh credential revision must supersede any permission request sent
+      // with the previous token while the authorized same-scope screen remains visible.
+      active?.abort(); active = undefined;
+      queueMicrotask(() => { if (!disposed && session.snapshot().status === 'authenticated') void store.getState().refresh(); });
+    }
     if (!['authenticated', 'refreshing'].includes(snapshot.status)) store.setState({ scope: { ...selfScope } });
   });
-  const focus = () => { void store.getState().refresh(); };
-  const visibility = () => { if (visible()) focus(); else store.getState().invalidate(); };
+  const focus = () => {
+    const state = store.getState();
+    if (state.status === 'idle' || (state.status === 'ready' && state.expiresAt <= now())) void state.refresh();
+  };
+  const visibility = () => { if (visible()) focus(); };
   if (options.automatic !== false) {
     window.addEventListener('focus', focus); document.addEventListener('visibilitychange', visibility);
     if (session.snapshot().status === 'authenticated') queueMicrotask(() => { if (!disposed) focus(); });

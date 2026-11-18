@@ -1,5 +1,8 @@
 import { createRoot } from 'react-dom/client';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
+import { Avatar, Button, CssBaseline, Stack, ThemeProvider } from '@mui/material';
+import { AppLayout } from '@/shared/components/app-layout';
+import { theme } from '@/shared/theme/theme';
 import { createAuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import type { PermissionScope } from '@/modules/authentication/domain/permissions';
 import type { SessionPort, SessionSnapshot } from '@/modules/authentication/application/session-ports';
@@ -22,8 +25,13 @@ const api: CompanyApi = {
 };
 const context = { register: () => () => {}, capture: () => ({ scope, signal: new AbortController().signal, isCurrent: () => true, release: () => {} }) } as unknown as ContextStore;
 
-createRoot(document.getElementById('root')!).render(<MemoryRouter initialEntries={['/companies']}><Routes>
-  <Route path="/companies" element={<CompanyPage api={api} context={context} authorization={authorization} mode="list" />} />
-  <Route path="/companies/new" element={<CompanyPage api={api} context={context} authorization={authorization} mode="create" />} />
-  <Route path="/companies/:id" element={<CompanyPage api={api} context={context} authorization={authorization} mode="detail" />} />
-</Routes></MemoryRouter>);
+createRoot(document.getElementById('root')!).render(<ThemeProvider theme={theme}><CssBaseline /><MemoryRouter initialEntries={['/companies']}>
+  <AppLayout navigation={<Stack><Button component={Link} to="/">Inicio</Button><Button component={Link} to="/companies">Empresas</Button><Button component={Link} to="/organization-memberships">Asociados</Button></Stack>} account={<Avatar>LR</Avatar>}>
+    <Routes>
+      <Route path="/companies" element={<CompanyPage api={api} context={context} authorization={authorization} mode="list" />} />
+      <Route path="/companies/new" element={<CompanyPage api={api} context={context} authorization={authorization} mode="create" />} />
+      <Route path="/companies/:id" element={<CompanyPage api={api} context={context} authorization={authorization} mode="detail" />} />
+      <Route path="/companies/:id/edit" element={<CompanyPage api={api} context={context} authorization={authorization} mode="edit" />} />
+    </Routes>
+  </AppLayout>
+</MemoryRouter></ThemeProvider>);

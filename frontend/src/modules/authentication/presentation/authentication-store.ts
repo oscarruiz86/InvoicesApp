@@ -10,6 +10,7 @@ export interface AuthenticationState extends SessionSnapshot {
   profileError?: ErrorCode;
   initialize(): Promise<void>;
   login(returnPath?: '/session' | '/invitations/accept' | '/invitations/received', options?: LoginOptions): Promise<void>;
+  openAccountManagement(): Promise<void>;
   logout(): Promise<void>;
   loadUser(): Promise<void>;
 }
@@ -19,6 +20,7 @@ export function createAuthenticationStore(authentication: Authentication) {
     ...authentication.snapshot(), user: null, profileStatus: 'idle',
     initialize: () => authentication.initialize(),
     login: (returnPath = '/session', options?: LoginOptions) => authentication.login(returnPath, options),
+    openAccountManagement: () => authentication.openAccountManagement(),
     logout: () => authentication.logout(),
     async loadUser() {
       if (!['authenticated', 'refreshing'].includes(get().status)) return;

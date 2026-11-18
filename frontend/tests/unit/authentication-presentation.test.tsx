@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import { createAuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
-import { AuthenticationCallback, PrivateRoute, SessionPage, SessionFeedback } from '@/modules/authentication/presentation/session-page';
+import { AccountMenu, AuthenticationCallback, PrivateRoute, SessionPage, SessionFeedback } from '@/modules/authentication/presentation/session-page';
 import { createAuthentication } from '@/modules/authentication/application/authentication';
 import type { SessionPort, SessionSnapshot } from '@/modules/authentication/application/session-ports';
 import { ApplicationError } from '@/shared/application/application-error';
@@ -17,12 +17,20 @@ function setup(initial: SessionSnapshot = { status: 'anonymous' }, read = vi.fn(
     snapshot: () => snapshot, subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     initialize: vi.fn(async () => { publish({ status: 'initializing' }); publish({ status: 'anonymous' }); }),
     login: vi.fn(async () => { publish({ status: 'authenticating' }); }),
+    openAccountManagement: vi.fn(async () => {}),
     logout: vi.fn(async () => { publish({ status: 'signingOut' }); publish({ status: 'anonymous' }); }),
     invalidate: vi.fn(() => publish({ status: 'error', error: 'SESSION_EXPIRED' })),
   };
   return { store: createAuthenticationStore(createAuthentication(port, { read })), port, publish, read };
 }
 describe('session state and private presentation', () => {
+  it('opens Keycloak account management from the password menu item', async () => {
+    const { store, port } = setup({ status: 'authenticated' });
+    render(<MemoryRouter><AccountMenu store={store} /></MemoryRouter>);
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú de usuario' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Cambiar contraseña' }));
+    expect(port.openAccountManagement).toHaveBeenCalledOnce();
+  });
   it('redirects from the callback without unstable external-store snapshots', async () => {
     const { store } = setup({ status: 'authenticated' });
     function CurrentPath() { return <span>{useLocation().pathname}</span>; }

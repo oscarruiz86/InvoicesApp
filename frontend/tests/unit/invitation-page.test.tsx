@@ -29,24 +29,27 @@ it('shows history filters and exposes actions only for pending invitations that 
   const api = { list, create: vi.fn(), cancel: vi.fn(), resend: vi.fn() } as unknown as InvitationApi;
   await act(() => authorization.getState().setContext(scope));
   render(<InvitationPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization as AuthorizationStore} />);
-  expect(await screen.findByText('active@example.invalid')).toBeTruthy();
-  expect(screen.getByText('expired@example.invalid')).toBeTruthy();
+  expect((await screen.findAllByText('active@example.invalid')).length).toBeGreaterThan(0);
+  expect((await screen.findAllByText('expired@example.invalid')).length).toBeGreaterThan(0);
   expect(screen.getAllByRole('button', { name: 'Reenviar' })).toHaveLength(1);
   expect(screen.getAllByRole('button', { name: 'Cancelar' })).toHaveLength(1);
   expect(screen.getAllByText(/Entrega: Completada/i)).toHaveLength(2);
-  const user = userEvent.setup(); await user.click(screen.getByRole('combobox', { name: 'Estado' }));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Filtro' }));
+  await user.click(await screen.findByRole('combobox', { name: 'Estado' }));
   await user.click(await screen.findByRole('option', { name: 'Aceptadas' }));
+  await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
   await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
 });
 
-it('requires confirmation before creating and gives a safe duplicate message', async () => {
-  const user = userEvent.setup(); vi.spyOn(window, 'confirm').mockReturnValue(true);
+it('shows a safe duplicate message when an invitation already exists', async () => {
+  const user = userEvent.setup();
   const api = { list: vi.fn(async () => ({ items: [], page: 1, pageSize: 20, total: 0 })),
     create: vi.fn(async () => { throw new RequestError('INVITATION_EXISTS'); }), cancel: vi.fn(), resend: vi.fn() } as unknown as InvitationApi;
   await act(() => authorization.getState().setContext(scope));
   render(<InvitationPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization as AuthorizationStore} />);
-  await user.type(await screen.findByLabelText('Correo del destinatario'), 'person@example.invalid');
-  await user.click(screen.getByRole('button', { name: 'Crear' }));
-  expect(await screen.findByText('Ya existe una invitación pendiente para este correo.')).toBeTruthy();
-  expect(window.confirm).toHaveBeenCalledOnce();
+  await user.click(await screen.findByRole('button', { name: 'Crear invitación' }));
+  await user.type(await screen.findByLabelText('Correo del usuario'), 'person@example.invalid');
+  await user.click(screen.getByRole('button', { name: 'Enviar invitación' }));
+  expect((await screen.findAllByText('Ya existe una invitación pendiente para este correo.')).length).toBeGreaterThan(0);
 });

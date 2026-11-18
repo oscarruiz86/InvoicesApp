@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { Link, Navigate, useNavigate } from 'react-router';
-import { Alert, Button, Card, CardActions, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { Alert, Button, Card, CardActions, CardContent, Chip, Paper, Stack, Typography } from '@mui/material';
 import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import { errorMessage } from '@/shared/components/error-messages';
@@ -14,7 +14,7 @@ export function OrganizationCard({ organization, select }: { organization: Organ
     <Typography component="h2" variant="h6">{organization.organizationName}</Typography>
     <Typography>{organization.organizationType === 'COMPANY' ? 'Empresa' : 'Tercero'}</Typography>
     <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mt: 1 }}>{organization.roles.map(role => <Chip key={role} label={getRoleLabel(role)} />)}</Stack>
-  </CardContent><CardActions><Button sx={{ minHeight: 44 }} onClick={select} aria-label={`Seleccionar ${organization.organizationName}`}>Seleccionar</Button></CardActions></Card>;
+  </CardContent><CardActions><Button  onClick={select} aria-label={`Seleccionar ${organization.organizationName}`}>Seleccionar</Button></CardActions></Card>;
 }
 export function OrganizationSelectionPage({ store, authentication, invitationsAvailable = false }: { store: ContextStore; authentication: AuthenticationStore; invitationsAvailable?: boolean }) {
   const state = useStore(store); const auth = useStore(authentication);
@@ -22,7 +22,7 @@ export function OrganizationSelectionPage({ store, authentication, invitationsAv
   useEffect(() => { heading.current?.focus(); }, []);
   if (state.status === 'ready') return <Navigate to="/session" replace />;
   if (state.status === 'empty' && invitationsAvailable) return <Navigate to="/invitations/received" replace />;
-  return <Stack spacing={2}>
+  return <Paper variant="outlined" sx={{ maxWidth: 960, mx: 'auto', p: { xs: 2, md: 3 } }}><Stack spacing={2}>
     <Typography component="h1" variant="h4" tabIndex={-1} ref={heading}>Selecciona una organización</Typography>
     <Typography>Invoices App · {auth.user?.name ?? auth.user?.username ?? 'Usuario autenticado'}</Typography>
     {['idle', 'loading', 'switching'].includes(state.status) && <Alert severity="info" role="status">Validando contexto…</Alert>}
@@ -35,12 +35,12 @@ export function OrganizationSelectionPage({ store, authentication, invitationsAv
     </>}
     {state.status === 'error' && <Alert severity="error">{errorMessage(state.error)}</Alert>}
     {state.status === 'selecting' && <Stack spacing={2}>
-      {state.availableContexts.globalAvailable && <Button variant="outlined" sx={{ minHeight: 44 }} onClick={() => void state.select({ kind: 'GLOBAL' })}>Administración GLOBAL</Button>}
+      {state.availableContexts.globalAvailable && <Button variant="outlined"  onClick={() => void state.select({ kind: 'GLOBAL' })}>Administración GLOBAL</Button>}
       {state.availableContexts.organizations.map(org => <OrganizationCard key={org.organizationId} organization={org} select={() => void state.select({ kind: 'ORGANIZATION', ...org })} />)}
     </Stack>}
-    {['error', 'empty'].includes(state.status) && <Button sx={{ minHeight: 44 }} onClick={() => void state.openSelector()}>Reintentar</Button>}
-    <Button sx={{ minHeight: 44 }} onClick={() => void auth.logout()}>Cerrar sesión</Button>
-  </Stack>;
+    {['error', 'empty'].includes(state.status) && <Button  onClick={() => void state.openSelector()}>Reintentar</Button>}
+    <Button sx={{ alignSelf: 'flex-start' }} onClick={() => void auth.logout()}>Cerrar sesión</Button>
+  </Stack></Paper>;
 }
 export function ActiveOrganizationIndicator({ store }: { store: ContextStore }) {
   const state = useStore(store);
@@ -53,20 +53,26 @@ export function OrganizationSelector({ store }: { store: ContextStore }) {
   const navigate = useNavigate();
   const state = useStore(store);
   if (state.status !== 'ready') return null;
-  return <Stack spacing={1} sx={{ mb: 2 }}><ActiveOrganizationIndicator store={store} /><Button sx={{ minHeight: 44 }} onClick={() => { void store.getState().openSelector().then(opened => { if (opened) navigate('/organizations/select'); }); }}>Cambiar organización</Button></Stack>;
+  return <Stack spacing={1} sx={{ mb: 2 }}><ActiveOrganizationIndicator store={store} /><Button  onClick={() => { void store.getState().openSelector().then(opened => { if (opened) navigate('/organizations/select'); }); }}>Cambiar organización</Button></Stack>;
 }
 export function OrganizationContextGuard({ store, authorization, children, organizationRequired = false }: { store: ContextStore; authorization: AuthorizationStore; children: ReactNode; organizationRequired?: boolean }) {
   const state = useStore(store); const permissions = useStore(authorization);
   if (['idle', 'loading', 'switching'].includes(state.status)) return <Alert severity="info" role="status">Validando contexto…</Alert>;
   if (state.status !== 'ready' || !state.activeContext) return <Navigate to="/organizations/select" replace />;
-  if (permissions.status !== 'ready' || permissions.expiresAt <= Date.now()) return <Alert severity="info" role="status">Actualizando permisos…</Alert>;
-  if (organizationRequired && state.activeContext.kind === 'GLOBAL') return <Alert severity="warning">Selecciona una organización para continuar.</Alert>;
+  // Keep a previously authorized page mounted during a refresh for its same
+  // context. Initial permission loads still gate protected content.
+  if (permissions.status === 'refreshing' && permissions.snapshot) return <section key={state.generation}>{children}</section>;
+  if (permissions.status === 'idle' || permissions.status === 'loading' || permissions.status === 'refreshing') return null;
+  if (permissions.status === 'error') return <Stack spacing={2}><Typography component="h1" variant="h4">No se pudieron verificar los permisos</Typography><Alert severity="error">{errorMessage(permissions.error)}</Alert><Button onClick={() => void authorization.getState().refresh()}>Reintentar permisos</Button></Stack>;
+  if (permissions.status === 'denied') return <Stack spacing={2}><Typography component="h1" variant="h4">Acceso denegado</Typography><Alert severity="warning">No tienes permiso para consultar esta página.</Alert></Stack>;
+  if (permissions.status !== 'ready' || permissions.expiresAt <= Date.now()) return <Stack spacing={2}><Typography component="h1" variant="h4">No se pudieron actualizar los permisos</Typography><Alert severity="error">No fue posible actualizar los permisos.</Alert><Button onClick={() => void authorization.getState().refresh()}>Reintentar permisos</Button></Stack>;
+  if (organizationRequired && state.activeContext.kind === 'GLOBAL') return <Stack spacing={2}><Typography component="h1" variant="h4">Selecciona una organización</Typography><Alert severity="warning">Selecciona una organización para continuar.</Alert></Stack>;
   return <section key={state.generation}>{children}</section>;
 }
 export function ContextSessionBootstrap({ authentication }: { authentication: AuthenticationStore }) {
   const state = useStore(authentication);
   const { status, profileStatus, loadUser } = state;
   useEffect(() => { if (status === 'authenticated' && profileStatus === 'idle') void loadUser(); }, [status, profileStatus, loadUser]);
-  if (profileStatus === 'error') return <Stack><Alert severity="error">{errorMessage(state.profileError)}</Alert><Button onClick={() => void loadUser()}>Reintentar sesión</Button></Stack>;
+  if (profileStatus === 'error') return <Stack><Typography component="h1" variant="h4">No se pudo cargar el perfil</Typography><Alert severity="error">{errorMessage(state.profileError)}</Alert><Button onClick={() => void loadUser()}>Reintentar sesión</Button></Stack>;
   return null;
 }

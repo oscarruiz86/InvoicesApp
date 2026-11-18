@@ -121,7 +121,9 @@ export function createContextStore(deps: { api: ContextApi; preference: ContextP
     /** Consumers must check isCurrent before publishing even if their transport ignores abort. */
     capture() {
       const state = store.getState(); const auth = deps.authorization.getState();
-      if (state.status !== 'ready' || !state.activeContext || auth.status !== 'ready' || auth.expiresAt <= Date.now()) throw new ApplicationError('FORBIDDEN');
+      const sameAuthorizedContext = Boolean(state.activeContext && auth.snapshot && sameScope(auth.scope, scopeOf(state.activeContext)));
+      const authorizationAvailable = auth.status === 'ready' || (auth.status === 'refreshing' && sameAuthorizedContext);
+      if (state.status !== 'ready' || !state.activeContext || !authorizationAvailable || !sameAuthorizedContext) throw new ApplicationError('FORBIDDEN');
       const generation = state.generation; const owner = identity(); const controller = new AbortController(); requests.add(controller);
       return { scope: { ...scopeOf(state.activeContext) }, signal: controller.signal,
         isCurrent: () => !disposed && !controller.signal.aborted && generation === store.getState().generation && owner === identity() && store.getState().status === 'ready',

@@ -7,7 +7,7 @@ export const permissions = [
   'vehicles:create', 'vehicles:read', 'vehicles:update', 'vehicles:deactivate', 'vehicles:assign', 'vehicles:unassign',
   'assignments:read', 'invoices:create', 'invoices:read', 'invoices:update', 'invoices:delete',
   'parameters:read', 'parameters:update', 'parameters:create', 'parameters:deactivate',
-  'roles:read', 'roles:manage', 'associations:read', 'associations:manage', 'audit:read',
+  'roles:read', 'roles:manage', 'associations:read', 'associations:manage', 'audit:read', 'notifications:deliveries:read',
 ] as const;
 export type Permission = typeof permissions[number];
 export const applicationRoles = ['APP_ADMIN', 'COMPANY_ADMIN', 'THIRD_PARTY_ADMIN', 'DRIVER'] as const;
