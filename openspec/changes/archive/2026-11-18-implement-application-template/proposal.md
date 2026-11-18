@@ -7,6 +7,7 @@ Invoices App ya tiene una guía de diseño y una nueva capacidad de notificacion
 ## What Changes
 
 - Implementar el shell administrativo definido en `design-application-ui`, con barra lateral adaptable, botón de menú antes del título, selector de contexto, menú de usuario y rutas de estado comunes.
+- Organizar la navegación como en el wireframe: Inicio, Administración, Flota, Facturas, Configuración y Auditoría; mostrar solo los grupos que tengan opciones autorizadas. En móvil, cerrar el sidenav al seleccionar una opción.
 - Incorporar el tema, los patrones Material UI y los componentes compartidos para listas, formularios, detalles, confirmaciones, carga, vacío, error y acceso denegado.
 - Aplicar permisos y contexto confirmados por el backend al menú, las acciones y las rutas, sin sustituir los controles de autorización del servidor. El inicio mostrará los módulos del rol actual.
 - Incorporar una vista administrativa de entregas de notificaciones para invitaciones, con estados `pending`, `sent` y `failed`, destinatarios enmascarados y datos técnicos saneados.

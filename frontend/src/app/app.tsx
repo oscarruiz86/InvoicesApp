@@ -32,11 +32,25 @@ import { NotificationDeliveriesPage } from '@/modules/notifications/presentation
 function OrganizationManagementNavigation({ authorization, context, invitationsAvailable }: { authorization: AuthorizationStore; context: ContextStore; invitationsAvailable: boolean }) {
   const state = useStore(context);
   if (state.status !== 'ready' || !state.activeContext) return null;
-  return <AuthorizedNavigation store={authorization} contextKind={state.activeContext.kind} items={[{ label: 'Empresas', path: '/companies', permission: 'companies:read' },
+  const moduleGroups: Record<MarkerModuleDefinition['key'], string> = {
+    drivers: 'Flota',
+    vehicles: 'Flota',
+    'notification-deliveries': 'Administración',
+    assignments: 'Flota',
+    invoices: 'Facturas',
+    parameters: 'Configuración',
+    roles: 'Configuración',
+    audit: 'Auditoría',
+  };
+  const items = [
+    { label: 'Empresas', path: '/companies', group: 'Administración', permission: 'companies:read' as const },
     ...(invitationsAvailable ? [
-      { label: 'Invitaciones', path: '/invitations', permission: 'associations:read' as const },
-      { label: 'Usuarios', path: '/organization-memberships', permission: 'associations:read' as const },
-    ] : []), ...markerModules.map(({ label, path, permission, context }) => ({ label, path, permission, context }))]} />;
+      { label: 'Invitaciones', path: '/invitations', group: 'Administración', permission: 'associations:read' as const },
+      { label: 'Usuarios', path: '/organization-memberships', group: 'Administración', permission: 'associations:read' as const },
+    ] : []),
+    ...markerModules.map(({ label, path, permission, context, key }) => ({ label, path, permission, context, group: moduleGroups[key] })),
+  ];
+  return <AuthorizedNavigation store={authorization} contextKind={state.activeContext.kind} items={items} />;
 }
 
 
@@ -52,7 +66,7 @@ function MarkerModuleContext({ module, context, children }: { module: MarkerModu
 function ShellNavigation({ authorization, context, invitationsAvailable }: { authorization?: AuthorizationStore; context?: ContextStore; invitationsAvailable: boolean }) {
   const { pathname } = useLocation(); const home = pathname === '/';
   return <Stack spacing={.5}><Typography variant="overline" sx={{ px: 1.5, fontWeight: 700 }}>Inicio</Typography><Button variant="text" component={Link} to="/" aria-current={home ? 'page' : undefined} sx={{ justifyContent: 'flex-start', px: 1.5, minHeight: 42, borderColor: 'transparent', bgcolor: home ? '#e8effe' : 'transparent', color: home ? '#153d8e' : 'text.primary', fontWeight: home ? 700 : 400 }}>Inicio</Button>
-    {authorization && context && <><Typography variant="overline" sx={{ px: 1.5, pt: 1, fontWeight: 700 }}>Administración</Typography><OrganizationManagementNavigation authorization={authorization} context={context} invitationsAvailable={invitationsAvailable} /></>}
+    {authorization && context && <OrganizationManagementNavigation authorization={authorization} context={context} invitationsAvailable={invitationsAvailable} />}
   </Stack>;
 }
 

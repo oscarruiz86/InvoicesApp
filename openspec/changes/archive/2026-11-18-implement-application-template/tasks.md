@@ -12,6 +12,8 @@
 - [x] 2.2 Implementar `AppShell` con botón de menú antes del título, barra lateral plegable, menú móvil y avatar de usuario, y verificar las rutas disponibles a 360 px y 1280 px sin desplazamiento horizontal.
 - [x] 2.3 Implementar el selector de contexto con espera, confirmación, rechazo e invalidación de datos de página, y verificar que un cambio exitoso recarga el contexto y un rechazo no muestra datos anteriores como actuales.
 - [x] 2.4 Implementar vistas de carga de sesión, autenticación fallida, sesión expirada, contexto ausente, 403 y 404, y verificar que cada navegación mueve el foco al título y no expone datos protegidos. `RouteHeadingFocus` enfoca el encabezado de destino y espera encabezados que aparecen tras la carga.
+- [x] 2.5 Distribuir las opciones del menú en los grupos del wireframe —Inicio, Administración, Flota, Facturas, Configuración y Auditoría— y ocultar los grupos sin rutas autorizadas. Roles y permisos queda junto a Parámetros en Configuración.
+- [x] 2.6 Cerrar el sidenav móvil al seleccionar una opción; mantener abierto el menú lateral de escritorio.
 
 ## 3. Patrones reutilizables de módulo
 

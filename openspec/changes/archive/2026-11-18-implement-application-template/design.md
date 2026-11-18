@@ -23,7 +23,7 @@
 
 ### Shell como límite de presentación
 
-El template contendrá `AppShell`, icono de hamburguesa antes del título, navegación lateral adaptable, avatar de usuario y una salida para las rutas. En móvil, el icono abre un sidenav superpuesto al contenido. El menú del avatar mostrará iniciales, Contexto actual y Rol actual en líneas separadas, perfil, cambio de contraseña y cierre de sesión. Roles y permisos se registrará bajo Configuración. Cada módulo aportará sus rutas y pantallas a través de una definición de navegación que indique permiso, contexto requerido, etiqueta e icono.
+El template contendrá `AppShell`, icono de hamburguesa antes del título, navegación lateral adaptable, avatar de usuario y una salida para las rutas. En móvil, el icono abre un sidenav superpuesto al contenido y el drawer se cierra cuando se selecciona una ruta; en escritorio el menú permanece abierto. La navegación conserva el orden del wireframe: Inicio, Administración, Flota, Facturas, Configuración y Auditoría. Empresas, Invitaciones, Usuarios y Entregas de notificaciones se agrupan en Administración; Conductores, Vehículos y Asignaciones en Flota; Roles y permisos junto a Parámetros en Configuración. Solo se muestran encabezados de grupo que contengan opciones autorizadas. El menú del avatar mostrará iniciales, Contexto actual y Rol actual en líneas separadas, perfil, cambio de contraseña y cierre de sesión. Roles y permisos se registrará bajo Configuración. Cada módulo aportará sus rutas y pantallas a través de una definición de navegación que indique permiso, contexto requerido, etiqueta e icono.
 
 ### Permisos visibles, backend autoritativo
 

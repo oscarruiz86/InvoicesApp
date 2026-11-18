@@ -8,12 +8,18 @@ Proporciona una estructura administrativa uniforme y accesible para usar las cap
 
 ### Requirement: Estructura administrativa adaptable
 
-La aplicación MUST ofrecer una estructura administrativa con encabezado, navegación por módulos y contenido principal legible a 360 px y 1280 px. Un icono de hamburguesa MUST aparecer antes del título y abrir un sidenav superpuesto en móvil. El encabezado MUST incluir un avatar que abra el contexto y rol actuales, perfil, cambio de contraseña y cierre de sesión. La navegación MUST permitir abrir módulos disponibles para el usuario.
+La aplicación MUST ofrecer una estructura administrativa con encabezado, navegación por módulos y contenido principal legible a 360 px y 1280 px. Un icono de hamburguesa MUST aparecer antes del título y abrir un sidenav superpuesto en móvil. El encabezado MUST incluir un avatar que abra el contexto y rol actuales, perfil, cambio de contraseña y cierre de sesión. La navegación MUST permitir abrir módulos disponibles para el usuario. El menú MUST ordenar sus grupos como Inicio, Administración, Flota, Facturas, Configuración y Auditoría; MUST mostrar dentro de Administración Empresas, Invitaciones, Usuarios y Entregas de notificaciones, dentro de Flota Conductores, Vehículos y Asignaciones, dentro de Configuración Roles y permisos y Parámetros, y dentro de Auditoría las opciones de auditoría. MUST ocultar cualquier grupo que no tenga opciones autorizadas.
 
 #### Scenario: Navegación en escritorio
 
 - **WHEN** un usuario abre una ruta autorizada a 1280 px
 - **THEN** ve el encabezado, el menú lateral y el contenido de la ruta sin desplazamiento horizontal causado por la estructura
+
+#### Scenario: Grupos del menú
+
+- **WHEN** el usuario abre la navegación
+- **THEN** ve las opciones permitidas ordenadas dentro de los grupos definidos
+- **AND** no ve encabezados de grupo sin opciones autorizadas
 
 #### Scenario: Menú de usuario
 
@@ -24,6 +30,12 @@ La aplicación MUST ofrecer una estructura administrativa con encabezado, navega
 
 - **WHEN** un usuario abre una ruta autorizada a 360 px
 - **THEN** puede abrir y cerrar el menú, navegar a una ruta disponible y leer el contenido sin desplazamiento horizontal
+- **AND** el sidenav se cierra después de seleccionar una opción
+
+#### Scenario: Selección en escritorio
+
+- **WHEN** el usuario selecciona una ruta en el menú lateral de escritorio
+- **THEN** el menú permanece abierto
 
 ### Requirement: Navegación condicionada por identidad y contexto
 

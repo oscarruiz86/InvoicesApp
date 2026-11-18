@@ -7,7 +7,11 @@ export function AppLayout({ children, navigation, account }: { children: ReactNo
   const theme = useTheme(); const desktop = useMediaQuery(theme.breakpoints.up('md'));
   const [open, setOpen] = useState(desktop);
   useEffect(() => { setOpen(desktop); }, [desktop]);
-  const navigationPanel = <Stack component="nav" aria-label="Navegación principal" spacing={.5} sx={{ p: 1.5, bgcolor: '#f8fafc', minHeight: '100%' }}>{navigation}</Stack>;
+  const navigationPanel = (closeAfterSelection = false) => <Stack component="nav" aria-label="Navegación principal" spacing={.5}
+    onClick={closeAfterSelection ? event => {
+      if (event.target instanceof Element && event.target.closest('a[href]')) setOpen(false);
+    } : undefined}
+    sx={{ p: 1.5, bgcolor: '#f8fafc', minHeight: '100%' }}>{navigation}</Stack>;
   return <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
     <Box component="a" href="#main-content" sx={{ position: 'absolute', left: -10000, top: 8, zIndex: 1400, p: 1.5, bgcolor: 'background.paper', color: 'primary.main', borderRadius: 1, '&:focus': { left: 8, outline: '3px solid #1d4ed8' } }}>Saltar al contenido</Box>
     <AppBar position="sticky" elevation={0} color="transparent" sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -20,11 +24,11 @@ export function AppLayout({ children, navigation, account }: { children: ReactNo
       </Toolbar>
     </AppBar>
       <Drawer variant="temporary" open={open && !desktop} onClose={() => setOpen(false)} ModalProps={{ keepMounted: true }} sx={{ display: { xs: 'block', md: 'none' }, '& .MuiDrawer-paper': { width: drawerWidth } }}>
-      {navigationPanel}
+      {navigationPanel(true)}
     </Drawer>
     <Box sx={{ display: 'flex', alignItems: 'stretch' }}>
       {open && desktop && <Drawer variant="permanent" sx={{ display: { xs: 'none', md: 'block' }, width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, position: 'relative', boxSizing: 'border-box', borderRight: '1px solid', borderColor: 'divider' } }}>
-        {navigationPanel}
+        {navigationPanel()}
       </Drawer>}
       <Box id="main-content" component="main" sx={{ minWidth: 0, flexGrow: 1, px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2, md: 3 } }}>{children}</Box>
     </Box>
