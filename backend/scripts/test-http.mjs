@@ -47,8 +47,14 @@ async function withServer(uri, action, identity = {}) {
     assert(ready, `Next did not become reachable (${connectionFailure}): ${output}`);
     await action(base);
   } finally {
-    const exited = new Promise(resolve => child.once('exit', resolve));
-    if (child.exitCode === null) { child.kill(); await exited; }
+    const closed = new Promise(resolve => child.once('close', resolve));
+    if (child.exitCode === null) child.kill('SIGINT');
+    const graceful = await Promise.race([closed.then(() => true), delay(5000).then(() => false)]);
+    if (!graceful) {
+      const forcedClose = new Promise(resolve => child.once('close', resolve));
+      if (child.exitCode === null) child.kill('SIGTERM');
+      await forcedClose;
+    }
     await rm(secretDirectory, { recursive: true, force: true });
     if (developmentRuntime) {
       for (const [name, contents] of generatedConfig) await writeFile(join(process.cwd(), name), contents);
@@ -81,6 +87,19 @@ async function inspect(base) {
   for (const operation of [thirdPartyList, thirdPartyRelationship]) {
     for (const response of Object.values(operation.responses)) assert.equal(response.headers?.['Cache-Control']?.schema?.const, 'no-store');
   }
+  const roleRead = specification.paths['/api/roles'].get;
+  const roleReplace = specification.paths['/api/roles'].put;
+  for (const operation of [roleRead, roleReplace]) {
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
+    assert(operation.parameters.some(value => value.name === 'scope' && value.required && value.schema.const === 'global'));
+    for (const response of Object.values(operation.responses)) assert.equal(response.headers?.['Cache-Control']?.schema?.const, 'no-store');
+  }
+  assert.deepEqual(roleRead['x-required-permissions'], ['roles:read']);
+  assert.deepEqual(roleReplace['x-required-permissions'], ['roles:manage']);
+  for (const status of ['200', '400', '401', '403', '500', '503']) assert(roleRead.responses[status]);
+  for (const status of ['200', '400', '401', '403', '409', '500', '503']) assert(roleReplace.responses[status]);
+  assert.deepEqual(specification.components.schemas.Role.enum, ['APP_ADMIN', 'COMPANY_ADMIN', 'THIRD_PARTY_ADMIN', 'DRIVER']);
+  assert.equal(specification.components.schemas.RolePolicyReplace.properties.grants.maxItems, 51);
   const anonymousThirdParty = await fetch(base + '/api/third-parties?scope=global');
   assert.equal(anonymousThirdParty.status, 503); assert.equal(anonymousThirdParty.headers.get('cache-control'), 'no-store');
   assert.equal((await anonymousThirdParty.json()).error.code, 'CONFIGURATION_ERROR');
@@ -103,6 +122,9 @@ await withServer(null, async base => {
     const body = await response.json(); assert.equal(body.error.code, 'CONFIGURATION_ERROR');
     assert(!JSON.stringify(body).includes('MONGODB_URI_FILE'));
   }
+  const roles = await fetch(base + '/api/roles?scope=global'); assert.equal(roles.status, 503);
+  assert.equal(roles.headers.get('cache-control'), 'no-store');
+  assert.equal((await roles.json()).error.code, 'CONFIGURATION_ERROR');
 });
 console.log('Real Next HTTP, OpenAPI, local Swagger assets and invalid-runtime checks passed.');
 
@@ -125,6 +147,14 @@ try {
     }
     assert.equal((await fetch(url, { headers: { Authorization: 'Bearer invalid.token.value' } })).status, 401);
     const headers = { Authorization: `Bearer ${token}` };
+    const unauthenticatedRoles = await fetch(base + '/api/roles?scope=global');
+    assert.equal(unauthenticatedRoles.status, 401); assert.equal(unauthenticatedRoles.headers.get('cache-control'), 'no-store');
+    const invalidRoleScope = await fetch(base + '/api/roles?scope=organization&companyId=c1', { headers });
+    assert.equal(invalidRoleScope.status, 400); assert.equal(invalidRoleScope.headers.get('cache-control'), 'no-store');
+    assert.equal((await invalidRoleScope.json()).error.code, 'INVALID_REQUEST');
+    const invalidRoleBody = await fetch(base + '/api/roles?scope=global', { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVersion: 1, grants: [] }) });
+    assert.equal(invalidRoleBody.status, 400); assert.equal(invalidRoleBody.headers.get('cache-control'), 'no-store');
+    assert.equal((await invalidRoleBody.json()).error.code, 'INVALID_REQUEST');
     const me = await fetch(base + '/api/auth/me', { headers }); assert.equal(me.status, 200);
     assert.equal((await me.json()).user.id, 'authorization-http-subject');
     if (testUri) {

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { createStore } from 'zustand/vanilla';
@@ -55,9 +55,11 @@ it('filters the list, resets the page when search changes, and announces empty r
   expect(list).toHaveBeenCalledWith(globalScope, expect.objectContaining({ page: '1', pageSize: '20', sort: 'businessName' }), expect.any(AbortSignal));
   await user.click(screen.getByRole('button', { name: 'Ir a la página 2' }));
   await waitFor(() => expect(list.mock.calls.at(-1)?.[1].page).toBe('2'));
-  await user.type(screen.getByRole('textbox', { name: 'Buscar por nombre o NIT' }), 'inexistente');
+  await user.click(screen.getByRole('button', { name: 'Filtro' }));
+  await user.type(await screen.findByRole('textbox', { name: 'Buscar por nombre o documento' }), 'inexistente');
+  await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
   await waitFor(() => expect(list.mock.calls.at(-1)?.[1]).toMatchObject({ q: 'inexistente', page: '1' }));
-  expect(await screen.findByText('No hay terceros para este filtro.')).toBeTruthy();
+  expect(await screen.findByText('No hay terceros que coincidan con la consulta.')).toBeTruthy();
 }, 15000);
 
 it('discards an old list response after a newer search completes', async () => {
@@ -70,7 +72,9 @@ it('discards an old list response after a newer search completes', async () => {
     : await new Promise<{ items: { thirdParty: ThirdParty; version: string; relationship: null }[]; page: number; pageSize: number; total: number }>(resolve => { resolveInitial = resolve; }));
   const f = setup(api({ list })); await act(() => f.authorization.getState().setContext(globalScope)); f.renderPage('list', '/third-parties');
   await waitFor(() => expect(list).toHaveBeenCalled());
-  await user.type(screen.getByRole('textbox', { name: 'Buscar por nombre o NIT' }), 'vigente');
+  await user.click(screen.getByRole('button', { name: 'Filtro' }));
+  await user.type(await screen.findByRole('textbox', { name: 'Buscar por nombre o documento' }), 'vigente');
+  await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
   expect((await screen.findAllByText('Resultado vigente')).length).toBeGreaterThan(0);
   await act(async () => resolveInitial({ items: [{ thirdParty: stale, version: '1', relationship: null }], page: 1, pageSize: 20, total: 1 }));
   expect(screen.queryByText('Resultado obsoleto')).toBeNull();
@@ -96,17 +100,22 @@ it('retries a failed list request', async () => {
   expect(list).toHaveBeenCalledTimes(2);
 }, 15000);
 
-it('validates create fields and never submits when the user cancels', async () => {
+it('keeps the submit disabled for incomplete data and preserves the draft when the user cancels', async () => {
   const user = userEvent.setup(); const create = vi.fn(async () => record); const f = setup(api({ create }));
   await act(() => f.authorization.getState().setContext(globalScope)); f.renderPage('create', '/third-parties/new');
-  await user.click(screen.getByRole('button', { name: 'Crear tercero' }));
-  expect(await screen.findByText('Revisa los campos indicados.')).toBeTruthy(); expect(create).not.toHaveBeenCalled();
-  await user.type(screen.getByRole('textbox', { name: 'NIT' }), '900123'); await user.type(screen.getByRole('textbox', { name: 'Razón social' }), 'Borrador'); await user.type(screen.getByRole('textbox', { name: 'Correo electrónico' }), 'draft@example.com');
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
-  await user.click(screen.getByRole('button', { name: 'Cancelar' }));
-  expect(create).not.toHaveBeenCalled(); expect(await screen.findByRole('heading', { name: 'Terceros' })).toBeTruthy();
+  const dialog = await screen.findByRole('dialog', { name: 'Crear tercero' });
+  const submit = within(dialog).getByRole('button', { name: 'Crear tercero' });
+  expect(submit).toBeDisabled();
+  await user.type(within(dialog).getByRole('textbox', { name: 'NIT' }), '900123');
+  await user.type(within(dialog).getByRole('textbox', { name: 'Razón social' }), 'Borrador');
+  await user.type(within(dialog).getByRole('textbox', { name: 'Correo electrónico' }), 'draft@example.com');
+  expect(submit).toBeEnabled();
+  vi.spyOn(window, 'confirm').mockReturnValue(false);
+  await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+  expect(window.confirm).toHaveBeenCalledWith('¿Descartar los cambios y cerrar?');
+  expect(within(dialog).getByRole('textbox', { name: 'Razón social' })).toHaveValue('Borrador');
+  expect(create).not.toHaveBeenCalled();
 }, 15000);
-
 it('requires a fresh read after a version conflict before another edit can be submitted', async () => {
   const user = userEvent.setup();
   const refreshed = { ...record, version: '2', thirdParty: { ...profile, city: 'Cali' } };
@@ -117,6 +126,7 @@ it('requires a fresh read after a version conflict before another edit can be su
   await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
   expect(await screen.findByText('El tercero o la relación cambió. Recarga los datos antes de volver a guardar.')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled(); expect(update).toHaveBeenCalledTimes(1);
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
   await user.click(screen.getByRole('button', { name: 'Recargar datos' }));
   await waitFor(() => expect(screen.getByLabelText('Ciudad')).toHaveValue('Cali'));
   expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeEnabled();
@@ -130,7 +140,7 @@ it('registers a dirty draft with the context guard and clears it on context chan
   const user = userEvent.setup(); const create = vi.fn(async () => record); const f = setup(api({ create }));
   await act(() => f.authorization.getState().setContext(globalScope)); f.renderPage('create', '/third-parties/new');
   await user.type(screen.getByRole('textbox', { name: 'Razón social' }), 'Borrador'); await waitFor(() => expect(f.context.register).toHaveBeenCalled());
-  const participant = vi.mocked(f.context.register).mock.calls[0][0]; expect(participant.dirty()).toBe(true);
+  const participant = vi.mocked(f.context.register).mock.calls.map(([value]) => value).find(value => value.dirty()); expect(participant).toBeDefined(); if (!participant) throw new Error('El borrador no fue registrado como sucio.');
   act(() => participant.clear());
   expect(participant.dirty()).toBe(false); expect(screen.getByRole('textbox', { name: 'Razón social' })).toHaveValue(''); expect(create).not.toHaveBeenCalled();
 }, 15000);

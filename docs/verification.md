@@ -101,3 +101,18 @@ La suite ampliada de integración no queda completamente verde por los dos fallo
 - openspec validate --archived --strict --no-interactive pasó para los 7 cambios archivados. La nueva spec third-party-management valida en modo estricto.
 - La validación estricta completa de user-invitations y application-template aún señala advertencias de longitud en requisitos anteriores a estas adiciones. Las deltas nuevas están sincronizadas y la gestión de terceros no tiene advertencias.
 - No se desplegó el cambio. La revisión y el PR hacia development siguen siendo el paso de integración después del commit local.
+
+## implement-role-management — 2026-11-19
+
+| Verificación | Resultado |
+| --- | --- |
+| Backend | `npm run check` aprobado: lint, TypeScript, 357 pruebas unitarias y comprobación arquitectónica. ESLint terminó con 4 advertencias y 0 errores. |
+| Frontend estático | `npm run lint` aprobado con 0 errores y 11 advertencias existentes; `npm run typecheck` y `npm run test:architecture` aprobados. |
+| OpenSpec | Validación estricta aprobada con 21/21 tareas completas. Las especificaciones canónicas ya contienen los requisitos; `skip_specs: true` evitó duplicarlos. La propuesta quedó archivada como `openspec/changes/archive/2026-11-19-implement-role-management`. |
+| Suite frontend completa | `npm test -- --maxWorkers=1 --reporter=verbose`: 25 archivos y 145 pruebas aprobadas. Se actualizaron expectativas obsoletas de filtros, confirmación y acciones para reflejar la interfaz vigente. La tarea 5.1 quedó completa. |
+| Build y OpenAPI | `npm run build` backend y `npm run openapi:lint` aprobados. |
+| HTTP standalone | `npm run test:http` aprobado con Next compilado: contrato OpenAPI 3.1, Swagger y assets, JWT efímero, 401/400/no-store en `/api/roles`, errores de configuración y respuestas de autorización. |
+| MongoDB | 1 prueba de política/auditoría y 9 pruebas de revalidación transaccional pasaron contra MongoDB replica set y base de prueba terminada en `_test`. La base aleatoria se eliminó; el contenedor temporal se detuvo. |
+| Navegador | 5/5 pruebas de `/roles` aprobadas con Vite aislado: matriz de un solo rol, 360 px, 1280 px, teclado, continuidad, conflicto/recarga, invalidación de navegación y guardia de contexto. Vite temporal en 5174 se detuvo. |
+
+La política conserva `APP_ADMIN / roles:read / global` y `APP_ADMIN / roles:manage / global`. El límite de auditoría sigue siendo 1000 eventos pendientes y la actualización falla cerrada al agotarse. No se modificaron roles, perfiles, asociaciones ni credenciales de Keycloak. La recuperación cuando no existe ningún APP_ADMIN asignado queda a cargo del procedimiento operativo de identidad del entorno. No se desplegó ni se abrió un PR; queda revisión antes de integrar a `development`.

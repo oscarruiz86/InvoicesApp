@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createAuthorization } from '@/modules/identity/application/authorization';
+import { createRolePolicyUseCases } from '@/modules/identity/application/role-policy';
 import { createLimitedSecurityAudit } from '@/modules/identity/application/limited-security-audit';
 import { createOrganizationRepository } from '@/modules/organizations/infrastructure/mongodb/organization-repository';
 import { createPolicyRepository } from '@/modules/identity/infrastructure/mongodb/policy-repository';
@@ -11,10 +12,12 @@ import { authenticatedEndpoint } from './authenticated-endpoint';
 const clock = { now: () => new Date() };
 const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
 export const organizationReader = createOrganizationRepository(connect);
+export const policyRepository = createPolicyRepository(connect);
 export const authorization = createAuthorization({
-  policies: createPolicyRepository(connect),
+  policies: policyRepository,
   organizations: organizationReader,
   audit: createLimitedSecurityAudit({ record: async event => { console.info('authorization.security', JSON.stringify(event)); } }, clock),
   clock, ids: { next: randomUUID },
 });
 export const permissionsEndpoint = authenticatedEndpoint((actor, request) => permissionsResponse(authorization, actor, request));
+export const rolePolicyUseCases = createRolePolicyUseCases({ authorization, policies: policyRepository, writer: policyRepository });

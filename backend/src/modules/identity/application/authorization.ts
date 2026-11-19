@@ -1,7 +1,7 @@
 import type { AuthenticatedActor } from '../domain/actor';
 import { checkPermission, effectiveRoles, validOrganization } from '../domain/authorization-policy';
 import type { ApplicationRole } from '../domain/actor';
-import { permissions, validGrants, type AuthorizationPolicy, type Grant, type Permission } from '../domain/permissions';
+import { permissions, validPolicyGrants, type AuthorizationPolicy, type Grant, type Permission } from '../domain/permissions';
 import { validScope, type OrganizationEvidence, type OrganizationScope } from '../domain/authorization-facts';
 import type { AuthorizationClock, AuthorizationReceipt, EventIdentity, OrganizationAccessReader, PolicyReader, PolicyWriter, ResourceAccessReader, SecurityAudit, SecurityEvent } from './authorization-ports';
 import { AuthorizationError } from './authentication-error';
@@ -18,7 +18,7 @@ export function createAuthorization(deps: {
   async function policy() {
     try {
       const value = await deps.policies.read();
-      if (!value.version || !validGrants(value.grants)) throw new AuthorizationUnavailable();
+      if (!value.version || !validPolicyGrants(value.grants)) throw new AuthorizationUnavailable();
       return value;
     } catch { throw new AuthorizationUnavailable(); }
   }
@@ -71,7 +71,7 @@ export function createAuthorization(deps: {
       const current = await policy();
       const scope = { kind: 'global', companyId: null, thirdPartyId: null } as const;
       if (!checkPermission(actor, current, 'roles:manage', scope).allowed) { await deny(actor, 'PERMISSION'); throw new AuthorizationError(); }
-      if (!validGrants(grants)) throw new InvalidAuthorizationRequest();
+      if (!validPolicyGrants(grants)) throw new InvalidAuthorizationRequest();
       if (current.version !== expectedVersion) throw new PolicyConflict();
       const event: SecurityEvent = { eventId: deps.ids.next(), at: deps.clock.now().toISOString(), subject: actor.subject,
         action: 'POLICY_CHANGED', result: 'allowed', reason: 'POLICY', correlationId: deps.ids.next(), suppressed: 0, beforeVersion: expectedVersion,

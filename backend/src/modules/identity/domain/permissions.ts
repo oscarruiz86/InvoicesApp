@@ -30,4 +30,16 @@ export function validGrants(values: readonly Grant[]): boolean {
   return keys.length === new Set(keys).size && keys.every(key => ceiling.has(key));
 }
 
+const requiredAdministrativeGrants = [
+  'APP_ADMIN/roles:read/global',
+  'APP_ADMIN/roles:manage/global',
+] as const;
+
+/** A persistible policy always retains the global administrator recovery path. */
+export function validPolicyGrants(values: readonly Grant[]): boolean {
+  if (!validGrants(values)) return false;
+  const keys = new Set(values.map(grantKey));
+  return requiredAdministrativeGrants.every(key => keys.has(key));
+}
+
 export interface AuthorizationPolicy { readonly version: string; readonly grants: readonly Grant[] }

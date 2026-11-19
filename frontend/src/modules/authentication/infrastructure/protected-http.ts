@@ -17,6 +17,10 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
     post(path: 'organization-contexts/resolve', body: unknown, signal?: AbortSignal): Promise<unknown> {
       return request(path, '', signal, body);
     },
+    roles(method: 'GET' | 'PUT', query = 'scope=global', body?: unknown, signal?: AbortSignal): Promise<unknown> {
+      if ((method === 'GET' && body !== undefined) || (method === 'PUT' && body === undefined)) throw new ApplicationError('CONFIGURATION');
+      return request('roles', query, signal, body, method);
+    },
     company(method: 'GET' | 'POST' | 'PATCH', path: string, query: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
       const base = /^companies(?:\/[a-f0-9]{24})?$/;
       const action = /^companies\/[a-f0-9]{24}\/status$/;
@@ -66,16 +70,27 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
             const failure = await response.json().catch(() => null);
             if (['IDENTITY_MISMATCH', 'EMAIL_UNVERIFIED', 'PROFILE_INCOMPLETE'].includes(failure?.error?.code)) throw new RequestError(failure.error.code);
           }
-          if (path === 'auth/me' || companyMethod) denied.forEach(listener => listener());
+          if (path === 'auth/me' || path === 'roles' || companyMethod) denied.forEach(listener => listener());
           throw new ApplicationError('FORBIDDEN');
         }
         if (response.status === 404) throw new ApplicationError('NOT_FOUND');
-        if (response.status === 503) throw new ApplicationError('UNAVAILABLE');
+        if (response.status === 503) {
+          if (path === 'roles') {
+            const failure = await response.json().catch(() => null);
+            if (failure?.error?.code === 'POLICY_AUDIT_CAPACITY') throw new RequestError('POLICY_AUDIT_CAPACITY');
+          }
+          throw new ApplicationError('UNAVAILABLE');
+        }
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
-        if (companyMethod && [400, 409].includes(response.status)) {
+        if (companyMethod && path !== 'roles' && [400, 409].includes(response.status)) {
           const failure = await response.json().catch(() => null);
           const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED'];
           throw new RequestError(codes.includes(failure?.error?.code) ? failure.error.code : 'INVALID_REQUEST', Array.isArray(failure?.error?.fields) ? failure.error.fields.filter((field: unknown) => typeof field === 'string') : []);
+        }
+        if (path === 'roles' && [400, 409].includes(response.status)) {
+          const failure = await response.json().catch(() => null);
+          const expectedCode = response.status === 409 ? 'POLICY_CONFLICT' : 'INVALID_REQUEST';
+          throw new RequestError(failure?.error?.code === expectedCode ? expectedCode : 'INVALID_REQUEST');
         }
         if (!response.ok) throw new ApplicationError('HTTP');
         let body: unknown;

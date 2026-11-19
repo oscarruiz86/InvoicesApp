@@ -30,8 +30,12 @@ import type { FleetApi } from '@/modules/fleet/application/fleet-api';
 import { FleetResourcePage } from '@/modules/fleet/presentation/fleet-resource-page';
 import type { NotificationDeliveryReadPort } from '@/modules/notifications/application/delivery-api';
 import { NotificationDeliveriesPage } from '@/modules/notifications/presentation/notification-deliveries-page';
+import type { RolePolicyApi } from '@/modules/role-management/application/role-policy-api';
+import { RoleManagementPage } from '@/modules/role-management/presentation/role-management-page';
+import { GlobalRolePolicyContextGuard } from '@/modules/role-management/presentation/global-role-policy-context-guard';
 
-function OrganizationManagementNavigation({ authorization, context, invitationsAvailable }: { authorization: AuthorizationStore; context: ContextStore; invitationsAvailable: boolean }) {
+function OrganizationManagementNavigation({ authorization, context, invitationsAvailable, roleManagementAvailable }: { authorization: AuthorizationStore; context: ContextStore; invitationsAvailable: boolean; roleManagementAvailable: boolean }) {
+  useStore(authorization);
   const state = useStore(context);
   if (state.status !== 'ready' || !state.activeContext) return null;
   const moduleGroups: Record<MarkerModuleDefinition['key'], string> = {
@@ -41,7 +45,6 @@ function OrganizationManagementNavigation({ authorization, context, invitationsA
     assignments: 'Flota',
     invoices: 'Facturas',
     parameters: 'Configuración',
-    roles: 'Configuración',
     audit: 'Auditoría',
   };
   const items = [
@@ -52,6 +55,7 @@ function OrganizationManagementNavigation({ authorization, context, invitationsA
       { label: 'Usuarios', path: '/organization-memberships', group: 'Administración', permission: 'associations:read' as const },
     ] : []),
     ...markerModules.map(({ label, path, permission, context, key }) => ({ label, path, permission, context, group: moduleGroups[key] })),
+    ...(roleManagementAvailable && authorization.getState().has('roles:read') && state.activeContext.kind === 'GLOBAL' ? [{ label: 'Roles y permisos', path: '/roles', group: 'Configuración', permission: 'roles:read' as const, context: 'global' as const }] : []),
   ];
   return <AuthorizedNavigation store={authorization} contextKind={state.activeContext.kind} items={items} />;
 }
@@ -66,10 +70,10 @@ function MarkerModuleContext({ module, context, children }: { module: MarkerModu
   return children;
 }
 
-function ShellNavigation({ authorization, context, invitationsAvailable }: { authorization?: AuthorizationStore; context?: ContextStore; invitationsAvailable: boolean }) {
+function ShellNavigation({ authorization, context, invitationsAvailable, roleManagementAvailable }: { authorization?: AuthorizationStore; context?: ContextStore; invitationsAvailable: boolean; roleManagementAvailable: boolean }) {
   const { pathname } = useLocation(); const home = pathname === '/';
   return <Stack spacing={.5}><Typography variant="overline" sx={{ px: 1.5, fontWeight: 700 }}>Inicio</Typography><Button variant="text" component={Link} to="/" aria-current={home ? 'page' : undefined} sx={{ justifyContent: 'flex-start', px: 1.5, minHeight: 42, borderColor: 'transparent', bgcolor: home ? '#e8effe' : 'transparent', color: home ? '#153d8e' : 'text.primary', fontWeight: home ? 700 : 400 }}>Inicio</Button>
-    {authorization && context && <OrganizationManagementNavigation authorization={authorization} context={context} invitationsAvailable={invitationsAvailable} />}
+    {authorization && context && <OrganizationManagementNavigation authorization={authorization} context={context} invitationsAvailable={invitationsAvailable} roleManagementAvailable={roleManagementAvailable} />}
   </Stack>;
 }
 
@@ -82,7 +86,7 @@ function ShellAccountWithContext({ authentication, context }: { authentication: 
   return <AccountMenu store={authentication} context={{ activeContext: current.activeContext, openSelector: current.openSelector }} />;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, notificationDeliveries }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: FleetApi; notificationDeliveries?: NotificationDeliveryReadPort }) {
+export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, notificationDeliveries, rolePolicy }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: FleetApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const content = <><RouteHeadingFocus /><AuthenticationActions store={authentication} authorization={authorization} />
@@ -96,6 +100,7 @@ export function App({ store, authentication, authorization, organizationContext,
     {invitations && <Route path="/invitations/received" element={<PrivateRoute store={authentication}><ReceivedInvitationsPage api={invitations} context={organizationContext} /></PrivateRoute>} />}
     {invitations && authorization && organizationContext && <Route path="/organization-memberships" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MembershipPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
     {invitations && <Route path="/invitations/accept" element={<InvitationAcceptancePage api={invitations} authentication={authentication} context={organizationContext} />} />}
+    {rolePolicy && authorization && organizationContext && <Route path="/roles" element={<ProtectedRoute authentication={authentication} authorization={authorization} permission="roles:read"><OrganizationContextGuard store={organizationContext} authorization={authorization}><GlobalRolePolicyContextGuard context={organizationContext}><RoleManagementPage api={rolePolicy} authorization={authorization} context={organizationContext} /></GlobalRolePolicyContextGuard></OrganizationContextGuard></ProtectedRoute>} />}
     {organizationContext && authorization && markerModules.map(module => <Route key={module.key} path={module.path} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={module.permission}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MarkerModuleContext module={module} context={organizationContext}>{module.key === 'drivers' && fleet ? <FleetResourcePage resource="drivers" api={fleet} context={organizationContext} authorization={authorization} /> : module.key === 'vehicles' && fleet ? <FleetResourcePage resource="vehicles" api={fleet} context={organizationContext} authorization={authorization} /> : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} /> : <MarkerModulePage module={module} />}</MarkerModuleContext></OrganizationContextGuard></ProtectedRoute>} />)}
     <Route path="/auth/callback" element={<AuthenticationCallback store={authentication} />} />
     <Route path="/session" element={<PrivateRoute store={authentication}>{organizationContext && authorization ? <OrganizationContextGuard store={organizationContext} authorization={authorization}><SessionPage store={authentication} /></OrganizationContextGuard> : <SessionPage store={authentication} />}</PrivateRoute>} />
@@ -103,6 +108,6 @@ export function App({ store, authentication, authorization, organizationContext,
     <Route path="*" element={<Stack spacing={2}><Typography variant="h4" component="h1">Página no encontrada</Typography><Button component={Link} to="/">Volver al inicio</Button></Stack>} />
     </Routes></>;
   return <ThemeProvider theme={theme}><CssBaseline /><ErrorBoundary><BrowserRouter>{authenticated
-    ? <AppLayout navigation={<ShellNavigation authorization={authorization} context={organizationContext} invitationsAvailable={Boolean(invitations)} />} account={<ShellAccount authentication={authentication} context={organizationContext} />}>{content}</AppLayout>
+    ? <AppLayout navigation={<ShellNavigation authorization={authorization} context={organizationContext} invitationsAvailable={Boolean(invitations)} roleManagementAvailable={Boolean(rolePolicy)} />} account={<ShellAccount authentication={authentication} context={organizationContext} />}>{content}</AppLayout>
     : <Box component="main" sx={{ minHeight: '100dvh', px: { xs: 2, sm: 3, md: 6 }, py: { xs: 3, md: 6 } }}>{content}</Box>}</BrowserRouter></ErrorBoundary></ThemeProvider>;
 }

@@ -35,7 +35,7 @@ it('shows history filters and exposes actions only for pending invitations that 
   expect(screen.getAllByRole('button', { name: 'Cancelar' })).toHaveLength(1);
   expect(screen.getAllByText(/Entrega: Completada/i)).toHaveLength(2);
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Filtro' }));
+  await user.click(screen.getByRole('button', { name: 'Filtrar invitaciones' }));
   await user.click(await screen.findByRole('combobox', { name: 'Estado' }));
   await user.click(await screen.findByRole('option', { name: 'Aceptadas' }));
   await user.click(screen.getByRole('button', { name: 'Aplicar filtros' }));
