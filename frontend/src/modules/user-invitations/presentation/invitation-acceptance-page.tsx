@@ -44,6 +44,7 @@ export function InvitationAcceptancePage({ api, authentication, context }: { api
   const [error, setError] = useState<string | null>(null); const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<'accepted' | 'rejected' | null>(null); const sending = useRef(false);
   const [contextSelected, setContextSelected] = useState(false);
+  const [driverProvisioned, setDriverProvisioned] = useState(false);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const profilePending = authenticated && ['idle', 'loading'].includes(session.profileStatus);
   const recipientMatches = Boolean(authenticated && session.profileStatus === 'success' && preview && session.user?.email?.trim().toLowerCase() === preview.recipientEmail.trim().toLowerCase());
@@ -87,6 +88,7 @@ export function InvitationAcceptancePage({ api, authentication, context }: { api
     try {
       if (action === 'accept') {
         const accepted = await api.accept(token, preview.version);
+        setDriverProvisioned(accepted.invitation.organizationType === 'THIRD_PARTY' && accepted.invitation.roles.length === 1 && accepted.invitation.roles[0] === 'DRIVER');
         setContextSelected(await activateInvitationContext(context, accepted.invitation.organizationId, accepted.invitation.organizationType));
       } else {
         await api.reject(token, preview.version);
@@ -103,7 +105,10 @@ export function InvitationAcceptancePage({ api, authentication, context }: { api
     <Typography variant="h4" component="h1">Aceptar invitación</Typography>
     {error && <Alert severity="error">{error}</Alert>}
     {session.error && token && <Alert severity="warning">No se completó la autenticación. Puedes volver a intentarlo con esta invitación.</Alert>}
-    {result === 'accepted' && <><Alert severity="success">{contextSelected ? 'Invitación aceptada y contexto de la organización seleccionado.' : 'Invitación aceptada. No se pudo activar automáticamente el contexto; puedes elegir la organización.'}</Alert><Button variant="contained" onClick={() => navigate(contextSelected ? '/session' : context ? '/organizations/select' : '/')}>{contextSelected ? 'Continuar a Invoices App' : 'Elegir organización'}</Button></>}
+    {result === 'accepted' && <>
+      <Alert severity="success">{driverProvisioned ? 'Invitación aceptada. Tu registro de conductor ya está disponible en esta organización.' : contextSelected ? 'Invitación aceptada y contexto de la organización seleccionado.' : 'Invitación aceptada. No se pudo activar automáticamente el contexto; puedes elegir la organización.'}</Alert>
+      <Button variant="contained" onClick={() => navigate(driverProvisioned && contextSelected ? '/drivers' : contextSelected ? '/session' : context ? '/organizations/select' : '/')}>{driverProvisioned && contextSelected ? 'Ver mis conductores' : contextSelected ? 'Continuar a Invoices App' : 'Elegir organización'}</Button>
+    </>}
     {result === 'rejected' && <Alert severity="info">Invitación rechazada.</Alert>}
     {!token && !result && !error && !loading && <><Alert severity="info">{recovery}</Alert><Button component={Link} to="/invitations/received" variant="contained">Ir a mis invitaciones</Button></>}
     {loading && <Alert severity="info" role="status">Consultando invitación…</Alert>}

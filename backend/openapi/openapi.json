@@ -12,10 +12,1552 @@
   ],
   "security": [],
   "paths": {
-    "/api/third-parties": {"get":{"operationId":"listThirdParties","summary":"Listar terceros dentro del scope autorizado","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"thirdPartyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"page","in":"query","schema":{"type":"integer","minimum":1,"default":1}},{"name":"pageSize","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}},{"name":"q","in":"query","schema":{"type":"string","maxLength":100}},{"name":"status","in":"query","schema":{"type":"string","enum":["ACTIVE","INACTIVE"]}},{"name":"documentType","in":"query","schema":{"type":"string","const":"NIT"}},{"name":"country","in":"query","schema":{"type":"string","maxLength":128}},{"name":"department","in":"query","schema":{"type":"string","maxLength":128}},{"name":"city","in":"query","schema":{"type":"string","maxLength":128}},{"name":"sort","in":"query","schema":{"type":"string","enum":["businessName","documentNumber","createdAt","updatedAt","status","country","department","city"],"default":"createdAt"}},{"name":"direction","in":"query","schema":{"type":"string","enum":["asc","desc"],"default":"desc"}}],"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyList"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:read"],"x-authorization-scope":"Scope aplicado antes de filtros, conteo y paginación."},"post":{"operationId":"createThirdParty","summary":"Crear tercero y proyección organizacional","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyCreate"}}}},"responses":{"201":{"description":"Tercero creado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:create"],"x-authorization-scope":"Scope global para APP_ADMIN o empresa autorizada para crear su relación inicial."}},
-    "/api/third-parties/{id}": {"get":{"operationId":"getThirdParty","summary":"Consultar tercero dentro del scope autorizado","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"thirdPartyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}}],"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:read"],"x-authorization-scope":"El scope de empresa requiere relación con el tercero."},"patch":{"operationId":"updateThirdParty","summary":"Editar perfil administrativo con control de versión","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"thirdPartyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyUpdate"}}}},"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:update"],"x-authorization-scope":"APP_ADMIN global, COMPANY_ADMIN con relación activa o THIRD_PARTY_ADMIN del propio tercero."}},
-    "/api/third-parties/{id}/status": {"post":{"operationId":"setThirdPartyStatus","summary":"Cambiar estado global del tercero","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyStatusChange"}}}},"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:deactivate"],"x-authorization-scope":"Solo APP_ADMIN en scope global."}},
-    "/api/third-parties/{id}/relationships/{companyId}": {"get":{"operationId":"getThirdPartyRelationship","summary":"Consultar estado de una relación empresa-tercero","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"companyId","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"},"description":"Debe coincidir con companyId de la ruta para scope organization."}],"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRelationshipResult"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:read"],"x-authorization-scope":"APP_ADMIN global o COMPANY_ADMIN de la empresa indicada."},"put":{"operationId":"setThirdPartyRelationship","summary":"Crear, reactivar o desactivar una relación empresa-tercero","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"companyId","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"},"description":"Debe coincidir con companyId de la ruta para scope organization."}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRelationshipChange"}}}},"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:create","third-parties:deactivate"],"x-authorization-scope":"APP_ADMIN global o COMPANY_ADMIN de la empresa indicada."}},
+    "/api/third-parties": {
+      "get": {
+        "operationId": "listThirdParties",
+        "summary": "Listar terceros dentro del scope autorizado",
+        "tags": [
+          "Third parties"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global",
+                "organization"
+              ]
+            },
+            "description": "Scope confirmado por autorización."
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          },
+          {
+            "name": "documentType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "const": "NIT"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "department",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "businessName",
+                "documentNumber",
+                "createdAt",
+                "updatedAt",
+                "status",
+                "country",
+                "department",
+                "city"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceNotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de identificación, estado o versión",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "third-parties:read"
+        ],
+        "x-authorization-scope": "Scope aplicado antes de filtros, conteo y paginación."
+      },
+      "post": {
+        "operationId": "createThirdParty",
+        "summary": "Crear tercero y proyección organizacional",
+        "tags": [
+          "Third parties"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global",
+                "organization"
+              ]
+            },
+            "description": "Scope confirmado por autorización."
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThirdPartyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tercero creado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceNotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de identificación, estado o versión",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "third-parties:create"
+        ],
+        "x-authorization-scope": "Scope global para APP_ADMIN o empresa autorizada para crear su relación inicial."
+      }
+    },
+    "/api/third-parties/{id}": {
+      "get": {
+        "operationId": "getThirdParty",
+        "summary": "Consultar tercero dentro del scope autorizado",
+        "tags": [
+          "Third parties"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global",
+                "organization"
+              ]
+            },
+            "description": "Scope confirmado por autorización."
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceNotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de identificación, estado o versión",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "third-parties:read"
+        ],
+        "x-authorization-scope": "El scope de empresa requiere relación con el tercero."
+      },
+      "patch": {
+        "operationId": "updateThirdParty",
+        "summary": "Editar perfil administrativo con control de versión",
+        "tags": [
+          "Third parties"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global",
+                "organization"
+              ]
+            },
+            "description": "Scope confirmado por autorización."
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThirdPartyUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operación completada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceNotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de identificación, estado o versión",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "third-parties:update"
+        ],
+        "x-authorization-scope": "APP_ADMIN global, COMPANY_ADMIN con relación activa o THIRD_PARTY_ADMIN del propio tercero."
+      }
+    },
+    "/api/third-parties/{id}/status": {
+      "post": {
+        "operationId": "setThirdPartyStatus",
+        "summary": "Cambiar estado global del tercero",
+        "tags": [
+          "Third parties"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global",
+                "organization"
+              ]
+            },
+            "description": "Scope confirmado por autorización."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThirdPartyStatusChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operación completada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceNotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de identificación, estado o versión",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "third-parties:deactivate"
+        ],
+        "x-authorization-scope": "Solo APP_ADMIN en scope global."
+      }
+    },
+    "/api/third-parties/{id}/relationships/{companyId}": {
+      "get": {
+        "operationId": "getThirdPartyRelationship",
+        "summary": "Consultar estado de una relación empresa-tercero",
+        "tags": [
+          "Third parties"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global",
+                "organization"
+              ]
+            },
+            "description": "Scope confirmado por autorización."
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "description": "Debe coincidir con companyId de la ruta para scope organization."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyRelationshipResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceNotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de identificación, estado o versión",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "third-parties:read"
+        ],
+        "x-authorization-scope": "APP_ADMIN global o COMPANY_ADMIN de la empresa indicada."
+      },
+      "put": {
+        "operationId": "setThirdPartyRelationship",
+        "summary": "Crear, reactivar o desactivar una relación empresa-tercero",
+        "tags": [
+          "Third parties"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global",
+                "organization"
+              ]
+            },
+            "description": "Scope confirmado por autorización."
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "description": "Debe coincidir con companyId de la ruta para scope organization."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThirdPartyRelationshipChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operación completada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceNotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de identificación, estado o versión",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThirdPartyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "third-parties:create",
+          "third-parties:deactivate"
+        ],
+        "x-authorization-scope": "APP_ADMIN global o COMPANY_ADMIN de la empresa indicada."
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "getHealth",
@@ -2926,40 +4468,3148 @@
       }
     },
     "/api/invitations": {
-      "get": { "operationId": "listInvitations", "summary": "Listar invitaciones", "tags": ["Invitations"], "security": [{"bearerAuth":[]}], "parameters": [{"name":"organizationId","in":"query","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}},{"name":"organizationType","in":"query","required":true,"schema":{"type":"string","enum":["COMPANY","THIRD_PARTY"]}},{"name":"companyId","in":"query","required":false,"schema":{"type":["string","null"]}},{"name":"status","in":"query","required":false,"schema":{"type":"string","enum":["PENDING","ACCEPTED","REJECTED","CANCELLED","EXPIRED"]}},{"name":"page","in":"query","required":false,"schema":{"type":"integer","minimum":1,"default":1}},{"name":"pageSize","in":"query","required":false,"schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}], "responses": {"200":{"description":"Página de invitaciones sin tokens","content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationList"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso"},"404":{"description":"Organización no disponible"},"503":{"description":"Servicio no disponible"}}, "x-required-permissions":["users:read","drivers:read"], "x-authorization-scope":"Organización autorizada antes de paginar y contar."},
-      "post": { "operationId": "createInvitation", "summary": "Crear invitación", "tags": ["Invitations"], "security": [{"bearerAuth":[]}], "requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationCreate"}}}}, "responses":{"201":{"description":"Invitación creada y entregada; sin exponer token","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}},"Location":{"schema":{"type":"string"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Invitation"}}}},"400":{"description":"Solicitud inválida o roles inválidos"},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso de delegación"},"409":{"description":"Invitación o membership duplicada"},"503":{"description":"Servicio o entrega no disponible"}}, "x-required-permissions":["users:associate","drivers:update"], "x-authorization-scope":"Organización y relación empresa-tercero validadas por el backend."}
+      "get": {
+        "operationId": "listInvitations",
+        "summary": "Listar invitaciones",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organizationType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "COMPANY",
+                "THIRD_PARTY"
+              ]
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "ACCEPTED",
+                "REJECTED",
+                "CANCELLED",
+                "EXPIRED"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de invitaciones sin tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso"
+          },
+          "404": {
+            "description": "Organización no disponible"
+          },
+          "503": {
+            "description": "Servicio no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:read",
+          "drivers:read"
+        ],
+        "x-authorization-scope": "Organización autorizada antes de paginar y contar."
+      },
+      "post": {
+        "operationId": "createInvitation",
+        "summary": "Crear invitación",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Invitación creada y entregada; sin exponer token",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida o roles inválidos"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso de delegación"
+          },
+          "409": {
+            "description": "Invitación o membership duplicada"
+          },
+          "503": {
+            "description": "Servicio o entrega no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:associate",
+          "drivers:update"
+        ],
+        "x-authorization-scope": "Organización y relación empresa-tercero validadas por el backend."
+      }
     },
-    "/api/invitations/received": { "get": { "operationId":"listReceivedInvitations","summary":"Listar invitaciones recibidas","tags":["Invitations"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"page","in":"query","required":false,"schema":{"type":"integer","minimum":1,"default":1}},{"name":"pageSize","in":"query","required":false,"schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}],"responses":{"200":{"description":"Invitaciones asociadas al correo Keycloak verificado de la sesión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ReceivedInvitationList"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Correo no verificado"},"503":{"description":"Identidad o almacenamiento no disponible"}},"x-required-permissions":[],"x-authorization-scope":"Solo registros cuyo correo destinatario coincide con el correo verificado de la identidad autenticada."} },
-    "/api/invitations/received/{id}/accept": { "post": { "operationId":"acceptReceivedInvitation","summary":"Aceptar invitación recibida","tags":["Invitations"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationExpectedVersion"}}}},"responses":{"200":{"description":"Aceptación transaccional y membership creada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationAccepted"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Correo, verificación o perfil no válido"},"404":{"description":"Invitación no disponible"},"409":{"description":"Invitación resuelta o versión obsoleta"},"410":{"description":"Invitación vencida"},"503":{"description":"Identidad o almacenamiento no disponible"}},"x-required-permissions":[],"x-authorization-scope":"ID de invitación más correo verificado actual; vuelve a validar organización, remitente y roles dentro de la transacción."} },
-    "/api/invitations/received/{id}/reject": { "post": { "operationId":"rejectReceivedInvitation","summary":"Rechazar invitación recibida","tags":["Invitations"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationExpectedVersion"}}}},"responses":{"200":{"description":"Invitación rechazada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Invitation"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Correo, verificación o perfil no válido"},"404":{"description":"Invitación no disponible"},"409":{"description":"Invitación resuelta o versión obsoleta"},"410":{"description":"Invitación vencida"},"503":{"description":"Identidad no disponible"}},"x-required-permissions":[],"x-authorization-scope":"ID de invitación más correo verificado actual."} },
-    "/api/invitations/preview": { "post": { "operationId":"previewInvitation","summary":"Consultar vista limitada","tags":["Invitations"],"security":[],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationTokenPreview"}}}},"responses":{"200":{"description":"Vista sin correo ni datos del destinatario","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationPreview"}}}},"400":{"description":"Token inválido"},"404":{"description":"Invitación no disponible"},"410":{"description":"Invitación vencida"},"503":{"description":"Servicio no disponible"}},"x-required-permissions":[],"x-authorization-scope":"Público, limitado a token aleatorio; no revela el destinatario."} },
-    "/api/invitations/accept": { "post": { "operationId":"acceptInvitation","summary":"Aceptar invitación","tags":["Invitations"],"security":[{"bearerAuth":[]}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationTokenAction"}}}},"responses":{"200":{"description":"Aceptación transaccional y membership creada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationAccepted"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"IDENTITY_MISMATCH, EMAIL_UNVERIFIED, PROFILE_INCOMPLETE o autorización denegada","content":{"application/json":{"schema":{"type":"object","required":["error"],"properties":{"error":{"type":"object","required":["code","message"],"properties":{"code":{"type":"string","enum":["IDENTITY_MISMATCH","EMAIL_UNVERIFIED","PROFILE_INCOMPLETE","FORBIDDEN"]},"message":{"type":"string"}}}}}}}},"409":{"description":"Invitación resuelta o versión obsoleta"},"410":{"description":"Invitación vencida"},"503":{"description":"Identidad o almacenamiento no disponible"}},"x-required-permissions":[],"x-authorization-scope":"La identidad autenticada debe coincidir con el destinatario verificado."} },
-    "/api/invitations/reject": { "post": { "operationId":"rejectInvitation","summary":"Rechazar invitación","tags":["Invitations"],"security":[{"bearerAuth":[]}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationTokenAction"}}}},"responses":{"200":{"description":"Invitación rechazada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Invitation"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"IDENTITY_MISMATCH, EMAIL_UNVERIFIED, PROFILE_INCOMPLETE o autorización denegada","content":{"application/json":{"schema":{"type":"object","required":["error"],"properties":{"error":{"type":"object","required":["code","message"],"properties":{"code":{"type":"string","enum":["IDENTITY_MISMATCH","EMAIL_UNVERIFIED","PROFILE_INCOMPLETE","FORBIDDEN"]},"message":{"type":"string"}}}}}}}},"409":{"description":"Invitación resuelta o versión obsoleta"},"410":{"description":"Invitación vencida"},"503":{"description":"Servicio no disponible"}},"x-required-permissions":[],"x-authorization-scope":"La identidad autenticada debe coincidir con el destinatario verificado."} },
-    "/api/invitations/{id}": { "get": { "operationId":"getInvitation","summary":"Consultar invitación","tags":["Invitations"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}}],"responses":{"200":{"description":"Invitación sin secreto ni datos sensibles","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Invitation"}}}},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso"},"404":{"description":"Invitación no disponible"},"503":{"description":"Servicio no disponible"}},"x-required-permissions":["users:read","drivers:read"],"x-authorization-scope":"Ámbito de la invitación."} },
-    "/api/invitations/{id}/cancel": { "post": { "operationId":"cancelInvitation","summary":"Cancelar invitación","tags":["Invitations"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationExpectedVersion"}}}},"responses":{"200":{"description":"Invitación cancelada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Invitation"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso"},"404":{"description":"Invitación no disponible"},"409":{"description":"Versión obsoleta"},"410":{"description":"Invitación vencida"},"503":{"description":"Servicio no disponible"}},"x-required-permissions":["users:associate","drivers:update"],"x-authorization-scope":"Ámbito de la invitación."} },
-    "/api/invitations/{id}/resend": { "post": { "operationId":"resendInvitation","summary":"Reenviar invitación","tags":["Invitations"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/InvitationExpectedVersion"}}}},"responses":{"200":{"description":"Se rota el token y el anterior deja de funcionar","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Invitation"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso"},"404":{"description":"Invitación no disponible"},"409":{"description":"Versión obsoleta"},"410":{"description":"Invitación vencida"},"503":{"description":"Servicio o entrega no disponible"}},"x-required-permissions":["users:associate","drivers:update"],"x-authorization-scope":"Ámbito de la invitación."} },
-    "/api/organization-memberships": {"get":{"operationId":"listOrganizationMemberships","summary":"Listar usuarios vinculados, buscar perfiles y consultar terceros","tags":["Organization memberships"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"lookup","in":"query","required":false,"schema":{"type":"string","enum":["third-parties","users","by-company"]},"description":"third-parties requiere companyId y q; users requiere organizationId, organizationType y search o documentNumber; by-company requiere companyId y lista las asociaciones de la empresa y sus terceros activos."},{"name":"organizationId","in":"query","required":false,"schema":{"type":"string","minLength":1,"maxLength":128}},{"name":"organizationType","in":"query","required":false,"schema":{"type":"string","enum":["COMPANY","THIRD_PARTY"]}},{"name":"companyId","in":"query","required":false,"schema":{"type":["string","null"]}},{"name":"status","in":"query","required":false,"schema":{"type":"string","enum":["ACTIVE","INACTIVE"]}},{"name":"search","in":"query","required":false,"schema":{"type":"string","maxLength":120},"description":"Nombre, apellido, usuario o correo del perfil de identidad."},{"name":"documentNumber","in":"query","required":false,"schema":{"type":"string","pattern":"^[A-Za-z0-9-]{3,20}$"}},{"name":"role","in":"query","required":false,"schema":{"type":"string","enum":["COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]}},{"name":"q","in":"query","required":false,"schema":{"type":"string","maxLength":120},"description":"Texto para buscar terceros asociados a la empresa."},{"name":"page","in":"query","required":false,"schema":{"type":"integer","minimum":1,"default":1}},{"name":"pageSize","in":"query","required":false,"schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}],"responses":{"200":{"description":"Asociaciones autorizadas, terceros activos o perfiles coincidentes","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"oneOf":[{"$ref":"#/components/schemas/MembershipList"},{"type":"object","additionalProperties":false,"required":["items"],"properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["id","name"],"properties":{"id":{"type":"string"},"name":{"type":"string"}}}}}},{"type":"object","additionalProperties":false,"required":["items"],"properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["fullName","documentType","documentNumber","email"],"properties":{"fullName":{"type":"string"},"documentType":{"type":"string","enum":["CC","CE","TI","RC","PA","PPT"]},"documentNumber":{"type":"string"},"email":{"type":"string","format":"email"}}}}}}]}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso"},"404":{"description":"Organización no disponible"},"503":{"description":"Servicio no disponible"}},"x-required-permissions":["users:read","users:associate","drivers:read"],"x-authorization-scope":"Ámbito autorizado antes de consultar, paginar y contar."}},
-    "/api/organization-memberships/{id}/profile": { "get": { "operationId":"getMembershipProfile","summary":"Consultar perfil compartido","tags":["Organization memberships"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}},{"name":"organizationId","in":"query","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}},{"name":"organizationType","in":"query","required":true,"schema":{"type":"string","enum":["COMPANY","THIRD_PARTY"]}},{"name":"companyId","in":"query","required":false,"schema":{"type":["string","null"]}}],"responses":{"200":{"description":"Solo fullName, documentType, documentNumber y email","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MembershipView"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso o membership inactiva"},"404":{"description":"Membership no disponible"},"503":{"description":"Perfil no disponible"}},"x-required-permissions":["users:read","drivers:read"],"x-authorization-scope":"Ámbito organizacional del recurso."} },
-    "/api/organization-memberships/{id}/roles": { "patch": { "operationId":"changeMembershipRoles","summary":"Cambiar roles locales","tags":["Organization memberships"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MembershipRolesChange"}}}},"responses":{"200":{"description":"Membership actualizada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MembershipView"}}}},"400":{"description":"Solicitud inválida o rol mínimo incumplido"},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso de delegación"},"404":{"description":"Membership no disponible"},"409":{"description":"Versión obsoleta o último administrador"},"503":{"description":"Servicio no disponible"}},"x-required-permissions":["users:associate","drivers:update"],"x-authorization-scope":"Ámbito organizacional; autorización de cada rol se verifica de nuevo."} },
-    "/api/organization-memberships/{id}/status": { "patch": { "operationId":"changeMembershipStatus","summary":"Suspender o reactivar membership","tags":["Organization memberships"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":128}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MembershipStatusChange"}}}},"responses":{"200":{"description":"Membership actualizada; asignaciones conservadas al suspender","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MembershipView"}}}},"400":{"description":"Solicitud inválida"},"401":{"description":"No autenticado"},"403":{"description":"Sin permiso de delegación"},"404":{"description":"Membership no disponible"},"409":{"description":"Versión obsoleta o último administrador"},"503":{"description":"Servicio no disponible"}},"x-required-permissions":["users:associate","drivers:update"],"x-authorization-scope":"Ámbito organizacional; autorización de cada rol se verifica de nuevo."} },
-    "/api/roles": {"get":{"operationId":"readRolePolicy","summary":"Consultar la política local de roles","tags":["Roles"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"scope","in":"query","required":true,"schema":{"type":"string","const":"global"},"description":"La matriz se consulta y actualiza únicamente en ámbito global."}],"responses":{"200":{"description":"Política vigente","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RolePolicyResponse"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RolePolicyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Autorización no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RolePolicyError"}}}}},"x-required-permissions":["roles:read"],"x-authorization-scope":"APP_ADMIN en ámbito GLOBAL."},"put":{"operationId":"replaceRolePolicy","summary":"Reemplazar la matriz local con control de versión","tags":["Roles"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"scope","in":"query","required":true,"schema":{"type":"string","const":"global"},"description":"La matriz se consulta y actualiza únicamente en ámbito global."}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RolePolicyReplace"}}}},"responses":{"200":{"description":"Política confirmada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RolePolicyResponse"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RolePolicyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"409":{"description":"La política cambió desde la versión esperada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RolePolicyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Autorización o capacidad de auditoría no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/RolePolicyError"}}}}},"x-required-permissions":["roles:manage"],"x-authorization-scope":"APP_ADMIN en ámbito GLOBAL. La política y el evento POLICY_CHANGED se confirman atómicamente."}}
+    "/api/invitations/received": {
+      "get": {
+        "operationId": "listReceivedInvitations",
+        "summary": "Listar invitaciones recibidas",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitaciones asociadas al correo Keycloak verificado de la sesión",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceivedInvitationList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Correo no verificado"
+          },
+          "503": {
+            "description": "Identidad o almacenamiento no disponible"
+          }
+        },
+        "x-required-permissions": [],
+        "x-authorization-scope": "Solo registros cuyo correo destinatario coincide con el correo verificado de la identidad autenticada."
+      }
+    },
+    "/api/invitations/received/{id}/accept": {
+      "post": {
+        "operationId": "acceptReceivedInvitation",
+        "summary": "Aceptar invitación recibida",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationExpectedVersion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aceptación transaccional y membership creada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Correo, verificación o perfil no válido"
+          },
+          "404": {
+            "description": "Invitación no disponible"
+          },
+          "409": {
+            "description": "Invitación resuelta o versión obsoleta"
+          },
+          "410": {
+            "description": "Invitación vencida"
+          },
+          "503": {
+            "description": "Identidad o almacenamiento no disponible"
+          }
+        },
+        "x-required-permissions": [],
+        "x-authorization-scope": "ID de invitación más correo verificado actual; vuelve a validar organización, remitente y roles dentro de la transacción."
+      }
+    },
+    "/api/invitations/received/{id}/reject": {
+      "post": {
+        "operationId": "rejectReceivedInvitation",
+        "summary": "Rechazar invitación recibida",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationExpectedVersion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Invitación rechazada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Correo, verificación o perfil no válido"
+          },
+          "404": {
+            "description": "Invitación no disponible"
+          },
+          "409": {
+            "description": "Invitación resuelta o versión obsoleta"
+          },
+          "410": {
+            "description": "Invitación vencida"
+          },
+          "503": {
+            "description": "Identidad no disponible"
+          }
+        },
+        "x-required-permissions": [],
+        "x-authorization-scope": "ID de invitación más correo verificado actual."
+      }
+    },
+    "/api/invitations/preview": {
+      "post": {
+        "operationId": "previewInvitation",
+        "summary": "Consultar vista limitada",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenPreview"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vista sin correo ni datos del destinatario",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Token inválido"
+          },
+          "404": {
+            "description": "Invitación no disponible"
+          },
+          "410": {
+            "description": "Invitación vencida"
+          },
+          "503": {
+            "description": "Servicio no disponible"
+          }
+        },
+        "x-required-permissions": [],
+        "x-authorization-scope": "Público, limitado a token aleatorio; no revela el destinatario."
+      }
+    },
+    "/api/invitations/accept": {
+      "post": {
+        "operationId": "acceptInvitation",
+        "summary": "Aceptar invitación",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aceptación transaccional y membership creada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "IDENTITY_MISMATCH, EMAIL_UNVERIFIED, PROFILE_INCOMPLETE o autorización denegada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "IDENTITY_MISMATCH",
+                            "EMAIL_UNVERIFIED",
+                            "PROFILE_INCOMPLETE",
+                            "FORBIDDEN"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invitación resuelta o versión obsoleta"
+          },
+          "410": {
+            "description": "Invitación vencida"
+          },
+          "503": {
+            "description": "Identidad o almacenamiento no disponible"
+          }
+        },
+        "x-required-permissions": [],
+        "x-authorization-scope": "La identidad autenticada debe coincidir con el destinatario verificado."
+      }
+    },
+    "/api/invitations/reject": {
+      "post": {
+        "operationId": "rejectInvitation",
+        "summary": "Rechazar invitación",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Invitación rechazada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "IDENTITY_MISMATCH, EMAIL_UNVERIFIED, PROFILE_INCOMPLETE o autorización denegada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "IDENTITY_MISMATCH",
+                            "EMAIL_UNVERIFIED",
+                            "PROFILE_INCOMPLETE",
+                            "FORBIDDEN"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Invitación resuelta o versión obsoleta"
+          },
+          "410": {
+            "description": "Invitación vencida"
+          },
+          "503": {
+            "description": "Servicio no disponible"
+          }
+        },
+        "x-required-permissions": [],
+        "x-authorization-scope": "La identidad autenticada debe coincidir con el destinatario verificado."
+      }
+    },
+    "/api/invitations/{id}": {
+      "get": {
+        "operationId": "getInvitation",
+        "summary": "Consultar invitación",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitación sin secreto ni datos sensibles",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso"
+          },
+          "404": {
+            "description": "Invitación no disponible"
+          },
+          "503": {
+            "description": "Servicio no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:read",
+          "drivers:read"
+        ],
+        "x-authorization-scope": "Ámbito de la invitación."
+      }
+    },
+    "/api/invitations/{id}/cancel": {
+      "post": {
+        "operationId": "cancelInvitation",
+        "summary": "Cancelar invitación",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationExpectedVersion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Invitación cancelada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso"
+          },
+          "404": {
+            "description": "Invitación no disponible"
+          },
+          "409": {
+            "description": "Versión obsoleta"
+          },
+          "410": {
+            "description": "Invitación vencida"
+          },
+          "503": {
+            "description": "Servicio no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:associate",
+          "drivers:update"
+        ],
+        "x-authorization-scope": "Ámbito de la invitación."
+      }
+    },
+    "/api/invitations/{id}/resend": {
+      "post": {
+        "operationId": "resendInvitation",
+        "summary": "Reenviar invitación",
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationExpectedVersion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Se rota el token y el anterior deja de funcionar",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso"
+          },
+          "404": {
+            "description": "Invitación no disponible"
+          },
+          "409": {
+            "description": "Versión obsoleta"
+          },
+          "410": {
+            "description": "Invitación vencida"
+          },
+          "503": {
+            "description": "Servicio o entrega no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:associate",
+          "drivers:update"
+        ],
+        "x-authorization-scope": "Ámbito de la invitación."
+      }
+    },
+    "/api/organization-memberships": {
+      "get": {
+        "operationId": "listOrganizationMemberships",
+        "summary": "Listar usuarios vinculados, buscar perfiles y consultar terceros",
+        "tags": [
+          "Organization memberships"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lookup",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "third-parties",
+                "users",
+                "by-company"
+              ]
+            },
+            "description": "third-parties requiere companyId y q; users requiere organizationId, organizationType y search o documentNumber; by-company requiere companyId y lista las asociaciones de la empresa y sus terceros activos."
+          },
+          {
+            "name": "organizationId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organizationType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "COMPANY",
+                "THIRD_PARTY"
+              ]
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "description": "Nombre, apellido, usuario o correo del perfil de identidad."
+          },
+          {
+            "name": "documentNumber",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{3,20}$"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "COMPANY_ADMIN",
+                "THIRD_PARTY_ADMIN",
+                "DRIVER"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "description": "Texto para buscar terceros asociados a la empresa."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asociaciones autorizadas, terceros activos o perfiles coincidentes",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MembershipList"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "fullName",
+                              "documentType",
+                              "documentNumber",
+                              "email"
+                            ],
+                            "properties": {
+                              "fullName": {
+                                "type": "string"
+                              },
+                              "documentType": {
+                                "type": "string",
+                                "enum": [
+                                  "CC",
+                                  "CE",
+                                  "TI",
+                                  "RC",
+                                  "PA",
+                                  "PPT"
+                                ]
+                              },
+                              "documentNumber": {
+                                "type": "string"
+                              },
+                              "email": {
+                                "type": "string",
+                                "format": "email"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso"
+          },
+          "404": {
+            "description": "Organización no disponible"
+          },
+          "503": {
+            "description": "Servicio no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:read",
+          "users:associate",
+          "drivers:read"
+        ],
+        "x-authorization-scope": "Ámbito autorizado antes de consultar, paginar y contar."
+      }
+    },
+    "/api/organization-memberships/{id}/profile": {
+      "get": {
+        "operationId": "getMembershipProfile",
+        "summary": "Consultar perfil compartido",
+        "tags": [
+          "Organization memberships"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "organizationType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "COMPANY",
+                "THIRD_PARTY"
+              ]
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Solo fullName, documentType, documentNumber y email",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso o membership inactiva"
+          },
+          "404": {
+            "description": "Membership no disponible"
+          },
+          "503": {
+            "description": "Perfil no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:read",
+          "drivers:read"
+        ],
+        "x-authorization-scope": "Ámbito organizacional del recurso."
+      }
+    },
+    "/api/organization-memberships/{id}/roles": {
+      "patch": {
+        "operationId": "changeMembershipRoles",
+        "summary": "Cambiar roles locales",
+        "tags": [
+          "Organization memberships"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipRolesChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Membership actualizada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida o rol mínimo incumplido"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso de delegación"
+          },
+          "404": {
+            "description": "Membership no disponible"
+          },
+          "409": {
+            "description": "Versión obsoleta o último administrador"
+          },
+          "503": {
+            "description": "Servicio no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:associate",
+          "drivers:update"
+        ],
+        "x-authorization-scope": "Ámbito organizacional; autorización de cada rol se verifica de nuevo."
+      }
+    },
+    "/api/organization-memberships/{id}/status": {
+      "patch": {
+        "operationId": "changeMembershipStatus",
+        "summary": "Suspender o reactivar membership",
+        "tags": [
+          "Organization memberships"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipStatusChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Membership actualizada; asignaciones conservadas al suspender",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso de delegación"
+          },
+          "404": {
+            "description": "Membership no disponible"
+          },
+          "409": {
+            "description": "Versión obsoleta o último administrador"
+          },
+          "503": {
+            "description": "Servicio no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "users:associate",
+          "drivers:update"
+        ],
+        "x-authorization-scope": "Ámbito organizacional; autorización de cada rol se verifica de nuevo."
+      }
+    },
+    "/api/roles": {
+      "get": {
+        "operationId": "readRolePolicy",
+        "summary": "Consultar la política local de roles",
+        "tags": [
+          "Roles"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "global"
+            },
+            "description": "La matriz se consulta y actualiza únicamente en ámbito global."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Política vigente",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePolicyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePolicyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "roles:read"
+        ],
+        "x-authorization-scope": "APP_ADMIN en ámbito GLOBAL."
+      },
+      "put": {
+        "operationId": "replaceRolePolicy",
+        "summary": "Reemplazar la matriz local con control de versión",
+        "tags": [
+          "Roles"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "global"
+            },
+            "description": "La matriz se consulta y actualiza únicamente en ámbito global."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolePolicyReplace"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Política confirmada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePolicyError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La política cambió desde la versión esperada",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePolicyError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización o capacidad de auditoría no disponible",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RolePolicyError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "roles:manage"
+        ],
+        "x-authorization-scope": "APP_ADMIN en ámbito GLOBAL. La política y el evento POLICY_CHANGED se confirman atómicamente."
+      }
+    },
+    "/api/drivers": {
+      "get": {
+        "operationId": "listDrivers",
+        "summary": "Listar conductores",
+        "tags": [
+          "Drivers"
+        ],
+        "description": "Requiere scope=organization y thirdPartyId explícitos. Parámetros desconocidos o duplicados se rechazan. THIRD_PARTY_ADMIN se limita a su tercero; DRIVER se limita a sí mismo. Identidad es una proyección nullable y de solo lectura.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "description": "Debe ser organization; no se aceptan ámbitos globales, propios ni de empresa.",
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "status"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de conductores",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida; los parámetros y cuerpos son cerrados.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_REQUEST",
+                    "message": "Solicitud inválida; los parámetros y cuerpos son cerrados."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Se requiere un Access Token Bearer válido.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "Autenticación requerida",
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Se requiere un Access Token Bearer válido."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "El actor no tiene permiso vigente para el tercero.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "El actor no tiene permiso vigente para el tercero."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El conductor no está disponible en el ámbito solicitado.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "El conductor no está disponible en el ámbito solicitado."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La versión cambió o el conductor ya no es elegible.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "CONFLICT",
+                    "message": "La versión cambió o el conductor ya no es elegible."
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No fue posible procesar la solicitud.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "No fue posible procesar la solicitud."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "La autorización, Identity o el almacenamiento no están disponibles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAVAILABLE",
+                    "message": "La autorización, Identity o el almacenamiento no están disponibles."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "drivers:read"
+        ],
+        "x-authorization-scope": "organization con thirdPartyId explícito; DRIVER queda filtrado a su propio subject."
+      }
+    },
+    "/api/drivers/{id}": {
+      "get": {
+        "operationId": "getDriver",
+        "summary": "Consultar conductor",
+        "tags": [
+          "Drivers"
+        ],
+        "description": "Requiere scope=organization y thirdPartyId explícitos. Parámetros desconocidos o duplicados se rechazan. THIRD_PARTY_ADMIN se limita a su tercero; DRIVER se limita a sí mismo. Identidad es una proyección nullable y de solo lectura.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "description": "Debe ser organization; no se aceptan ámbitos globales, propios ni de empresa.",
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conductor e identidad nullable",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida; los parámetros y cuerpos son cerrados.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_REQUEST",
+                    "message": "Solicitud inválida; los parámetros y cuerpos son cerrados."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Se requiere un Access Token Bearer válido.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "Autenticación requerida",
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Se requiere un Access Token Bearer válido."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "El actor no tiene permiso vigente para el tercero.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "El actor no tiene permiso vigente para el tercero."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El conductor no está disponible en el ámbito solicitado.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "El conductor no está disponible en el ámbito solicitado."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La versión cambió o el conductor ya no es elegible.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "CONFLICT",
+                    "message": "La versión cambió o el conductor ya no es elegible."
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No fue posible procesar la solicitud.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "No fue posible procesar la solicitud."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "La autorización, Identity o el almacenamiento no están disponibles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAVAILABLE",
+                    "message": "La autorización, Identity o el almacenamiento no están disponibles."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "drivers:read"
+        ],
+        "x-authorization-scope": "organization con thirdPartyId explícito; ID inexistente o ajeno devuelve NOT_FOUND."
+      }
+    },
+    "/api/drivers/{id}/status": {
+      "patch": {
+        "operationId": "setDriverStatus",
+        "summary": "Activar o desactivar conductor",
+        "tags": [
+          "Drivers"
+        ],
+        "description": "Requiere scope=organization y thirdPartyId explícitos. Parámetros desconocidos o duplicados se rechazan. THIRD_PARTY_ADMIN se limita a su tercero; DRIVER se limita a sí mismo. Identidad es una proyección nullable y de solo lectura. Aun para activar, requiere drivers:deactivate y expectedVersion vigente. El cuerpo no admite perfil, roles ni membership.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "description": "Debe ser organization; no se aceptan ámbitos globales, propios ni de empresa.",
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverStatusChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transición confirmada",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida; los parámetros y cuerpos son cerrados.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_REQUEST",
+                    "message": "Solicitud inválida; los parámetros y cuerpos son cerrados."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Se requiere un Access Token Bearer válido.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "Autenticación requerida",
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHENTICATED",
+                    "message": "Se requiere un Access Token Bearer válido."
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "El actor no tiene permiso vigente para el tercero.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "El actor no tiene permiso vigente para el tercero."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El conductor no está disponible en el ámbito solicitado.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "El conductor no está disponible en el ámbito solicitado."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La versión cambió o el conductor ya no es elegible.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "CONFLICT",
+                    "message": "La versión cambió o el conductor ya no es elegible."
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No fue posible procesar la solicitud.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "No fue posible procesar la solicitud."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "La autorización, Identity o el almacenamiento no están disponibles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverError"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAVAILABLE",
+                    "message": "La autorización, Identity o el almacenamiento no están disponibles."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "drivers:deactivate"
+        ],
+        "x-authorization-scope": "organization limitado al tercero activo del actor."
+      }
+    }
   },
   "components": {
     "schemas": {
-      "Invitation": { "type":"object", "additionalProperties":false, "required":["id","organizationId","organizationType","companyId","recipientEmail","roles","status","expiresAt","version","deliveryStatus","createdAt","resolvedAt"], "properties":{"id":{"type":"string","minLength":1,"maxLength":128},"organizationId":{"type":"string","minLength":1,"maxLength":128},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"companyId":{"type":["string","null"]},"recipientEmail":{"type":"string","format":"email"},"roles":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"string","enum":["COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]}},"status":{"type":"string","enum":["PENDING","ACCEPTED","REJECTED","CANCELLED","EXPIRED"]},"expiresAt":{"type":"string","format":"date-time"},"version":{"type":"integer","minimum":1},"deliveryStatus":{"type":"string","enum":["UNKNOWN","LOGGED","FAILED"]},"createdAt":{"type":"string","format":"date-time"},"resolvedAt":{"type":["string","null"],"format":"date-time"}} },
-      "InvitationList": { "type":"object", "additionalProperties":false, "required":["items","page","pageSize","total"], "properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/Invitation"}},"page":{"type":"integer","minimum":1},"pageSize":{"type":"integer","minimum":1,"maximum":100},"total":{"type":"integer","minimum":0}} },
-      "ReceivedInvitation": { "type":"object", "additionalProperties":false, "required":["id","organizationId","organizationType","organizationName","roles","status","expiresAt","version","createdAt","resolvedAt"], "properties":{"id":{"type":"string","minLength":1,"maxLength":128},"organizationId":{"type":"string","minLength":1,"maxLength":128},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"organizationName":{"type":"string"},"roles":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"string","enum":["COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]}},"status":{"type":"string","enum":["PENDING","ACCEPTED","REJECTED","CANCELLED","EXPIRED"]},"expiresAt":{"type":"string","format":"date-time"},"version":{"type":"integer","minimum":1},"createdAt":{"type":"string","format":"date-time"},"resolvedAt":{"type":["string","null"],"format":"date-time"}} },
-      "ReceivedInvitationList": { "type":"object", "additionalProperties":false, "required":["items","page","pageSize","total"], "properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/ReceivedInvitation"}},"page":{"type":"integer","minimum":1},"pageSize":{"type":"integer","minimum":1,"maximum":100},"total":{"type":"integer","minimum":0}} },
-      "InvitationCreate": { "type":"object", "additionalProperties":false, "required":["organizationId","organizationType","companyId","recipientEmail","roles"], "properties":{"organizationId":{"type":"string","minLength":1,"maxLength":128},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"companyId":{"type":["string","null"]},"recipientEmail":{"type":"string","format":"email","maxLength":254},"roles":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"string","enum":["COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]}}} },
-      "InvitationTokenPreview": { "type":"object", "additionalProperties":false, "required":["token"], "properties":{"token":{"type":"string","pattern":"^[A-Za-z0-9_-]{43}$"}} },
-      "InvitationTokenAction": { "type":"object", "additionalProperties":false, "required":["token","expectedVersion"], "properties":{"token":{"type":"string","pattern":"^[A-Za-z0-9_-]{43}$"},"expectedVersion":{"type":"integer","minimum":1}} },
-      "InvitationExpectedVersion": { "type":"object", "additionalProperties":false, "required":["expectedVersion"], "properties":{"expectedVersion":{"type":"integer","minimum":1}} },
-      "InvitationPreview": { "type":"object", "additionalProperties":false, "required":["organizationId","organizationType","organizationName","recipientEmail","roles","expiresAt","version"], "properties":{"organizationId":{"type":"string"},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"organizationName":{"type":"string"},"recipientEmail":{"type":"string","format":"email"},"roles":{"type":"array","items":{"type":"string","enum":["COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]}},"expiresAt":{"type":"string","format":"date-time"},"version":{"type":"integer","minimum":1}} },
-      "InvitationAccepted": { "type":"object", "additionalProperties":false, "required":["invitation","membershipId","membershipRevision"], "properties":{"invitation":{"$ref":"#/components/schemas/Invitation"},"membershipId":{"type":"string"},"membershipRevision":{"type":"integer","minimum":1}} },
-      "MembershipView": { "type":"object", "additionalProperties":false, "required":["id","status","roles","revision","profile"], "properties":{"id":{"type":"string"},"status":{"type":"string","enum":["ACTIVE","INACTIVE"]},"roles":{"type":"array","minItems":1,"items":{"type":"string","enum":["COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]}},"revision":{"type":"integer","minimum":1},"profile":{"oneOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["fullName","documentType","documentNumber","email"],"properties":{"fullName":{"type":"string"},"documentType":{"type":"string","enum":["CC","CE","TI","RC","PA","PPT"]},"documentNumber":{"type":"string"},"email":{"type":"string","format":"email"}}}]},"organization":{"type":"object","additionalProperties":false,"required":["id","organizationType","name"],"properties":{"id":{"type":"string"},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"name":{"type":"string"}}}} },
-      "MembershipList": { "type":"object", "additionalProperties":false, "required":["items","page","pageSize","total"], "properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/MembershipView"}},"page":{"type":"integer","minimum":1},"pageSize":{"type":"integer","minimum":1,"maximum":100},"total":{"type":"integer","minimum":0}} },
-      "MembershipRolesChange": { "type":"object", "additionalProperties":false, "required":["expectedRevision","organizationId","organizationType","companyId","roles"], "properties":{"expectedRevision":{"type":"integer","minimum":1},"organizationId":{"type":"string","minLength":1,"maxLength":128},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"companyId":{"type":["string","null"]},"roles":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"string","enum":["COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]}}} },
-      "MembershipStatusChange": { "type":"object", "additionalProperties":false, "required":["expectedRevision","organizationId","organizationType","companyId","status"], "properties":{"expectedRevision":{"type":"integer","minimum":1},"organizationId":{"type":"string","minLength":1,"maxLength":128},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"companyId":{"type":["string","null"]},"status":{"type":"string","enum":["ACTIVE","INACTIVE"]}} },
+      "Invitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "organizationId",
+          "organizationType",
+          "companyId",
+          "recipientEmail",
+          "roles",
+          "status",
+          "expiresAt",
+          "version",
+          "deliveryStatus",
+          "createdAt",
+          "resolvedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "organizationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "organizationType": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "THIRD_PARTY"
+            ]
+          },
+          "companyId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recipientEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "enum": [
+                "COMPANY_ADMIN",
+                "THIRD_PARTY_ADMIN",
+                "DRIVER"
+              ]
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REJECTED",
+              "CANCELLED",
+              "EXPIRED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "deliveryStatus": {
+            "type": "string",
+            "enum": [
+              "UNKNOWN",
+              "LOGGED",
+              "FAILED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "InvitationList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Invitation"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ReceivedInvitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "organizationId",
+          "organizationType",
+          "organizationName",
+          "roles",
+          "status",
+          "expiresAt",
+          "version",
+          "createdAt",
+          "resolvedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "organizationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "organizationType": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "THIRD_PARTY"
+            ]
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "enum": [
+                "COMPANY_ADMIN",
+                "THIRD_PARTY_ADMIN",
+                "DRIVER"
+              ]
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REJECTED",
+              "CANCELLED",
+              "EXPIRED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ReceivedInvitationList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceivedInvitation"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "InvitationCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "organizationId",
+          "organizationType",
+          "companyId",
+          "recipientEmail",
+          "roles"
+        ],
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "organizationType": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "THIRD_PARTY"
+            ]
+          },
+          "companyId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recipientEmail": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "enum": [
+                "COMPANY_ADMIN",
+                "THIRD_PARTY_ADMIN",
+                "DRIVER"
+              ]
+            }
+          }
+        }
+      },
+      "InvitationTokenPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        }
+      },
+      "InvitationTokenAction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "token",
+          "expectedVersion"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "InvitationExpectedVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expectedVersion"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "InvitationPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "organizationId",
+          "organizationType",
+          "organizationName",
+          "recipientEmail",
+          "roles",
+          "expiresAt",
+          "version"
+        ],
+        "properties": {
+          "organizationId": {
+            "type": "string"
+          },
+          "organizationType": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "THIRD_PARTY"
+            ]
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "recipientEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "COMPANY_ADMIN",
+                "THIRD_PARTY_ADMIN",
+                "DRIVER"
+              ]
+            }
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "InvitationAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "invitation",
+          "membershipId",
+          "membershipRevision"
+        ],
+        "properties": {
+          "invitation": {
+            "$ref": "#/components/schemas/Invitation"
+          },
+          "membershipId": {
+            "type": "string"
+          },
+          "membershipRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "MembershipView": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "roles",
+          "revision",
+          "profile"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "COMPANY_ADMIN",
+                "THIRD_PARTY_ADMIN",
+                "DRIVER"
+              ]
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "profile": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "fullName",
+                  "documentType",
+                  "documentNumber",
+                  "email"
+                ],
+                "properties": {
+                  "fullName": {
+                    "type": "string"
+                  },
+                  "documentType": {
+                    "type": "string",
+                    "enum": [
+                      "CC",
+                      "CE",
+                      "TI",
+                      "RC",
+                      "PA",
+                      "PPT"
+                    ]
+                  },
+                  "documentNumber": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            ]
+          },
+          "organization": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "organizationType",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "organizationType": {
+                "type": "string",
+                "enum": [
+                  "COMPANY",
+                  "THIRD_PARTY"
+                ]
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "MembershipList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MembershipView"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "MembershipRolesChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expectedRevision",
+          "organizationId",
+          "organizationType",
+          "companyId",
+          "roles"
+        ],
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "organizationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "organizationType": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "THIRD_PARTY"
+            ]
+          },
+          "companyId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "enum": [
+                "COMPANY_ADMIN",
+                "THIRD_PARTY_ADMIN",
+                "DRIVER"
+              ]
+            }
+          }
+        }
+      },
+      "MembershipStatusChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expectedRevision",
+          "organizationId",
+          "organizationType",
+          "companyId",
+          "status"
+        ],
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "organizationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "organizationType": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "THIRD_PARTY"
+            ]
+          },
+          "companyId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        }
+      },
       "ThirdParty": {
         "type": "object",
         "additionalProperties": false,
@@ -4640,13 +9290,348 @@
           "error"
         ]
       },
-      "Role": {"type":"string","enum":["APP_ADMIN","COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]},
-      "RoleGrant": {"type":"object","additionalProperties":false,"properties":{"role":{"$ref":"#/components/schemas/Role"},"permission":{"$ref":"#/components/schemas/Permission"},"scope":{"type":"string","enum":["global","self","company","third-party"]}},"required":["role","permission","scope"]},
-      "RolePolicy": {"type":"object","additionalProperties":false,"properties":{"version":{"type":"string","pattern":"^[1-9]\\d*$"},"grants":{"type":"array","uniqueItems":true,"items":{"$ref":"#/components/schemas/RoleGrant"}}},"required":["version","grants"]},
-      "RolePolicyCatalog": {"type":"object","additionalProperties":false,"properties":{"roles":{"type":"array","uniqueItems":true,"items":{"$ref":"#/components/schemas/Role"}},"permissions":{"type":"array","uniqueItems":true,"items":{"$ref":"#/components/schemas/Permission"}},"grantCeiling":{"type":"array","uniqueItems":true,"items":{"$ref":"#/components/schemas/RoleGrant"}}},"required":["roles","permissions","grantCeiling"]},
-      "RolePolicyResponse": {"type":"object","additionalProperties":false,"properties":{"policy":{"$ref":"#/components/schemas/RolePolicy"},"catalog":{"$ref":"#/components/schemas/RolePolicyCatalog"}},"required":["policy","catalog"]},
-      "RolePolicyReplace": {"type":"object","additionalProperties":false,"properties":{"expectedVersion":{"type":"string","pattern":"^[1-9]\\d{0,15}$"},"grants":{"type":"array","maxItems":51,"items":{"$ref":"#/components/schemas/RoleGrant"}}},"required":["expectedVersion","grants"]},
-      "RolePolicyError": {"type":"object","additionalProperties":false,"properties":{"error":{"type":"object","additionalProperties":false,"properties":{"code":{"type":"string","enum":["INVALID_REQUEST","POLICY_CONFLICT","POLICY_AUDIT_CAPACITY","AUTHORIZATION_UNAVAILABLE","UNAUTHENTICATED","FORBIDDEN","INTERNAL_ERROR"]},"message":{"type":"string"}},"required":["code","message"]}},"required":["error"]}
+      "Role": {
+        "type": "string",
+        "enum": [
+          "APP_ADMIN",
+          "COMPANY_ADMIN",
+          "THIRD_PARTY_ADMIN",
+          "DRIVER"
+        ]
+      },
+      "RoleGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "permission": {
+            "$ref": "#/components/schemas/Permission"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "global",
+              "self",
+              "company",
+              "third-party"
+            ]
+          }
+        },
+        "required": [
+          "role",
+          "permission",
+          "scope"
+        ]
+      },
+      "RolePolicy": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^[1-9]\\d*$"
+          },
+          "grants": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/RoleGrant"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "grants"
+        ]
+      },
+      "RolePolicyCatalog": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roles": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          },
+          "grantCeiling": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/RoleGrant"
+            }
+          }
+        },
+        "required": [
+          "roles",
+          "permissions",
+          "grantCeiling"
+        ]
+      },
+      "RolePolicyResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/RolePolicy"
+          },
+          "catalog": {
+            "$ref": "#/components/schemas/RolePolicyCatalog"
+          }
+        },
+        "required": [
+          "policy",
+          "catalog"
+        ]
+      },
+      "RolePolicyReplace": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9]\\d{0,15}$"
+          },
+          "grants": {
+            "type": "array",
+            "maxItems": 51,
+            "items": {
+              "$ref": "#/components/schemas/RoleGrant"
+            }
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "grants"
+        ]
+      },
+      "RolePolicyError": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INVALID_REQUEST",
+                  "POLICY_CONFLICT",
+                  "POLICY_AUDIT_CAPACITY",
+                  "AUTHORIZATION_UNAVAILABLE",
+                  "UNAUTHENTICATED",
+                  "FORBIDDEN",
+                  "INTERNAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "DriverRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "thirdPartyId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "thirdPartyId",
+          "status",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "DriverIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "documentNumber": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "email": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "format": "email"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "documentNumber",
+          "email"
+        ]
+      },
+      "DriverView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "driver": {
+            "$ref": "#/components/schemas/DriverRecord"
+          },
+          "identity": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DriverIdentity"
+              }
+            ]
+          }
+        },
+        "required": [
+          "driver",
+          "identity"
+        ]
+      },
+      "DriverList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DriverView"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ]
+      },
+      "DriverStatusChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "status"
+        ]
+      },
+      "DriverError": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      }
     },
     "securitySchemes": {
       "bearerAuth": {
@@ -4673,6 +9658,10 @@
     {
       "name": "Roles",
       "description": "Gestión de la política local de permisos."
+    },
+    {
+      "name": "Drivers",
+      "description": "Consulta de conductores asociados a terceros y transición de estado."
     }
   ]
 }

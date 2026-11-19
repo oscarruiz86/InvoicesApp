@@ -87,7 +87,22 @@ async function inspect(base) {
   for (const operation of [thirdPartyList, thirdPartyRelationship]) {
     for (const response of Object.values(operation.responses)) assert.equal(response.headers?.['Cache-Control']?.schema?.const, 'no-store');
   }
-  const roleRead = specification.paths['/api/roles'].get;
+  const driverList = specification.paths['/api/drivers'].get;
+  const driverDetail = specification.paths['/api/drivers/{id}'].get;
+  const driverStatus = specification.paths['/api/drivers/{id}/status'].patch;
+  for (const operation of [driverList, driverDetail, driverStatus]) {
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
+    assert(operation.parameters.some(value => value.name === 'scope' && value.required && value.schema.const === 'organization'));
+    assert(operation.parameters.some(value => value.name === 'thirdPartyId' && value.required && value.schema.pattern === '^[a-f0-9]{24}$'));
+    for (const response of Object.values(operation.responses)) assert.equal(response.headers?.['Cache-Control']?.schema?.const, 'no-store');
+    for (const code of ['200', '400', '401', '403', '404', '409', '500', '503']) assert(operation.responses[code]);
+  }
+  assert.deepEqual(driverList['x-required-permissions'], ['drivers:read']);
+  assert.deepEqual(driverStatus['x-required-permissions'], ['drivers:deactivate']);
+  assert.deepEqual(Object.keys(specification.components.schemas.DriverRecord.properties).sort(), ['createdAt', 'id', 'status', 'thirdPartyId', 'updatedAt', 'version']);
+  assert(specification.components.schemas.DriverView.properties.identity.oneOf.some(value => value.type === 'null'));
+  assert.equal(specification.components.schemas.DriverStatusChange.additionalProperties, false);
+  assert.deepEqual(Object.keys(specification.components.schemas.DriverStatusChange.properties).sort(), ['expectedVersion', 'status']);  const roleRead = specification.paths['/api/roles'].get;
   const roleReplace = specification.paths['/api/roles'].put;
   for (const operation of [roleRead, roleReplace]) {
     assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
@@ -141,7 +156,7 @@ try {
   await withServer(testUri ?? 'mongodb://127.0.0.1:1/unreachable_test', async base => {
     const url = base + '/api/auth/permissions';
     const anonymous = await fetch(url); assert.equal(anonymous.status, 401, JSON.stringify(await anonymous.clone().json()));
-    for (const endpoint of [base + '/api/third-parties?scope=global', base + `/api/third-parties/${'b'.repeat(24)}/relationships/${'a'.repeat(24)}?scope=global`]) {
+    for (const endpoint of [base + '/api/third-parties?scope=global', base + `/api/third-parties/${'b'.repeat(24)}/relationships/${'a'.repeat(24)}?scope=global`, base + `/api/drivers?scope=organization&thirdPartyId=${'a'.repeat(24)}`]) {
       const response = await fetch(endpoint); assert.equal(response.status, 401, JSON.stringify(await response.clone().json()));
       assert.equal(response.headers.get('cache-control'), 'no-store'); assert.equal((await response.json()).error.code, 'UNAUTHENTICATED');
     }
@@ -155,7 +170,17 @@ try {
     const invalidRoleBody = await fetch(base + '/api/roles?scope=global', { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedVersion: 1, grants: [] }) });
     assert.equal(invalidRoleBody.status, 400); assert.equal(invalidRoleBody.headers.get('cache-control'), 'no-store');
     assert.equal((await invalidRoleBody.json()).error.code, 'INVALID_REQUEST');
-    const me = await fetch(base + '/api/auth/me', { headers }); assert.equal(me.status, 200);
+    const invalidDriverScope = await fetch(base + `/api/drivers?scope=global&thirdPartyId=${'a'.repeat(24)}`, { headers });
+    assert.equal(invalidDriverScope.status, 400); assert.equal(invalidDriverScope.headers.get('cache-control'), 'no-store');
+    assert.equal((await invalidDriverScope.json()).error.code, 'INVALID_REQUEST');
+    const missingDriverScope = await fetch(base + `/api/drivers?thirdPartyId=${'a'.repeat(24)}`, { headers });
+    assert.equal(missingDriverScope.status, 400); assert.equal(missingDriverScope.headers.get('cache-control'), 'no-store');
+    const closedDriverStatus = await fetch(base + `/api/drivers/${'b'.repeat(24)}/status?scope=organization&thirdPartyId=${'a'.repeat(24)}`, {
+      method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expectedVersion: 1, status: 'INACTIVE', subject: 'injected', name: 'injected', documentNumber: '123', email: 'injected@example.invalid' }),
+    });
+    assert.equal(closedDriverStatus.status, 400); assert.equal(closedDriverStatus.headers.get('cache-control'), 'no-store');
+    assert.equal((await closedDriverStatus.json()).error.code, 'INVALID_REQUEST');    const me = await fetch(base + '/api/auth/me', { headers }); assert.equal(me.status, 200);
     assert.equal((await me.json()).user.id, 'authorization-http-subject');
     if (testUri) {
       const permissions = await fetch(url, { headers }); assert.equal(permissions.status, 200);

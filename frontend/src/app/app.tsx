@@ -26,13 +26,15 @@ import { ReceivedInvitationsPage } from '@/modules/user-invitations/presentation
 import { AuthenticationLoginPage } from '@/modules/authentication/presentation/authentication-login-page';
 import { markerModules, MarkerModulePage, type MarkerModuleDefinition } from './module-registry';
 import { RouteHeadingFocus } from '@/shared/components/route-heading-focus';
-import type { FleetApi } from '@/modules/fleet/application/fleet-api';
+import type { DriverApi } from '@/modules/fleet/application/fleet-api';
 import { FleetResourcePage } from '@/modules/fleet/presentation/fleet-resource-page';
 import type { NotificationDeliveryReadPort } from '@/modules/notifications/application/delivery-api';
 import { NotificationDeliveriesPage } from '@/modules/notifications/presentation/notification-deliveries-page';
 import type { RolePolicyApi } from '@/modules/role-management/application/role-policy-api';
 import { RoleManagementPage } from '@/modules/role-management/presentation/role-management-page';
 import { GlobalRolePolicyContextGuard } from '@/modules/role-management/presentation/global-role-policy-context-guard';
+
+const driverModule = markerModules.find(module => module.key === 'drivers')!;
 
 function OrganizationManagementNavigation({ authorization, context, invitationsAvailable, roleManagementAvailable }: { authorization: AuthorizationStore; context: ContextStore; invitationsAvailable: boolean; roleManagementAvailable: boolean }) {
   useStore(authorization);
@@ -51,7 +53,7 @@ function OrganizationManagementNavigation({ authorization, context, invitationsA
     { label: 'Empresas', path: '/companies', group: 'Administración', permission: 'companies:read' as const },
     { label: 'Terceros', path: '/third-parties', group: 'Administración', permission: 'third-parties:read' as const },
     ...(invitationsAvailable ? [
-      { label: 'Invitaciones', path: '/invitations', group: 'Administración', permission: 'associations:read' as const },
+      { label: 'Invitaciones', path: '/invitations', group: 'Administración', anyPermission: ['associations:read', 'drivers:read'] as const },
       { label: 'Usuarios', path: '/organization-memberships', group: 'Administración', permission: 'associations:read' as const },
     ] : []),
     ...markerModules.map(({ label, path, permission, context, key }) => ({ label, path, permission, context, group: moduleGroups[key] })),
@@ -86,7 +88,7 @@ function ShellAccountWithContext({ authentication, context }: { authentication: 
   return <AccountMenu store={authentication} context={{ activeContext: current.activeContext, openSelector: current.openSelector }} />;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, notificationDeliveries, rolePolicy }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: FleetApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi }) {
+export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, notificationDeliveries, rolePolicy }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const content = <><RouteHeadingFocus /><AuthenticationActions store={authentication} authorization={authorization} />
@@ -101,7 +103,24 @@ export function App({ store, authentication, authorization, organizationContext,
     {invitations && authorization && organizationContext && <Route path="/organization-memberships" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MembershipPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
     {invitations && <Route path="/invitations/accept" element={<InvitationAcceptancePage api={invitations} authentication={authentication} context={organizationContext} />} />}
     {rolePolicy && authorization && organizationContext && <Route path="/roles" element={<ProtectedRoute authentication={authentication} authorization={authorization} permission="roles:read"><OrganizationContextGuard store={organizationContext} authorization={authorization}><GlobalRolePolicyContextGuard context={organizationContext}><RoleManagementPage api={rolePolicy} authorization={authorization} context={organizationContext} /></GlobalRolePolicyContextGuard></OrganizationContextGuard></ProtectedRoute>} />}
-    {organizationContext && authorization && markerModules.map(module => <Route key={module.key} path={module.path} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={module.permission}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MarkerModuleContext module={module} context={organizationContext}>{module.key === 'drivers' && fleet ? <FleetResourcePage resource="drivers" api={fleet} context={organizationContext} authorization={authorization} /> : module.key === 'vehicles' && fleet ? <FleetResourcePage resource="vehicles" api={fleet} context={organizationContext} authorization={authorization} /> : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} /> : <MarkerModulePage module={module} />}</MarkerModuleContext></OrganizationContextGuard></ProtectedRoute>} />)}
+    {organizationContext && authorization && fleet && <Route path="/drivers/:id"
+      element={<ProtectedRoute authentication={authentication} authorization={authorization} permission="drivers:read">
+        <OrganizationContextGuard store={organizationContext} authorization={authorization}>
+          <MarkerModuleContext module={driverModule} context={organizationContext}>
+            <FleetResourcePage resource="drivers" api={fleet} invitationApi={invitations} context={organizationContext} authorization={authorization} />
+          </MarkerModuleContext>
+        </OrganizationContextGuard>
+      </ProtectedRoute>} />}
+    {organizationContext && authorization && markerModules.map(module => <Route key={module.key} path={module.path}
+      element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={module.permission}>
+        <OrganizationContextGuard store={organizationContext} authorization={authorization}>
+          <MarkerModuleContext module={module} context={organizationContext}>
+            {module.key === 'drivers' && fleet ? <FleetResourcePage resource="drivers" api={fleet} invitationApi={invitations} context={organizationContext} authorization={authorization} />
+              : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} />
+                : <MarkerModulePage module={module} />}
+          </MarkerModuleContext>
+        </OrganizationContextGuard>
+      </ProtectedRoute>} />)}
     <Route path="/auth/callback" element={<AuthenticationCallback store={authentication} />} />
     <Route path="/session" element={<PrivateRoute store={authentication}>{organizationContext && authorization ? <OrganizationContextGuard store={organizationContext} authorization={authorization}><SessionPage store={authentication} /></OrganizationContextGuard> : <SessionPage store={authentication} />}</PrivateRoute>} />
     {organizationContext && <Route path="/organizations/select" element={<PrivateRoute store={authentication}><OrganizationSelectionPage store={organizationContext} authentication={authentication} invitationsAvailable={Boolean(invitations)} /></PrivateRoute>} />}

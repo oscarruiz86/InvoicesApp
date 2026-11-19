@@ -47,6 +47,8 @@
     "postbuild": "node scripts/prepare-standalone.mjs",
     "authorization:init": "node --env-file-if-exists=.env.local scripts/initialize-authorization.mjs",
     "memberships:migrate": "node --env-file-if-exists=.env.local scripts/migrate-legacy-memberships.mjs",
+    "drivers:inventory": "node --env-file-if-exists=.env.local scripts/migrate-drivers.mjs",
+    "drivers:migrate": "node --env-file-if-exists=.env.local scripts/migrate-drivers.mjs --apply",
     "third-parties:inventory-legacy": "node --env-file-if-exists=.env.local --experimental-loader ./scripts/typescript-loader.mjs scripts/inventory-legacy-third-parties.ts",
     "notifications:worker": "node --env-file-if-exists=.env.local --experimental-loader ./scripts/typescript-loader.mjs src/bootstrap/run-notification-worker.ts"
   }

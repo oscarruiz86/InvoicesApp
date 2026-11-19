@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Schema, Types, type ClientSession, type Connection } from 'mongoose';
 import { InvitationDomainError, normalizeRecipientEmail, normalizeRoles, type Invitation, type Membership } from '../../domain/invitations';
 import type { LocalRole, OrganizationType } from '../../domain/organization';
+import type { DriverProvisioningPort } from '../../application/driver-provisioning';
 import { organizationModels } from './organization-repository';
 import { hashInvitationToken, matchesInvitationToken } from '../invitation-tokens';
 
@@ -240,7 +241,8 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
               $set: { status: 'EXPIRED', resolvedAt: input.now }, $inc: { version: 1 },
             }, { session });
             if (expired.modifiedCount === 1) {
-              await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
+
+await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
                 organizationId: current.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: input.now, version: current.version + 1 }, { session });
             }
             outcome = new InvitationRepositoryError('INVITATION_EXPIRED');
@@ -253,7 +255,8 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
           }, { session, returnDocument: 'after', runValidators: true }).lean().exec();
           if (!updated) { outcome = new InvitationRepositoryError('VERSION_CONFLICT'); return; }
           result = updated as Invitation;
-          await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
+
+await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
             organizationId: current.organizationId, actorSubject: null, action: 'INVITATION_RESENT', at: input.now,
             roles: current.roles, version: result.version, tokenVersion: result.tokenVersion }, { session });          const notification = input.notification;
           if (notification && guards?.enqueueInvitationNotification) await guards.enqueueInvitationNotification({
@@ -307,7 +310,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
     },
     async accept(input: {
       invitationId: string; token: string | null; expectedVersion: number; subject: string; email: string | null; emailVerified: boolean;
-      profileComplete: boolean; now: Date; membershipId: string;
+      profileComplete: boolean; now: Date; membershipId: string; driverProvisioning?: DriverProvisioningPort;
     }): Promise<{ invitation: Invitation; membership: Membership }> {
       if (!guards) throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
       if (!input.subject || !input.email || !input.emailVerified || !input.profileComplete) throw new InvitationRepositoryError('IDENTITY_MISMATCH');
@@ -352,6 +355,10 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
           const roleCollection = connection.collection('organization_associations');
           await roleCollection.insertMany(current.roles.map(capability => ({ id: new Types.ObjectId().toString(), subject: input.subject,
             organizationId: current.organizationId, capability, assigned: true, active: true, revision: 1, updatedAt: input.now, membershipId: membership.id })), { session });
+          if (current.organizationType === 'THIRD_PARTY' && current.roles.includes('DRIVER')) {
+            if (!input.driverProvisioning) throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
+            await input.driverProvisioning.provision({ membership, roles: current.roles, actorSubject: input.subject, now: input.now, source: 'INVITATION' }, session);
+          }
           await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
             organizationId: current.organizationId, subject: input.subject, action: 'INVITATION_ACCEPTED', at: input.now, version: updated.version }, { session });
           result = { invitation: updated, membership };
@@ -483,7 +490,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
     async changeMembership(input: {
       membershipId: string; expectedRevision: number; actorSubject: string; now: Date; status?: 'ACTIVE' | 'INACTIVE'; roles?: readonly string[];
       companyId?: string | null;
-      replacement?: { membershipId: string; expectedRevision: number; roles: readonly string[]; status?: 'ACTIVE' | 'INACTIVE' };
+      replacement?: { membershipId: string; expectedRevision: number; roles: readonly string[]; status?: 'ACTIVE' | 'INACTIVE' }; driverProvisioning?: DriverProvisioningPort;
     }): Promise<{ membership: Membership; roles: LocalRole[]; replacement?: { membership: Membership; roles: LocalRole[] } }> {
       const authorizeMembershipChange = guards?.authorizeMembershipChange;
       if (!authorizeMembershipChange || !input.actorSubject) throw new InvitationRepositoryError('AUTHORITY_REVOKED');
@@ -579,6 +586,16 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
           const changedReplacement = replacement && replacementRoles && replacementStatus
             ? await saveMembership(replacement, input.replacement!.expectedRevision, replacementRoles, replacementStatus, replacementAssignments) : undefined;
           if (changedTarget.membership === target && (!changedReplacement || changedReplacement.membership === replacement)) return { membership: target, roles: targetRoles, ...(changedReplacement ? { replacement: changedReplacement } : {}) };
+          const synchronizeDriverRole = async (membership: Membership, beforeRoles: readonly LocalRole[], afterRoles: readonly LocalRole[]) => {
+            if (beforeRoles.includes('DRIVER') === afterRoles.includes('DRIVER')) return;
+            if (!input.driverProvisioning) throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
+            await input.driverProvisioning.synchronizeRoles({ membership, beforeRoles, afterRoles, actorSubject: input.actorSubject, now }, session);
+          };
+          await synchronizeDriverRole(changedTarget.membership, targetCurrentRoles as LocalRole[], targetRoles);
+          if (changedReplacement && replacement && replacementRoles) {
+            await synchronizeDriverRole(changedReplacement.membership,
+              replacementAssignments.filter(value => value.assigned !== false).map(value => String(value.capability) as LocalRole), replacementRoles);
+          }
           const eventId = randomUUID();
           await connection.collection('organization_membership_events').insertOne({ eventId, organizationId: target.organizationId, actorSubject: input.actorSubject,
             membershipId: target.id, action: 'MEMBERSHIP_UPDATED', at: now, beforeRevision: target.revision, revision: changedTarget.membership.revision,

@@ -18,12 +18,13 @@ function fixture() {
     resendPending: vi.fn(async () => current!), resolveInvitation: vi.fn(async () => current!),
     accept: vi.fn(async () => ({ invitation: { ...current!, status: 'ACCEPTED' as const }, membership: { id: 'membership-1', revision: 1 } })),
   };
+  const driverProvisioning = { provision: vi.fn(async () => {}), synchronizeRoles: vi.fn(async () => {}) };
   const token = 'A'.repeat(43);
   const service = createInvitations({ repository, organizations, authorization: { requirePermission: vi.fn(async () => ({ policyVersion: '1', contextRevision: null })) } as never,
     identity: { read: async subject => ({ subject, enabled: true, email: 'person@example.invalid', emailVerified: true, fullName: 'Nombre Apellido',
       documentType: 'CC', documentNumber: '123456', profileComplete: true }) }, now: () => now, nextId: (() => { let id = 0; return () => `id-${++id}`; })(),
-    ttlHours: 72, issueCredential: () => ({ token, tokenHash: 'a'.repeat(64), expiresAt: new Date(now.getTime() + 72 * 3600000) }), authorizeDelegation: vi.fn(async () => {}) });
-  return { service, repository, token };
+    ttlHours: 72, issueCredential: () => ({ token, tokenHash: 'a'.repeat(64), expiresAt: new Date(now.getTime() + 72 * 3600000) }), authorizeDelegation: vi.fn(async () => {}), driverProvisioning });
+  return { service, repository, token, driverProvisioning };
 }
 it('enqueues a normalized invitation and returns without waiting for SMTP or exposing its token', async () => {
   const f = fixture();
@@ -39,7 +40,7 @@ it('previews and accepts using the current verified identity', async () => {
   expect(JSON.stringify(preview)).not.toContain('tokenHash');
   const accepted = await f.service.accept({ ...actor, subject: 'invitee' }, f.token, 1);
   expect(accepted).toMatchObject({ invitation: { status: 'ACCEPTED' }, membershipId: 'membership-1', membershipRevision: 1 });
-  expect(f.repository.accept).toHaveBeenCalledWith(expect.objectContaining({ emailVerified: true, profileComplete: true, expectedVersion: 1, subject: 'invitee' }));
+  expect(f.repository.accept).toHaveBeenCalledWith(expect.objectContaining({ emailVerified: true, profileComplete: true, expectedVersion: 1, subject: 'invitee', driverProvisioning: f.driverProvisioning }));
 });
 it('lets an authenticated recipient recover and accept a pending invitation without its URL token', async () => {
   const f = fixture(); await f.service.create(actor, { organizationId: 'company-1', organizationType: 'COMPANY', companyId: 'company-1', recipientEmail: 'person@example.invalid', roles: ['COMPANY_ADMIN'] });

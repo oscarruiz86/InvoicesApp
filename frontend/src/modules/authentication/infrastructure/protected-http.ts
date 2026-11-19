@@ -2,6 +2,19 @@ import { ApplicationError } from '@/shared/application/application-error';
 import { RequestError } from '@/shared/application/request-error';
 import type { AccessTokenPort, SessionPort } from '../application/session-ports';
 
+function validDriverQuery(query: string, list: boolean): boolean {
+  const parameters = new URLSearchParams(query);
+  const allowed = list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'sort', 'direction', 'status'] : ['scope', 'thirdPartyId'];
+  for (const [key] of parameters) if (!allowed.includes(key) || parameters.getAll(key).length !== 1) return false;
+  if (parameters.get('scope') !== 'organization' || !/^[a-f0-9]{24}$/.test(parameters.get('thirdPartyId') ?? '')) return false;
+  if (!list) return parameters.size === 2;
+  const page = parameters.get('page'); const pageSize = parameters.get('pageSize');
+  const sort = parameters.get('sort'); const direction = parameters.get('direction');
+  const status = parameters.get('status');
+  return (page === null || /^[1-9]\d{0,6}$/.test(page)) && (pageSize === null || /^(?:[1-9]|[1-9]\d|100)$/.test(pageSize))
+    && (sort === null || ['createdAt', 'status'].includes(sort)) && (direction === null || ['asc', 'desc'].includes(direction))
+    && (status === null || ['ACTIVE', 'INACTIVE'].includes(status));
+}
 export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPort, session: SessionPort, fetcher: typeof fetch = globalThis.fetch.bind(globalThis), timeoutMs = 5000) {
   const base = new URL(baseUrl.replace(/\/$/, '') + '/', window.location.origin);
   if (!['https:', 'http:'].includes(base.protocol) || base.username || base.password || base.search || base.hash) throw new ApplicationError('CONFIGURATION');
@@ -44,6 +57,14 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (!valid) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
+    driver(method: 'GET' | 'PATCH', path: string, query = '', body?: unknown, signal?: AbortSignal): Promise<unknown> {
+      const list = path === 'drivers';
+      const detail = /^drivers\/[a-f0-9]{24}$/.test(path);
+      const status = /^drivers\/[a-f0-9]{24}\/status$/.test(path);
+      const validMethod = method === 'GET' ? body === undefined && (list || detail) : method === 'PATCH' && status && body !== undefined;
+      if (!validMethod || !validDriverQuery(query, method === 'GET' && list)) throw new ApplicationError('CONFIGURATION');
+      return request(path, query, signal, body, method);
+    },
     previewInvitation(token: string, signal?: AbortSignal): Promise<unknown> {
       return request('invitations/preview', '', signal, { token }, 'POST', false);
     },
@@ -84,7 +105,7 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
         if (companyMethod && path !== 'roles' && [400, 409].includes(response.status)) {
           const failure = await response.json().catch(() => null);
-          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED'];
+          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED'];
           throw new RequestError(codes.includes(failure?.error?.code) ? failure.error.code : 'INVALID_REQUEST', Array.isArray(failure?.error?.fields) ? failure.error.fields.filter((field: unknown) => typeof field === 'string') : []);
         }
         if (path === 'roles' && [400, 409].includes(response.status)) {

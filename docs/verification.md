@@ -129,3 +129,34 @@ La política conserva `APP_ADMIN / roles:read / global` y `APP_ADMIN / roles:man
 | Navegador | E2E Roles: 5/5 pruebas aprobadas, incluidos modal, cancelación, progreso, respuesta y pestaña persistente, teclado, 360 px y 1280 px. Conflicto concurrente e invalidación de navegación también aprobados. |
 
 OpenSpec archivó la propuesta como `openspec/changes/archive/2026-11-19-improve-role-management-save-feedback` y sincronizó un requisito nuevo en `openspec/specs/role-management/spec.md`. `openspec validate --archived --strict --no-interactive` aprobó los 9 cambios archivados. No se desplegó ni se abrió un PR.
+
+## implement-driver-management — 2026-11-19
+
+| Verificación | Resultado |
+| --- | --- |
+| Backend `npm --prefix backend run check` | Correcto: ESLint sin errores (6 advertencias), TypeScript, 387 pruebas unitarias y comprobación arquitectónica. El inventario HTTP ahora exige Bearer, scope y permisos para todas las rutas DRIVER. |
+| Integración MongoDB focal | 20/20 pruebas correctas contra un replica set local aislado (`127.0.0.1:27018`, base terminada en `_test`): gestión y elegibilidad DRIVER, migración, aceptación de invitaciones, cambios de roles y concurrencia de memberships. |
+| Integración ampliada | 39 pruebas pasaron, 2 fallaron y 1 se omitió con la fixture Keycloak externa excluida. Los dos fallos conocidos de `company-management.test.ts` esperan un evento de auditoría de una operación permitida que no se emite por ese puerto, y esperan `FORBIDDEN` donde la escritura concurrente devuelve `COMPANY_VERSION_CONFLICT`. La suite de directorio Keycloak requiere issuer, cliente, secreto y sujeto efímeros que no estaban configurados. |
+| HTTP standalone `npm --prefix backend run test:http` | Correcto en el modo sin `AUTHORIZATION_TEST_MONGODB_URI`: Next real, JWT/JWKS efímeros, OpenAPI/Swagger/assets locales, 401/400/no-store, runtime inválido y autorización no disponible devuelven los resultados esperados. Una ejecución exploratoria con una base vacía devolvió 403 porque no había grants sembrados; no se usó como resultado final. |
+| OpenAPI | `npm --prefix backend run openapi:lint` aprobado. |
+| Frontend `npm --prefix frontend run check` | Correcto: lint sin errores (11 advertencias React Hooks), TypeScript, 161/161 pruebas unitarias y arquitectura. El timeout unitario quedó en 10 segundos para las interacciones MUI en el runner Windows. |
+| Navegador `npm --prefix frontend run test:e2e -- --workers=1` | 25/25 pruebas aprobadas, incluidos THIRD_PARTY_ADMIN/DRIVER, rutas neutrales, invitaciones por enlace y “Mis invitaciones”, identidad de solo lectura, estado, teclado y responsive a 360/1280 px. La corrida serial evita la contención observada en los tests con Vite. |
+| Cambios OpenSpec activos | `implement-authorization` (24/32) e `implement-organization-context` (39/41) siguen activos. Esta propuesta usa sus contratos actuales; sus tareas pendientes no se marcan como completadas aquí. |
+
+La identidad de Driver es una proyección nullable y de solo lectura; aceptar una invitación `DRIVER` o agregar ese rol aprovisiona el registro. No existe un formulario paralelo ni edición del perfil Keycloak. Antes de migrar datos de un entorno funcional, ejecuta `npm --prefix backend run drivers:inventory`, revisa conflictos y recién entonces `npm --prefix backend run drivers:migrate`; la migración une únicamente por `membershipId`, exige membership y tercero activos, y es idempotente. En esta verificación se usaron fixtures `_test`; no se migraron datos operativos.
+
+Esta entrega no define licencia, teléfono, dirección ni otros campos operativos. No implementa vehículos, asignaciones ni facturas, tampoco modifica Keycloak ni declara entrega transversal de Audit. Los dos fallos de integración de `company-management` y la fixture Keycloak externa quedan visibles y no se atribuyen al flujo DRIVER. La propuesta permanece abierta para revisión; no se hizo commit, push, merge, despliegue ni PR.
+
+### Cierre y ajustes finales — 2026-11-19
+
+Se completó la alineación visual de Conductores con el patrón de Empresas: toolbar con filtros y asociación, chips de filtros activos, tabla responsive con ordenamiento, columna de correo electrónico, identificación en formato `TIPO · NÚMERO`, paginación y acciones de ver/activar/desactivar. En móvil, las acciones de cada tarjeta ocupan el ancho disponible para evitar botones estrechos o desbordados. El filtro admite nombre, correo electrónico y número de documento. La asociación de conductor abre un modal local y permanece en `/drivers`; no redirige a Invitaciones. La opción Invitaciones está visible para el rol de administrador de tercero.
+
+| Verificación de cierre | Resultado |
+| --- | --- |
+| `npm run typecheck` en `frontend` | Aprobado. |
+| `npm run test -- tests/unit/fleet-resource-page.test.tsx --run` en `frontend` | 9/9 pruebas aprobadas, incluidos filtros, asociación, conflicto de versión y acciones responsive. |
+| `npm run lint` en `frontend` | Aprobado sin errores; permanecen únicamente advertencias React Hooks preexistentes. |
+| `git diff --check` | Aprobado; solo reporta avisos de conversión CRLF del árbol existente. |
+| OpenSpec | `openspec validate implement-driver-management --strict --no-interactive` aprobado; 19/19 tareas completas. |
+
+La integración MongoDB no se repitió durante este cierre porque la sesión no tenía `MONGODB_TEST_URI`; las ejecuciones focales con replica set y base terminada en `_test` quedan documentadas arriba. No se migraron datos operativos, ni se hizo commit, push, merge, despliegue o PR.

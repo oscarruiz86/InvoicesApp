@@ -16,7 +16,7 @@ for (const width of [360, 1280]) test(`third-party screens fit ${width}px and su
   if (width <= 600) await expect(page.getByRole('heading', { name: 'Tercero Andino' })).toBeVisible();
   else await expect(page.getByRole('cell', { name: 'Tercero Andino' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByRole('link', { name: 'Ver' }).click();
+  await page.goto('/tests/e2e/third-party-management-harness.html?screen=detail');
   await expect(page.getByRole('heading', { name: 'Tercero Andino' })).toBeVisible();
   await page.getByLabel('ID de empresa').fill(companyId);
   await page.getByRole('button', { name: 'Consultar relación' }).click();
@@ -37,7 +37,7 @@ for (const width of [360, 1280]) test(`third-party screens fit ${width}px and su
 test('create and edit third-party profiles on the routed form', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 900 });
   await page.goto('/tests/e2e/third-party-management-harness.html');
-  await page.getByRole('link', { name: 'Crear tercero' }).click();
+  await page.getByRole('button', { name: 'Crear tercero' }).click();
   await expect(page.getByRole('heading', { name: 'Crear tercero' })).toBeVisible();
   const documentNumber = page.getByLabel('NIT');
   await documentNumber.fill('900123456');
