@@ -12,6 +12,7 @@ import { DataTable, DataTableAction, DataTableSortHeader, DataTableSurface } fro
 import { SuccessNotice } from '@/shared/components/success-notice';
 import { getRoleLabel } from '@shared/role-labels';
 import type { CompanyApi } from '@/modules/company-management/application/company-api';
+import { ThirdPartyPicker } from '@/modules/third-party-management/presentation/third-party-picker';
 import type { IdentityCandidate, InvitationApi, InvitationRole, MembershipRecord, OrganizationTarget } from '../application/invitation-api';
 
 type OrganizationFilter = 'ALL' | 'COMPANY' | 'THIRD_PARTY';
@@ -42,8 +43,7 @@ export function MembershipPage({ api, context, authorization, companies }: { api
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<InvitationRole | ''>(''); const [draftRole, setDraftRole] = useState<InvitationRole | ''>('');
   const [filtersOpen, setFiltersOpen] = useState(false); const [organizationTypeFilter, setOrganizationTypeFilter] = useState<OrganizationFilter>('COMPANY'); const [draftOrganizationType, setDraftOrganizationType] = useState<OrganizationFilter>('COMPANY');
-  const [thirdPartyId, setThirdPartyId] = useState(''); const [thirdPartyName, setThirdPartyName] = useState(''); const [thirdPartyQuery, setThirdPartyQuery] = useState('');
-  const [thirdPartyResults, setThirdPartyResults] = useState<readonly { id: string; name: string }[]>([]); const [thirdPartyError, setThirdPartyError] = useState<string | null>(null);
+  const [thirdPartyId, setThirdPartyId] = useState(''); const [thirdPartyName, setThirdPartyName] = useState('');
   const [thirdPartyPickerOpen, setThirdPartyPickerOpen] = useState(false);
   const [pendingSearch, setPendingSearch] = useState('');
   const [draftStatus, setDraftStatus] = useState<'ACTIVE' | 'INACTIVE' | ''>('');
@@ -70,13 +70,10 @@ export function MembershipPage({ api, context, authorization, companies }: { api
       .finally(() => { if (!controller.signal.aborted) setCompanyPickerLoading(false); });
     return () => controller.abort();
   }, [auth.scope, authorizationAvailable, companies, companyPickerOpen, companyPage, companyPageSize, companyQuery]);
-  useEffect(() => {
-    if (!thirdPartyPickerOpen || !authorizationAvailable || !companyId) return;
-    const controller = new AbortController(); setThirdPartyError(null);
-    void api.thirdParties(auth.scope, companyId, thirdPartyQuery.trim(), controller.signal)
-      .then(setThirdPartyResults).catch(() => { if (!controller.signal.aborted) setThirdPartyError('No fue posible consultar terceros asociados.'); });
-    return () => controller.abort();
-  }, [api, auth.scope, authorizationAvailable, companyId, thirdPartyPickerOpen, thirdPartyQuery]);
+  const searchThirdParties = useCallback((selectedCompanyId: string, query: string, signal: AbortSignal) => {
+    if (!authorizationAvailable) return Promise.reject(new ApplicationError('FORBIDDEN'));
+    return api.thirdParties(auth.scope, selectedCompanyId, query, signal);
+  }, [api, auth.scope, authorizationAvailable]);
   const target = useMemo<OrganizationTarget | null>(() => organizationId.trim() ? { organizationId: organizationId.trim(), organizationType,
     companyId: organizationType === 'THIRD_PARTY' ? companyId.trim() || auth.scope.companyId : null } : null, [organizationId, organizationType, companyId, auth.scope.companyId]);
   const targetFor = (member?: MembershipRecord | null): OrganizationTarget | null => {
@@ -307,7 +304,7 @@ export function MembershipPage({ api, context, authorization, companies }: { api
         {target?.organizationType === 'COMPANY' && <TextField select label="Tipo de organización" value={inviteOrganizationType} onChange={event => { setInviteOrganizationType(event.target.value as 'COMPANY' | 'THIRD_PARTY'); setInviteEmail(''); if (event.target.value === 'THIRD_PARTY') { setThirdPartyId(''); setThirdPartyName(''); } }}>
           <MenuItem value="COMPANY">Empresa</MenuItem><MenuItem value="THIRD_PARTY">Tercero</MenuItem>
         </TextField>}
-        {inviteOrganizationType === 'THIRD_PARTY' && <Button variant="outlined" onClick={() => { setThirdPartyQuery(''); setThirdPartyPickerOpen(true); }}>{thirdPartyName || 'Seleccionar tercero'}</Button>}
+        {inviteOrganizationType === 'THIRD_PARTY' && <Button variant="outlined" onClick={() => setThirdPartyPickerOpen(true)}>{thirdPartyName || 'Seleccionar tercero'}</Button>}
         <Autocomplete freeSolo options={identityCandidates} filterOptions={options => options} loading={identitySearchBusy} inputValue={inviteEmail}
           getOptionLabel={option => typeof option === 'string' ? option : option.email}
           onInputChange={(_event, value, reason) => { if (reason === 'input' || reason === 'clear') { setInviteEmail(value); setIdentityCandidates([]); setIdentitySearchError(null); } }}
@@ -344,7 +341,7 @@ export function MembershipPage({ api, context, authorization, companies }: { api
       <TextField fullWidth select label="Tipo de organización" value={draftOrganizationType} onChange={event => { setDraftOrganizationType(event.target.value as OrganizationFilter); setDraftRole(''); }} sx={{ minWidth: 0 }}>
         {canViewAllTypes && <MenuItem value="ALL">Todos</MenuItem>}<MenuItem value="COMPANY">Empresa</MenuItem><MenuItem value="THIRD_PARTY">Tercero</MenuItem>
       </TextField>
-      {draftOrganizationType === 'THIRD_PARTY' && <Button fullWidth variant="outlined" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={() => { setThirdPartyQuery(''); setThirdPartyPickerOpen(true); }}>{thirdPartyName || 'Seleccionar tercero'}</Button>}
+      {draftOrganizationType === 'THIRD_PARTY' && <Button fullWidth variant="outlined" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} onClick={() => setThirdPartyPickerOpen(true)}>{thirdPartyName || 'Seleccionar tercero'}</Button>}
       <TextField fullWidth select label="Rol" value={draftRole} onChange={event => setDraftRole(event.target.value as InvitationRole | '')} sx={{ minWidth: 0 }}>
         <MenuItem value="">Todos los roles</MenuItem>
         {(draftOrganizationType === 'COMPANY' ? ['COMPANY_ADMIN'] as const : draftOrganizationType === 'THIRD_PARTY' ? ['THIRD_PARTY_ADMIN', 'DRIVER'] as const : ['COMPANY_ADMIN', 'THIRD_PARTY_ADMIN', 'DRIVER'] as const).map(role => <MenuItem key={role} value={role}>{getRoleLabel(role)}</MenuItem>)}
@@ -353,7 +350,8 @@ export function MembershipPage({ api, context, authorization, companies }: { api
         <MenuItem value="">Todos</MenuItem><MenuItem value="ACTIVE">Activos</MenuItem><MenuItem value="INACTIVE">Suspendidos</MenuItem>
       </TextField>
     </Box></DialogContent><DialogActions><Button onClick={() => { setPendingSearch(''); setDraftOrganizationType('COMPANY'); setDraftRole(''); setDraftStatus(''); }}>Limpiar filtros</Button><Button onClick={() => setFiltersOpen(false)}>Cancelar</Button><Button variant="contained" onClick={applyFilters}>Aplicar filtros</Button></DialogActions></Dialog>
-    <Dialog open={thirdPartyPickerOpen} onClose={() => setThirdPartyPickerOpen(false)} fullWidth maxWidth="sm"><DialogTitle>Seleccionar tercero</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}><TextField autoFocus label="Buscar tercero" value={thirdPartyQuery} onChange={event => setThirdPartyQuery(event.target.value)} placeholder="Nombre" />{thirdPartyError && <Alert severity="error">{thirdPartyError}</Alert>}{thirdPartyResults.map(record => <Button key={record.id} variant="outlined" sx={{ justifyContent: 'flex-start' }} onClick={() => { setThirdPartyId(record.id); setThirdPartyName(record.name); setInviteEmail(''); setThirdPartyPickerOpen(false); }}>{record.name}</Button>)}{!thirdPartyResults.length && !thirdPartyError && <Alert severity="info">Escribe el nombre para buscar terceros asociados.</Alert>}</Stack></DialogContent><DialogActions><Button onClick={() => setThirdPartyPickerOpen(false)}>Cancelar</Button></DialogActions></Dialog>
+    <ThirdPartyPicker open={thirdPartyPickerOpen} companyId={companyId} search={searchThirdParties}
+      onChoose={record => { setThirdPartyId(record.id); setThirdPartyName(record.name); setInviteEmail(''); setThirdPartyPickerOpen(false); }} onClose={() => setThirdPartyPickerOpen(false)} />
     <Dialog open={viewOpen} onClose={closeMemberView} fullWidth maxWidth="sm">
       <DialogTitle>Detalle del usuario</DialogTitle><DialogContent><Stack spacing={1} sx={{ pt: 1 }}>
         {viewLoading && <Stack role="status" aria-label="Cargando información del usuario" spacing={1} sx={{ py: 1 }}><LinearProgress sx={{ borderRadius: 1 }} /><Skeleton variant="text" width="58%" /><Skeleton variant="text" width="82%" /><Skeleton variant="text" width="66%" /><Skeleton variant="rounded" height={44} /></Stack>}{viewError && <Alert severity="error">{viewError}</Alert>}

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Types } from 'mongoose';
 import { z } from 'zod';
 import { createInvitations } from '@/modules/organizations/application/invitations';
 import { createMemberships, MembershipUseCaseError } from '@/modules/organizations/application/memberships';
@@ -14,6 +15,7 @@ import { authorization, organizationReader } from './authorization-endpoint';
 import { connectMongo } from '@/shared/infrastructure/mongodb/connection';
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
 import { authenticatedEndpoint } from './authenticated-endpoint';
+import { thirdPartyUseCases } from './third-party-endpoint';
 import { invitationResponse, type InvitationOperation } from '@/modules/organizations/presentation/invitations';
 import { membershipResponse, membershipUserSearchQuery, type MembershipOperation } from '@/modules/organizations/presentation/memberships';
 import { errorResponse } from '@/shared/presentation/http/errors';
@@ -37,6 +39,11 @@ function createRepository(notificationQueue?: ReturnType<typeof createNotificati
         const connection = await connect();
         const organization = await connection.collection('organizations').findOne({ id: invitation.organizationId, type: invitation.organizationType, active: true }, { session });
         if (!organization) return false;
+        if (invitation.organizationType === 'THIRD_PARTY') {
+          if (!/^[a-f0-9]{24}$/.test(invitation.organizationId)) return false;
+          const profile = await connection.collection('third_parties').findOne({ _id: new Types.ObjectId(invitation.organizationId), status: 'ACTIVE' }, { session, projection: { _id: 1 } });
+          if (!profile) return false;
+        }
         const invitationRole = invitation.roles.length === 1 ? invitation.roles[0] : null;
         if (invitation.organizationType === 'COMPANY') {
           if (invitationRole !== 'COMPANY_ADMIN' || !(await identityRoles.read(invitation.invitedBy))?.includes('APP_ADMIN')) return false;
@@ -86,12 +93,18 @@ function createRepository(notificationQueue?: ReturnType<typeof createNotificati
         return true;
       }
       if (roles.some(role => role !== 'THIRD_PARTY_ADMIN' && role !== 'DRIVER')) return false;
+      if (!/^[a-f0-9]{24}$/.test(membership.organizationId)) return false;
+      const thirdParty = await connection.collection('third_parties').findOne({ _id: new Types.ObjectId(membership.organizationId), status: 'ACTIVE' }, { session, projection: { _id: 1 } });
+      if (!thirdParty) return false;
+      if (companyId) {
+        const relation = await connection.collection('company_third_party_relations').findOne({ companyId, thirdPartyId: membership.organizationId, active: true }, { session });
+        if (!relation) return false;
+        const relationFence = await connection.collection('company_third_party_relations').updateOne({ companyId, thirdPartyId: membership.organizationId, active: true, revision: relation.revision }, { $inc: { mutationFence: 1 } }, { session });
+        if (relationFence.modifiedCount !== 1) return false;
+      }
       if (roles.includes('THIRD_PARTY_ADMIN')) {
         if (!companyId) return false;
-        const relation = await connection.collection('company_third_party_relations').findOne({ companyId, thirdPartyId: membership.organizationId, active: true }, { session });
-        if (!relation || !await fenceAuthority(companyId, 'COMPANY_ADMIN')) return false;
-        const relationFence = await connection.collection('company_third_party_relations').updateOne({ companyId, thirdPartyId: membership.organizationId, active: true }, { $inc: { mutationFence: 1 } }, { session });
-        if (relationFence.modifiedCount !== 1) return false;
+        if (!await fenceAuthority(companyId, 'COMPANY_ADMIN')) return false;
       }
       if (roles.includes('DRIVER') && !await fenceAuthority(membership.organizationId, 'THIRD_PARTY_ADMIN')) return false;
       return roles.length > 0;
@@ -124,23 +137,14 @@ async function thirdPartyOptionsResponse(actor: import('@/modules/identity/domai
     const params = new URL(request.url).searchParams;
     const companyId = params.get('companyId')?.trim() ?? '';
     const search = params.get('q')?.trim() ?? '';
-    if (params.get('lookup') !== 'third-parties' || !companyId || companyId.length > 128 || search.length > 120
+    if (params.get('lookup') !== 'third-parties' || !/^[a-f0-9]{24}$/.test(companyId) || search.length > 120
       || [...params.keys()].some(key => !['lookup', 'companyId', 'q'].includes(key) || params.getAll(key).length !== 1)) {
       return Response.json({ error: { code: 'INVALID_REQUEST', message: 'La solicitud no es válida.' } }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
     const scope = actor.roles.includes('APP_ADMIN') ? { kind: 'global', companyId: null, thirdPartyId: null } as const
       : { kind: 'organization', companyId, thirdPartyId: null } as const;
-    await authorization.requirePermission(actor, 'users:read', scope);
-    const connection = await connect();
-    const company = await connection.collection('organizations').findOne({ id: companyId, type: 'COMPANY', active: true }, { projection: { _id: 0 } });
-    if (!company) return Response.json({ error: { code: 'NOT_FOUND', message: 'La empresa no está disponible.' } }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
-    const relations = await connection.collection('company_third_party_relations').find({ companyId, active: true }, { projection: { thirdPartyId: 1, _id: 0 } }).toArray();
-    const ids = relations.map(value => value.thirdPartyId).filter((value): value is string => typeof value === 'string');
-    if (!ids.length) return Response.json({ items: [] }, { headers: { 'Cache-Control': 'no-store' } });
-    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const items = await connection.collection('organizations').find({ id: { $in: ids }, type: 'THIRD_PARTY', active: true, name: { $regex: escaped, $options: 'i' } },
-      { projection: { _id: 0, id: 1, name: 1 } }).sort({ name: 1, id: 1 }).limit(50).toArray();
-    return Response.json({ items: items.map(value => ({ id: value.id, name: value.name })) }, { headers: { 'Cache-Control': 'no-store' } });
+    const result = await thirdPartyUseCases().lookupForCompany({ actor, scope }, companyId, { q: search });
+    return Response.json({ items: result.items.map(value => ({ id: value.thirdParty.id, name: value.thirdParty.businessName })) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) { return errorResponse(error); }
 }
 async function identityOptionsResponse(actor: import('@/modules/identity/domain/actor').AuthenticatedActor, request: Request) {

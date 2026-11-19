@@ -7,7 +7,7 @@ import type { AuthorizationStore } from './authorization-store';
 export interface NavigationItem {
   readonly label: string;
   readonly path: string;
-  readonly group: string;
+  readonly group?: string;
   readonly permission?: Permission;
   readonly anyPermission?: readonly Permission[];
   readonly context?: 'active' | 'organization';
@@ -22,9 +22,10 @@ export function AuthorizedNavigation({ store, items, contextKind }: { store: Aut
   const groups = new Map<string, NavigationItem[]>();
 
   for (const item of visibleItems) {
-    const groupItems = groups.get(item.group) ?? [];
+    const group = item.group ?? 'Administración';
+    const groupItems = groups.get(group) ?? [];
     groupItems.push(item);
-    groups.set(item.group, groupItems);
+    groups.set(group, groupItems);
   }
 
   return <>{Array.from(groups, ([group, groupItems]) => <Stack key={group} spacing={.5} sx={{ mt: 1 }}>

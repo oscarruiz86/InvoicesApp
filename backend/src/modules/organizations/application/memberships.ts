@@ -41,7 +41,7 @@ export function createMemberships(deps: {
   async function authorize(actor: AuthenticatedActor, organizationId: string, organizationType: OrganizationType, companyId: string | null, mutation = false) {
     const organization = await deps.organizations.find(organizationId);
     if (!organization || organization.type !== organizationType || (companyId && organizationType !== 'THIRD_PARTY')) throw new MembershipUseCaseError('NOT_FOUND');
-    const scope = organizationType === 'COMPANY' && actor.roles.includes('APP_ADMIN') ? globalScope : selectedScope(organizationType, organizationId, companyId);
+    const scope = actor.roles.includes('APP_ADMIN') ? globalScope : selectedScope(organizationType, organizationId, companyId);
     try { await deps.authorization.requirePermission(actor, permissionFor(organizationType, companyId, mutation), scope); }
     catch (error) { throw new MembershipUseCaseError(error instanceof AuthorizationUnavailable ? 'UNAVAILABLE' : 'FORBIDDEN'); }
   }

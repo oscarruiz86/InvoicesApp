@@ -22,6 +22,7 @@ import { createContextPreference, createSessionCleanupChannel } from '@/modules/
 import { createContextUseCases } from '@/modules/organization-context/application/context-ports';
 import { createContextStore } from '@/modules/organization-context/presentation/context-store';
 import { createCompanyApi } from '@/modules/company-management/infrastructure/http-companies';
+import { createThirdPartyApi } from '@/modules/third-party-management/infrastructure/http-third-parties';
 import { createInvitationApi } from '@/modules/user-invitations/infrastructure/http-invitation-api';
 
 async function composeApplication() {
@@ -40,7 +41,7 @@ async function composeApplication() {
     const unsubscribeForbidden = http.subscribeForbidden(() => { void authorization.getState().refresh(); });
     import.meta.hot?.dispose(() => { unsubscribeForbidden(); organizationContext.dispose(); authorization.dispose(); http.dispose(); });
     await authentication.getState().initialize();
-    return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} invitations={createInvitationApi(http)} />;
+    return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} thirdParties={createThirdPartyApi(http)} invitations={createInvitationApi(http)} />;
   } catch {
     return <ThemeProvider theme={theme}><CssBaseline /><Alert severity="error">{errorMessage('CONFIGURATION')}</Alert></ThemeProvider>;
   }

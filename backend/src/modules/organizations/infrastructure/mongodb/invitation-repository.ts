@@ -21,6 +21,7 @@ const invitationSchema = new Schema({
 }, { strict: 'throw', versionKey: false, collection: 'organization_invitations' });
 invitationSchema.index({ id: 1 }, { unique: true });
 invitationSchema.index({ organizationId: 1, status: 1, createdAt: -1, id: 1 });
+invitationSchema.index({ companyId: 1, createdAt: -1, id: 1 });
 invitationSchema.index({ status: 1, expiresAt: 1 });
 invitationSchema.index({ tokenHash: 1 }, { unique: true });
 invitationSchema.index({ recipientEmail: 1, organizationId: 1 }, { unique: true, partialFilterExpression: { status: 'PENDING' } });
@@ -45,6 +46,8 @@ function mapError(error: unknown, duplicateCode: 'DUPLICATE_PENDING_INVITATION' 
   if (error instanceof InvitationDomainError) throw new InvitationRepositoryError(error.code === 'INVALID_ROLES' ? 'INVALID_ROLES' : error.code === 'LAST_ROLE_REQUIRED' ? 'LAST_ROLE_REQUIRED' : 'INVALID_RECORD');
   throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
 }
+
+const regexLiteral = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function validatedRoles(type: OrganizationType, roles: readonly string[]): LocalRole[] {
   if (!roles.length) throw new InvitationRepositoryError('LAST_ROLE_REQUIRED');
@@ -93,6 +96,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
             for (const prior of expired) await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(),
               invitationId: prior.id, organizationId: prior.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: now, version: Number(prior.version) + 1 }, { session });
           }
+          if (guards?.revalidateAndCoordinate && !await guards.revalidateAndCoordinate(invitation, session)) throw new InvitationRepositoryError('AUTHORITY_REVOKED');
           await invitations.create([invitation], { session });
           await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: invitation.id,
             organizationId: invitation.organizationId, actorSubject: invitation.invitedBy, action: 'INVITATION_CREATED', at: now,
@@ -112,7 +116,8 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         return value as Invitation | null;
       } catch (error) { return mapError(error); }
     },
-    async listInvitations(input: { organizationId: string; status?: Invitation['status']; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }> {
+    async listInvitations(input: { organizationId: string; organizationType?: Invitation['organizationType'] | 'ALL'; companyId?: string; companyWide?: boolean;
+      status?: Invitation['status']; email?: string; role?: Invitation['roles'][number]; delivery?: Invitation['deliveryStatus']; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }> {
       if (!input.organizationId || !Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) {
         throw new InvitationRepositoryError('INVALID_RECORD');
       }
@@ -120,9 +125,19 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         const connection = await connect();
         await initialize(connection);
         const model = invitationModel(connection);
-        const filter = input.status === 'PENDING' ? { organizationId: input.organizationId, status: 'PENDING', expiresAt: { $gt: input.now } }
-          : input.status === 'EXPIRED' ? { organizationId: input.organizationId, $or: [{ status: 'EXPIRED' }, { status: 'PENDING', expiresAt: { $lte: input.now } }] }
-            : { organizationId: input.organizationId, ...(input.status ? { status: input.status } : {}) };
+        const organizationFilter: Record<string, unknown> = input.companyWide
+          ? input.organizationType === 'ALL'
+            ? { $or: [{ organizationType: 'COMPANY', organizationId: input.organizationId }, { organizationType: 'THIRD_PARTY', companyId: input.companyId }] }
+            : { organizationType: 'THIRD_PARTY', companyId: input.companyId }
+          : { organizationId: input.organizationId, ...(input.companyId ? { companyId: input.companyId } : {}), ...(input.organizationType ? { organizationType: input.organizationType } : {}) };
+        const predicates: Record<string, unknown>[] = [organizationFilter];
+        if (input.status === 'PENDING') predicates.push({ status: 'PENDING', expiresAt: { $gt: input.now } });
+        else if (input.status === 'EXPIRED') predicates.push({ $or: [{ status: 'EXPIRED' }, { status: 'PENDING', expiresAt: { $lte: input.now } }] });
+        else if (input.status) predicates.push({ status: input.status });
+        if (input.email) predicates.push({ recipientEmail: { $regex: regexLiteral(input.email.trim()), $options: 'i' } });
+        if (input.role) predicates.push({ roles: input.role });
+        if (input.delivery) predicates.push({ deliveryStatus: input.delivery });
+        const filter = predicates.length === 1 ? organizationFilter : { $and: predicates };
         const [values, total] = await Promise.all([
           model.find(filter).sort({ createdAt: -1, id: -1 }).skip((input.page - 1) * input.pageSize).limit(input.pageSize).lean().exec(),
           model.countDocuments(filter).exec(),
@@ -231,6 +246,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
             outcome = new InvitationRepositoryError('INVITATION_EXPIRED');
             return;
           }
+          if (guards?.revalidateAndCoordinate && !await guards.revalidateAndCoordinate(current, session)) { outcome = new InvitationRepositoryError('AUTHORITY_REVOKED'); return; }
           const updated = await model.findOneAndUpdate({ id: current.id, status: 'PENDING', version: input.expectedVersion, expiresAt: { $gt: input.now } }, {
             $set: { tokenHash: input.tokenHash, expiresAt: input.expiresAt, attemptId: input.attemptId, deliveryStatus: 'UNKNOWN' },
             $inc: { version: 1, tokenVersion: 1 },
