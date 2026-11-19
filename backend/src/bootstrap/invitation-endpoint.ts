@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { Types } from 'mongoose';
+import { Types, type ClientSession } from 'mongoose';
 import { z } from 'zod';
 import { createInvitations } from '@/modules/organizations/application/invitations';
+import type { DriverProvisioningPort } from '@/modules/organizations/application/driver-provisioning';
 import { createMemberships, MembershipUseCaseError } from '@/modules/organizations/application/memberships';
 import { createInvitationDelegation } from '@/modules/organizations/application/invitation-delegation';
 import { createInvitationRepository, InvitationRepositoryError } from '@/modules/organizations/infrastructure/mongodb/invitation-repository';
@@ -11,6 +12,7 @@ import { fileSecretReader } from '@/shared/infrastructure/file-secrets/file-secr
 import { issueInvitationCredential } from '@/modules/organizations/infrastructure/invitation-tokens';
 import { createIdentityProfileReader } from '@/modules/identity/infrastructure/keycloak/identity-profile-reader';
 import { createIdentityRoleReader } from '@/modules/identity/infrastructure/keycloak/identity-role-reader';
+import { provisionDriverInSession, synchronizeDriverMembershipInSession } from '@/modules/fleet/infrastructure/mongodb/driver-repository';
 import { authorization, organizationReader } from './authorization-endpoint';
 import { connectMongo } from '@/shared/infrastructure/mongodb/connection';
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
@@ -31,6 +33,27 @@ const identityConfiguration = async () => {
 };
 const identity = createIdentityProfileReader(identityConfiguration);
 const identityRoles = createIdentityRoleReader(identityConfiguration);
+const driverProvisioning: DriverProvisioningPort = {
+  async provision(input, transaction) {
+    if (!input.roles.includes('DRIVER')) return;
+    const session = transaction as ClientSession;
+    if (typeof session?.inTransaction !== 'function' || !session.inTransaction()) throw new Error('DRIVER_PROVISIONING_TRANSACTION_REQUIRED');
+    await provisionDriverInSession(await connect(), session, {
+      id: new Types.ObjectId().toString(), subject: input.membership.subject, membershipId: input.membership.id,
+      thirdPartyId: input.membership.organizationId, actor: input.actorSubject, now: input.now, source: input.source,
+    });
+  },
+  async synchronizeRoles(input, transaction) {
+    const session = transaction as ClientSession;
+    if (typeof session?.inTransaction !== 'function' || !session.inTransaction()) throw new Error('DRIVER_PROVISIONING_TRANSACTION_REQUIRED');
+    await synchronizeDriverMembershipInSession(await connect(), session, {
+      membershipId: input.membership.id, subject: input.membership.subject, thirdPartyId: input.membership.organizationId,
+      beforeRoles: input.beforeRoles, afterRoles: input.afterRoles, membershipStatus: input.membership.status,
+      actor: input.actorSubject, now: input.now,
+    });
+  },
+};
+
 
 function createRepository(notificationQueue?: ReturnType<typeof createNotificationRepository>) {
   return createInvitationRepository(connect, {
@@ -120,14 +143,14 @@ export function invitationUseCases() {
   const notificationQueue = createNotificationRepository(connect, cipher);
   const repository = createRepository(notificationQueue);
   const delegation = createInvitationDelegation({ organizations: organizationReader, authorization });
-  return createInvitations({ repository, organizations: organizationReader, authorization, identity,
+  return createInvitations({ repository, organizations: organizationReader, authorization, identity, driverProvisioning,
     now: () => new Date(), nextId: randomUUID, ttlHours: environment.INVITATION_TTL_HOURS,
     issueCredential: issueInvitationCredential, authorizeDelegation: delegation.invitation });
 }
 
 export function membershipUseCases() {
   const delegation = createInvitationDelegation({ organizations: organizationReader, authorization });
-  return createMemberships({ repository: createRepository(), organizations: organizationReader, authorization, identity, now: () => new Date(),
+  return createMemberships({ repository: createRepository(), organizations: organizationReader, authorization, identity, driverProvisioning, now: () => new Date(),
     authorizeDelegation: delegation.membershipRoles });
 }
 

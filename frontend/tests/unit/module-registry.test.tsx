@@ -10,8 +10,9 @@ describe('declarative marker modules', () => {
     expect(markerModules.find(module => module.key === 'notification-deliveries')).toMatchObject({ path: '/notification-deliveries', permission: 'notifications:deliveries:read' });
   });
   it('renders an honest integration marker for pages whose service is not wired yet', () => {
-    render(<MarkerModulePage module={markerModules[0]} />);
-    expect(screen.getByRole('heading', { name: 'Conductores' })).toBeInTheDocument();
+    const vehicles = markerModules.find(module => module.key === 'vehicles')!;
+    render(<MarkerModulePage module={vehicles} />);
+    expect(screen.getByRole('heading', { name: 'Vehículos' })).toBeInTheDocument();
     expect(screen.getByText(/interfaz frontend está preparada; falta conectar el servicio/i)).toBeInTheDocument();
   });
 });

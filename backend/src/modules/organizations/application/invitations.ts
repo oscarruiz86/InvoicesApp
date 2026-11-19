@@ -7,6 +7,7 @@ import { InvitationDelegationDenied, type InvitationDelegationRequest } from './
 import type { Invitation, InvitationStatus } from '../domain/invitations';
 import { normalizeRecipientEmail, normalizeRoles } from '../domain/invitations';
 import type { OrganizationReader } from './context-ports';
+import type { DriverProvisioningPort } from './driver-provisioning';
 
 export class InvitationUseCaseError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'NOT_FOUND' | 'EXPIRED' | 'CONFLICT' | 'FORBIDDEN' | 'UNAVAILABLE' | 'IDENTITY_MISMATCH' | 'EMAIL_UNVERIFIED' | 'PROFILE_INCOMPLETE') { super(code); }
@@ -21,7 +22,7 @@ export interface InvitationRepositoryPort {
   listReceivedInvitations(input: { recipientEmail: string; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }>;
   resendPending(input: { id: string; expectedVersion: number; tokenHash: string; attemptId: string; expiresAt: Date; now: Date; notification: InvitationNotificationRequest }): Promise<Invitation>;
   resolveInvitation(id: string, expectedVersion: number, status: 'ACCEPTED' | 'REJECTED' | 'CANCELLED', now: Date, acceptedSubject?: string | null): Promise<Invitation>;
-  accept(input: { invitationId: string; token: string | null; expectedVersion: number; subject: string; email: string; emailVerified: true; profileComplete: true; now: Date; membershipId: string }): Promise<{ invitation: Invitation; membership: { readonly id: string; readonly revision: number } }>;
+  accept(input: { invitationId: string; token: string | null; expectedVersion: number; subject: string; email: string; emailVerified: true; profileComplete: true; now: Date; membershipId: string; driverProvisioning?: DriverProvisioningPort }): Promise<{ invitation: Invitation; membership: { readonly id: string; readonly revision: number } }>;
 }
 
 export interface InvitationNotificationRequest { readonly type: 'INVITATION_CREATED' | 'INVITATION_RESENT'; readonly invitationId: string; readonly tokenVersion: number; readonly attemptId: string; readonly token: string; readonly recipient: string; readonly organizationName: string; readonly roles: readonly string[]; readonly expiresAt: Date; readonly createdAt: Date }
@@ -52,7 +53,7 @@ const manageInvitationScope = (invitation: Invitation): OrganizationScope => inv
   ? { kind: 'organization', companyId: null, thirdPartyId: invitation.organizationId } : invitationScope(invitation);
 
 export function createInvitations(deps: {
-  repository: InvitationRepositoryPort; organizations: OrganizationReader; authorization: Authorization;
+  repository: InvitationRepositoryPort; organizations: OrganizationReader; authorization: Authorization; driverProvisioning?: DriverProvisioningPort;
   identity: IdentityProfileReader; now(): Date; nextId(): string; ttlHours: number;
   issueCredential(now: Date, ttlHours: number): InvitationCredential;
   authorizeDelegation(actor: AuthenticatedActor, request: InvitationDelegationRequest): Promise<void>;
@@ -176,12 +177,12 @@ export function createInvitations(deps: {
       let identity;
       try { identity = await readInvitationIdentity(deps.identity, { subject: actor.subject, recipientEmail: invitation.recipientEmail }); }
       catch (error) { throw new InvitationUseCaseError(error instanceof InvitationIdentityError ? (error.code === 'IDENTITY_UNAVAILABLE' ? 'UNAVAILABLE' : error.code) : 'FORBIDDEN'); }
-      const result = await deps.repository.accept({ invitationId: invitation.id, token, expectedVersion, ...identity, now: deps.now(), membershipId: deps.nextId() });
+      const result = await deps.repository.accept({ invitationId: invitation.id, token, expectedVersion, ...identity, now: deps.now(), membershipId: deps.nextId(), ...(deps.driverProvisioning ? { driverProvisioning: deps.driverProvisioning } : {}) });
       return { invitation: invitationView(result.invitation), membershipId: result.membership.id, membershipRevision: result.membership.revision };
     },
     async acceptReceived(actor: AuthenticatedActor, id: string, expectedVersion: number) {
       const { invitation, identity } = await activeReceivedInvitation(actor, id);
-      const result = await deps.repository.accept({ invitationId: invitation.id, token: null, expectedVersion, ...identity, now: deps.now(), membershipId: deps.nextId() });
+      const result = await deps.repository.accept({ invitationId: invitation.id, token: null, expectedVersion, ...identity, now: deps.now(), membershipId: deps.nextId(), ...(deps.driverProvisioning ? { driverProvisioning: deps.driverProvisioning } : {}) });
       return { invitation: invitationView(result.invitation), membershipId: result.membership.id, membershipRevision: result.membership.revision };
     },
     async reject(actor: AuthenticatedActor, token: string, expectedVersion: number) {

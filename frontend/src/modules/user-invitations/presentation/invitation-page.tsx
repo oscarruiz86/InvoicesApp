@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { useStore } from 'zustand';
 import { Alert, Autocomplete, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, MenuItem, Paper, Skeleton, Stack, SvgIcon, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
@@ -40,7 +41,9 @@ function InvitationStatusView({ invitation }: { invitation: InvitationRecord }) 
 
 export function InvitationPage({ api, context, authorization, companies }: { api: InvitationApi; context: ContextStore; authorization: AuthorizationStore; companies?: CompanyApi }) {
   const contextState = useStore(context); const auth = useStore(authorization); const active = contextState.activeContext;
-  const roles = auth.snapshot?.roles ?? [];
+  const location = useLocation(); const navigate = useNavigate();
+  const snapshotRoles = auth.snapshot?.roles;
+  const roles = useMemo(() => snapshotRoles ?? [], [snapshotRoles]);
   const canChangeOrganizationType = roles.includes('APP_ADMIN') || roles.includes('COMPANY_ADMIN') || active?.kind === 'ORGANIZATION' && active.roles.includes('COMPANY_ADMIN');
   const initialType: 'COMPANY' | 'THIRD_PARTY' | 'ALL' = canChangeOrganizationType ? 'ALL' : active?.kind === 'ORGANIZATION' ? active.organizationType : 'ALL';
   const [organizationType, setOrganizationType] = useState<'COMPANY' | 'THIRD_PARTY' | 'ALL'>(initialType);
@@ -97,10 +100,13 @@ export function InvitationPage({ api, context, authorization, companies }: { api
     : target, [companyId, organizationType, target]);
   const createTarget = useMemo<OrganizationTarget | null>(() => {
     if (createTargetType === 'COMPANY') return companyId.trim() ? { organizationId: companyId.trim(), organizationType: 'COMPANY', companyId: null } : null;
-    return createTargetOrganizationId.trim() && companyId.trim()
-      ? { organizationId: createTargetOrganizationId.trim(), organizationType: 'THIRD_PARTY', companyId: companyId.trim() }
+    const selectedThirdPartyId = createTargetOrganizationId.trim();
+    const selectedCompanyId = companyId.trim();
+    const activeThirdParty = active?.kind === 'ORGANIZATION' && active.organizationType === 'THIRD_PARTY' && active.organizationId === selectedThirdPartyId;
+    return selectedThirdPartyId && (selectedCompanyId || activeThirdParty)
+      ? { organizationId: selectedThirdPartyId, organizationType: 'THIRD_PARTY', companyId: selectedCompanyId || null }
       : null;
-  }, [companyId, createTargetOrganizationId, createTargetType]);
+  }, [active, companyId, createTargetOrganizationId, createTargetType]);
   const createRoleOptions = useMemo<InvitationRole[]>(() => !createTarget ? [] : createTarget.organizationType === 'COMPANY'
     ? roles.includes('APP_ADMIN') ? ['COMPANY_ADMIN'] : []
     : roles.includes('COMPANY_ADMIN') ? ['THIRD_PARTY_ADMIN'] : roles.includes('THIRD_PARTY_ADMIN') ? ['DRIVER'] : [], [createTarget, roles]);
@@ -194,8 +200,9 @@ export function InvitationPage({ api, context, authorization, companies }: { api
     setDraftOrganizationId(defaultId); setOrganizationId(defaultId); setDraftThirdPartyName(defaultName); setThirdPartyName(defaultName);
     setError(null); setPage(1);
   };
-  const openCreateInvitation = () => {
-    if (!companyId) return;
+  const openCreateInvitation = useCallback(() => {
+    const activeThirdParty = active?.kind === 'ORGANIZATION' && active.organizationType === 'THIRD_PARTY';
+    if (!companyId && !activeThirdParty) return;
     const companyAdmin = roles.includes('COMPANY_ADMIN') || active?.kind === 'ORGANIZATION' && active.roles.includes('COMPANY_ADMIN');
     const nextType = target?.organizationType ?? (companyAdmin ? 'THIRD_PARTY' : 'COMPANY');
     setCreateTargetType(nextType);
@@ -204,7 +211,13 @@ export function InvitationPage({ api, context, authorization, companies }: { api
     setRecipientEmail(''); setIdentityCandidates([]); setIdentitySearchError(null);
     setSelectedRole(nextType === 'COMPANY' ? 'COMPANY_ADMIN' : roles.includes('COMPANY_ADMIN') ? 'THIRD_PARTY_ADMIN' : 'DRIVER');
     setError(null); setCreateOpen(true);
-  };
+  }, [active, companyId, roles, target, thirdPartyName]);
+  useEffect(() => {
+    const state = location.state as { readonly openCreateInvitation?: boolean } | null;
+    if (!state?.openCreateInvitation) return;
+    openCreateInvitation();
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate, openCreateInvitation]);
   const chooseCreateThirdParty = (record: ThirdPartyOption) => {
     setCreateTargetOrganizationId(record.id); setCreateTargetThirdPartyName(record.name); setCreateThirdPartyPickerOpen(false);
   };

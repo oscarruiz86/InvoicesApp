@@ -39,8 +39,9 @@ const api: ThirdPartyApi = {
 const contextState = createStore(() => ({ status: 'ready' as const, activeContext: null, availableContexts: { organizations: [], globalAvailable: true }, generation: 0, persistent: false,
   initialize: async () => {}, openSelector: async () => false, select: async () => {}, clear: async () => {} }));
 const context = Object.assign(contextState, { register: () => () => {}, capture: () => ({ scope, signal: new AbortController().signal, isCurrent: () => true, release: () => {} }) }) as unknown as ContextStore;
+const initialPath = new URLSearchParams(window.location.search).get('screen') === 'detail' ? '/third-parties/' + 'b'.repeat(24) : '/third-parties';
 
-createRoot(document.getElementById('root')!).render(<ThemeProvider theme={theme}><CssBaseline /><MemoryRouter initialEntries={['/third-parties']}>
+createRoot(document.getElementById('root')!).render(<ThemeProvider theme={theme}><CssBaseline /><MemoryRouter initialEntries={[initialPath]}>
   <AppLayout navigation={<Stack><Button component={Link} to="/">Inicio</Button><Button component={Link} to="/third-parties">Terceros</Button></Stack>} account={<Avatar>TP</Avatar>}>
     <Routes>
       {(['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={mode} path={mode === 'list' ? '/third-parties' : mode === 'create' ? '/third-parties/new' : mode === 'detail' ? '/third-parties/:id' : '/third-parties/:id/edit'} element={<ThirdPartyPage api={api} context={context} authorization={authorization} mode={mode} />} />)}

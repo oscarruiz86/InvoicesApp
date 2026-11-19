@@ -1,6 +1,6 @@
 # Invoices App
 
-Dos aplicaciones independientes: WebApp React/Vite y API REST Next.js. Incluye autenticación Keycloak mediante OIDC/PKCE, sesión frontend y `/api/auth/me` protegido con JWT/JWKS. El núcleo de autorización añade política de permisos y `/api/auth/permissions`; la administración de empresas y terceros está disponible, mientras facturas, flota y sus integraciones siguen pendientes. No se ha desplegado en TrueNAS ni en otro entorno. Ver [autorización y preparación de la política](docs/authorization.md), [estado de implementación](docs/authorization-progress.md) y [arquitectura](docs/architecture.md).
+Dos aplicaciones independientes: WebApp React/Vite y API REST Next.js. Incluye autenticación Keycloak mediante OIDC/PKCE, sesión frontend y `/api/auth/me` protegido con JWT/JWKS. El núcleo de autorización añade política de permisos y `/api/auth/permissions`; la administración de empresas, terceros y conductores está disponible en backend; la interfaz de Flota, vehículos, asignaciones y facturas siguen pendientes. No se ha desplegado en TrueNAS ni en otro entorno. Ver [autorización y preparación de la política](docs/authorization.md), [gestión de conductores](docs/driver-management.md), [estado de implementación](docs/authorization-progress.md) y [arquitectura](docs/architecture.md).
 
 ## Requisitos y versiones
 

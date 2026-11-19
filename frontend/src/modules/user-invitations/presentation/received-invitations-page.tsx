@@ -25,7 +25,7 @@ export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; 
   const [result, setResult] = useState<{ items: readonly ReceivedInvitation[]; page: number; pageSize: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true); const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null); const [notice, setNotice] = useState<string | null>(null);
-  const [contextSelected, setContextSelected] = useState(false);
+  const [contextSelected, setContextSelected] = useState(false); const [driverProvisioned, setDriverProvisioned] = useState(false);
   const generation = useRef(0); const controller = useRef<AbortController | null>(null);
   const load = useCallback(async () => {
     controller.current?.abort();
@@ -49,9 +49,11 @@ export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; 
     try {
       if (action === 'accept') {
         const accepted = await api.acceptReceived(item.id, item.version);
+        const isDriverInvite = accepted.invitation.organizationType === 'THIRD_PARTY' && accepted.invitation.roles.length === 1 && accepted.invitation.roles[0] === 'DRIVER';
+        setDriverProvisioned(isDriverInvite);
         const selected = await activateInvitationContext(context, accepted.invitation.organizationId, accepted.invitation.organizationType);
         setContextSelected(selected);
-        setNotice(selected
+        setNotice(isDriverInvite ? 'Aceptaste la invitación de ' + item.organizationName + '. Tu registro de conductor ya está disponible.' : selected
           ? 'Aceptaste la invitación de ' + item.organizationName + ' y se seleccionó su contexto.'
           : 'Aceptaste la invitación de ' + item.organizationName + '. Puedes elegir la organización para continuar.');
       } else {
@@ -69,6 +71,7 @@ export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; 
     navigate(context ? '/organizations/select' : '/', { replace: true });
   };
   const continueAfterAcceptance = async () => {
+    if (driverProvisioned && contextSelected) { navigate('/drivers', { replace: true }); return; }
     if (contextSelected) { navigate('/session', { replace: true }); return; }
     await openOrganizations();
   };
@@ -79,7 +82,7 @@ export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; 
     <Typography color="text.secondary">Al aceptar, compartirás con la organización tu nombre completo, tipo y número de documento y correo electrónico. Crear tu cuenta no acepta una invitación automáticamente.</Typography>
     {error && <Alert severity="error">{error}</Alert>}
     {notice && <SuccessNotice onClose={() => setNotice(null)}>{notice}</SuccessNotice>}
-    {notice?.startsWith('Aceptaste') && <Button variant="contained" onClick={() => void continueAfterAcceptance()}>{contextSelected ? 'Continuar a Invoices App' : 'Elegir organización y entrar'}</Button>}
+    {notice?.startsWith('Aceptaste') && <Button variant="contained" onClick={() => void continueAfterAcceptance()}>{driverProvisioned && contextSelected ? 'Ver mis conductores' : contextSelected ? 'Continuar a Invoices App' : 'Elegir organización y entrar'}</Button>}
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
       <Button variant="outlined" onClick={() => void load()} disabled={loading || Boolean(busyId)}>Actualizar lista</Button>
     </Stack>

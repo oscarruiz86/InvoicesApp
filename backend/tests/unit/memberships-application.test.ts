@@ -24,3 +24,19 @@ it('authorizes the organization before scoped pagination and returns exactly fou
   expect(result.items[0].profile).toEqual({ fullName: 'Nombre Apellido', documentType: 'CC', documentNumber: '123456', email: 'member@example.invalid' });
   expect(Object.keys(result.items[0].profile!).sort()).toEqual(['documentNumber', 'documentType', 'email', 'fullName']);
 });
+
+it('passes the driver provisioning double into membership mutations without importing Fleet infrastructure', async () => {
+  const driverProvisioning = { provision: vi.fn(async () => {}), synchronizeRoles: vi.fn(async () => {}) };
+  const repository = {
+    findMembership: vi.fn(async () => ({ membership, roles: ['DRIVER' as const] })),
+    changeMembership: vi.fn(async () => ({ membership: { ...membership, revision: 2 }, roles: ['DRIVER' as const] })),
+  };
+  const service = createMemberships({ repository: repository as never,
+    organizations: { find: async () => ({ id: 'company-1', type: 'COMPANY' as const, name: 'Empresa', active: true, revision: 1 }) } as never,
+    authorization: { requirePermission: async () => ({ policyVersion: '1', contextRevision: '1' }) } as never,
+    identity: { read: async () => null } as never, now: () => new Date('2026-11-13T12:00:00.000Z'), authorizeDelegation: async () => {}, driverProvisioning });
+
+  await service.change(actor, { membershipId: membership.id, expectedRevision: 1, organizationId: 'company-1', organizationType: 'COMPANY', companyId: null, roles: ['DRIVER'] });
+
+  expect(repository.changeMembership).toHaveBeenCalledWith(expect.objectContaining({ membershipId: membership.id, roles: ['DRIVER'], driverProvisioning }));
+});

@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { createStore } from 'zustand/vanilla';
 import { InvitationPage } from '@/modules/user-invitations/presentation/invitation-page';
 import type { InvitationApi, InvitationRecord } from '@/modules/user-invitations/application/invitation-api';
@@ -28,7 +29,7 @@ it('shows history filters and exposes actions only for pending invitations that 
   const list = vi.fn(async () => ({ items: [makeInvitation('active', now + 60_000), makeInvitation('expired', now - 1)], page: 1, pageSize: 20, total: 2 }));
   const api = { list, create: vi.fn(), cancel: vi.fn(), resend: vi.fn() } as unknown as InvitationApi;
   await act(() => authorization.getState().setContext(scope));
-  render(<InvitationPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization as AuthorizationStore} />);
+  render(<MemoryRouter><InvitationPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization as AuthorizationStore} /></MemoryRouter>);
   expect((await screen.findAllByText('active@example.invalid')).length).toBeGreaterThan(0);
   expect((await screen.findAllByText('expired@example.invalid')).length).toBeGreaterThan(0);
   expect(screen.getAllByRole('button', { name: 'Reenviar' })).toHaveLength(1);
@@ -47,7 +48,7 @@ it('shows a safe duplicate message when an invitation already exists', async () 
   const api = { list: vi.fn(async () => ({ items: [], page: 1, pageSize: 20, total: 0 })),
     create: vi.fn(async () => { throw new RequestError('INVITATION_EXISTS'); }), cancel: vi.fn(), resend: vi.fn() } as unknown as InvitationApi;
   await act(() => authorization.getState().setContext(scope));
-  render(<InvitationPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization as AuthorizationStore} />);
+  render(<MemoryRouter><InvitationPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization as AuthorizationStore} /></MemoryRouter>);
   await user.click(await screen.findByRole('button', { name: 'Crear invitación' }));
   await user.type(await screen.findByLabelText('Correo del usuario'), 'person@example.invalid');
   await user.click(screen.getByRole('button', { name: 'Enviar invitación' }));

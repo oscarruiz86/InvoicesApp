@@ -24,7 +24,7 @@ ResourceAccessReader debe aplicar alcance y propietario ANTES de listar, contar,
 
 AuthorizationReceipt transporta revisiones de política/contexto/recurso; AuthorizedMutation es el compromiso del propietario de comprobarlas atómicamente al confirmar. No es un ticket reutilizable ni un mecanismo implementado de transacción de negocio. No habilitar escrituras funcionales sin la garantía real. Las pruebas de ese contrato usan dobles y no acreditan transacciones de Organizations/Invoices.
 
-Fleet debe aportar vehículo/asignación activos y conductor; Invoices origen estable, propietario y elegibilidad calculada con Configuration/reloj del servidor. Identity consume esos resultados: no calcula horas, bordes de plazo ni captura QR. DRIVER no edita QR; MANUAL vencida se rechaza. Otros roles requieren elegibilidad del módulo propietario, sin excepción privilegiada automática.
+Fleet publica hechos de elegibilidad del conductor basados en su estado, membership DRIVER y tercero activos. Vehículos y asignaciones continúan perteneciendo a Fleet y todavía no se implementan aquí; Invoices debe consultar esos propietarios antes de confirmar sus propias operaciones. Identity no calcula elegibilidad ni copia perfiles. DRIVER no edita QR; MANUAL vencida se rechaza. Otros roles requieren elegibilidad del módulo propietario, sin excepción privilegiada automática.
 
 ## Política persistida y auditoría
 
@@ -68,6 +68,12 @@ Zustand mantiene estado `idle/loading/ready/denied/error`, ámbito solicitado, s
 
 ## Verificación y límites
 
-Pruebas unitarias de matriz, coordinación, eventos y contratos viven en `backend/tests/unit/authorization.test.ts`. Las integraciones reales de Organizations/Fleet/Invoices/Configuration/Audit siguen pendientes; ver `authorization-progress.md` y las casillas OpenSpec. No sustituir esos proveedores con asociaciones ficticias en runtime: las consultas organizacionales responden 503 hasta conectarlos.
+Pruebas unitarias de matriz, coordinación, eventos y contratos viven en `backend/tests/unit/authorization.test.ts`. La integración Organizations/Fleet para invitaciones DRIVER, cambio de roles y hechos de elegibilidad está implementada y probada en la propuesta [`implement-driver-management`](../openspec/changes/implement-driver-management/tasks.md); la guía operativa está en [gestión de conductores](driver-management.md). Vehículos, asignaciones, invoices, Configuration y entrega a Audit persistente siguen pendientes. No se sustituyen esos propietarios con asociaciones ficticias en runtime.
 
 Vitest frontend usa un único thread aislado: los forks jsdom concurrentes agotaron el plazo de arranque en este equipo. Conserva las mismas pruebas y aislamiento; no se deshabilitan escenarios ni se amplían sus límites de tiempo. Las comprobaciones arquitectónicas agregan ejemplos negativos de acceso al adaptador/persistencia de otro contexto.
+
+## Conductores
+
+`THIRD_PARTY_ADMIN` puede consultar y cambiar estado de conductores en su tercero con `drivers:read` y `drivers:deactivate`. `DRIVER` conserva `drivers:read` en ámbito propio y el backend filtra por su subject y membership activa. Las rutas exigen `scope=organization` y `thirdPartyId`; no hay acceso por empresa o global a esta API. `drivers:update` sigue en el catálogo, pero no habilita edición de identidad mientras no se aprueben campos operativos.
+
+La aceptación de invitación y los cambios de rol sincronizan membership, asociación, Driver e historial en transacción; no cambian Keycloak. La identidad canónica solo se proyecta desde Identity y puede ser nula. Ver [contrato y migración de conductores](driver-management.md).
