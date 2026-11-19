@@ -17,7 +17,7 @@ export interface Grant { readonly role: ApplicationRole; readonly permission: Pe
 
 const grants = (role: ApplicationRole, scope: GrantScope, values: readonly Permission[]): Grant[] => values.map(permission => ({ role, permission, scope }));
 export const grantCeiling: readonly Grant[] = Object.freeze([
-  ...grants('APP_ADMIN', 'global', ['companies:create', 'companies:read', 'companies:update', 'companies:deactivate', 'users:create', 'users:read', 'users:update', 'users:associate', 'parameters:read', 'parameters:update', 'roles:read', 'roles:manage', 'associations:read', 'associations:manage']),
+  ...grants('APP_ADMIN', 'global', ['companies:create', 'companies:read', 'companies:update', 'companies:deactivate', 'third-parties:create', 'third-parties:read', 'third-parties:update', 'third-parties:deactivate', 'users:create', 'users:read', 'users:update', 'users:associate', 'parameters:read', 'parameters:update', 'roles:read', 'roles:manage', 'associations:read', 'associations:manage']),
   ...grants('COMPANY_ADMIN', 'company', ['companies:read', 'companies:update', 'third-parties:create', 'third-parties:read', 'third-parties:update', 'third-parties:deactivate', 'users:create', 'users:read', 'users:associate', 'associations:read', 'associations:manage']),
   ...grants('THIRD_PARTY_ADMIN', 'third-party', ['third-parties:read', 'third-parties:update', 'drivers:create', 'drivers:read', 'drivers:update', 'drivers:deactivate', 'vehicles:create', 'vehicles:read', 'vehicles:update', 'vehicles:deactivate', 'vehicles:assign', 'vehicles:unassign', 'assignments:read', 'invoices:read', 'invoices:update']),
   ...grants('DRIVER', 'self', ['users:read', 'drivers:read']),

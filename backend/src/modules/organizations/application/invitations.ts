@@ -16,7 +16,8 @@ export interface InvitationRepositoryPort {
   createPending(invitation: Invitation, now: Date, notification: InvitationNotificationRequest): Promise<Invitation>;
   findInvitation(id: string): Promise<Invitation | null>;
   findInvitationByToken(token: string, now: Date): Promise<Invitation | null>;
-  listInvitations(input: { organizationId: string; status?: InvitationStatus; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }>;
+  listInvitations(input: { organizationId: string; organizationType?: Invitation['organizationType'] | 'ALL'; companyId?: string; companyWide?: boolean;
+    status?: InvitationStatus; email?: string; role?: Invitation['roles'][number]; delivery?: Invitation['deliveryStatus']; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }>;
   listReceivedInvitations(input: { recipientEmail: string; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }>;
   resendPending(input: { id: string; expectedVersion: number; tokenHash: string; attemptId: string; expiresAt: Date; now: Date; notification: InvitationNotificationRequest }): Promise<Invitation>;
   resolveInvitation(id: string, expectedVersion: number, status: 'ACCEPTED' | 'REJECTED' | 'CANCELLED', now: Date, acceptedSubject?: string | null): Promise<Invitation>;
@@ -27,6 +28,7 @@ export interface InvitationNotificationRequest { readonly type: 'INVITATION_CREA
 
 export interface InvitationView {
   readonly id: string; readonly organizationId: string; readonly organizationType: Invitation['organizationType']; readonly companyId: string | null;
+  readonly organizationName?: string;
   readonly recipientEmail: string; readonly roles: Invitation['roles']; readonly status: Invitation['status']; readonly expiresAt: string;
   readonly version: number; readonly deliveryStatus: Invitation['deliveryStatus']; readonly createdAt: string; readonly resolvedAt: string | null;
 }
@@ -64,9 +66,9 @@ export function createInvitations(deps: {
     const organization = await deps.organizations.find(invitation.organizationId);
     if (!organization || organization.type !== invitation.organizationType) throw new InvitationUseCaseError('NOT_FOUND');
     try {
-      const permission = invitation.organizationType === 'COMPANY' ? 'users:read'
+      const permission = actor.roles.includes('APP_ADMIN') ? 'users:read' : invitation.organizationType === 'COMPANY' ? 'users:read'
         : invitation.roles.includes('DRIVER') ? 'drivers:read' : 'users:read';
-      await deps.authorization.requirePermission(actor, permission, manageInvitationScope(invitation));
+      await deps.authorization.requirePermission(actor, permission, actor.roles.includes('APP_ADMIN') ? globalScope : manageInvitationScope(invitation));
     } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
   }
   async function activeInvitation(token: string) {
@@ -87,14 +89,37 @@ export function createInvitations(deps: {
     return { invitation, identity };
   }
   return {
-    async list(actor: AuthenticatedActor, input: { organizationId: string; organizationType: Invitation['organizationType']; companyId: string | null; status?: InvitationStatus; page: number; pageSize: number }) {
+    async list(actor: AuthenticatedActor, input: { organizationId: string; organizationType: Invitation['organizationType'] | 'ALL'; companyId: string | null;
+      status?: InvitationStatus; email?: string; role?: Invitation['roles'][number]; delivery?: Invitation['deliveryStatus']; page: number; pageSize: number }) {
       if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new InvitationUseCaseError('INVALID_REQUEST');
+      if (input.organizationType === 'ALL') {
+        const companyId = input.companyId;
+        if (!companyId || input.organizationId !== companyId) throw new InvitationUseCaseError('NOT_FOUND');
+        const company = await deps.organizations.find(companyId);
+        if (!company || company.type !== 'COMPANY') throw new InvitationUseCaseError('NOT_FOUND');
+        const appAdmin = actor.roles.includes('APP_ADMIN');
+        const scope: OrganizationScope = appAdmin ? globalScope : { kind: 'organization', companyId, thirdPartyId: null };
+        try { await deps.authorization.requirePermission(actor, 'users:read', scope); } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
+        const result = await deps.repository.listInvitations({ organizationId: companyId, organizationType: appAdmin ? 'ALL' : 'THIRD_PARTY',
+          companyId, companyWide: true, ...(input.status ? { status: input.status } : {}), ...(input.email ? { email: input.email } : {}),
+          ...(input.role ? { role: input.role } : {}), ...(input.delivery ? { delivery: input.delivery } : {}), page: input.page, pageSize: input.pageSize, now: deps.now() });
+        const organizationIds = [...new Set(result.items.map(invitation => invitation.organizationId))];
+        const organizations = await Promise.all(organizationIds.map(async organizationId => [organizationId, await deps.organizations.find(organizationId)] as const));
+        const names = new Map(organizations.map(([organizationId, organization]) => [organizationId, organization?.name ?? 'Organización no disponible']));
+        return { items: result.items.map(invitation => ({ ...invitationView(invitation), organizationName: names.get(invitation.organizationId) ?? 'Organización no disponible' })),
+          page: input.page, pageSize: input.pageSize, total: result.total };
+      }
       const organization = await deps.organizations.find(input.organizationId);
       if (!organization || organization.type !== input.organizationType || (input.companyId && input.organizationType !== 'THIRD_PARTY')) throw new InvitationUseCaseError('NOT_FOUND');
-      const probe: Pick<Invitation, 'organizationType' | 'organizationId' | 'companyId'> = input;
-      const permission = input.organizationType === 'COMPANY' ? 'users:read' : input.companyId ? 'users:read' : 'drivers:read';
-      try { await deps.authorization.requirePermission(actor, permission, invitationScope(probe)); } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
-      const result = await deps.repository.listInvitations({ organizationId: input.organizationId, ...(input.status ? { status: input.status } : {}), page: input.page, pageSize: input.pageSize, now: deps.now() });
+      const probe: Pick<Invitation, 'organizationType' | 'organizationId' | 'companyId'> = {
+        organizationId: input.organizationId, organizationType: input.organizationType as Invitation['organizationType'], companyId: input.companyId,
+      };
+      const permission = actor.roles.includes('APP_ADMIN') ? 'users:read' : input.organizationType === 'COMPANY' ? 'users:read' : input.companyId ? 'users:read' : 'drivers:read';
+      try { await deps.authorization.requirePermission(actor, permission, actor.roles.includes('APP_ADMIN') ? globalScope : invitationScope(probe)); } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
+      const result = await deps.repository.listInvitations({ organizationId: input.organizationId,
+        ...(input.organizationType === 'THIRD_PARTY' && input.companyId ? { companyId: input.companyId } : {}),
+        organizationType: input.organizationType, ...(input.status ? { status: input.status } : {}), ...(input.email ? { email: input.email } : {}),
+        ...(input.role ? { role: input.role } : {}), ...(input.delivery ? { delivery: input.delivery } : {}), page: input.page, pageSize: input.pageSize, now: deps.now() });
       return { items: result.items.map(invitationView), page: input.page, pageSize: input.pageSize, total: result.total };
     },
     async received(actor: AuthenticatedActor, input: { page: number; pageSize: number }) {

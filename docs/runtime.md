@@ -1,6 +1,6 @@
 # Runtime técnico
 
-El backend contiene Route Handlers técnicos y `GET /api/auth/me` protegido. No hay páginas de producto, login propio, sesiones backend ni operaciones de negocio.
+El backend contiene Route Handlers técnicos, autenticación protegida y operaciones REST de empresas, terceros, invitaciones y memberships. La WebApp React/Vite contiene las pantallas administrativas. No hay login propio ni sesión backend.
 
 | Variable backend | Validación |
 | --- | --- |
@@ -14,7 +14,7 @@ El bootstrap valida runtime antes de cada servicio técnico. Configuración inv�
 
 `GET /api/health` devuelve JSON `{ "status": "ok" }` y `Cache-Control: no-store` con configuración válida. Es liveness: funciona con MongoDB/Keycloak caídos y no acredita preparación de persistencia. `GET /api/openapi` publica el contrato único `backend/openapi/openapi.json` (3.1.0). `/api/docs` sirve documentación Swagger y assets locales; no es una página de producto Next.js.
 
-La conexión MongoDB es perezosa, comparte promesa/pool por proceso y sobrevive a hot reload mediante un cache global técnico. Timeout de selección/conexión: 3000 ms; pool máximo: 10. Un intento rechazado limpia su estado y permite recuperarse. No se cierra por solicitud. `closeMongo` se usa para cierre explícito y limpieza de pruebas. No existen modelos Mongoose ni repositorios de negocio.
+La conexión MongoDB es perezosa, comparte promesa/pool por proceso y sobrevive a hot reload mediante un cache global técnico. Timeout de selección/conexión: 3000 ms; pool máximo: 10. Un intento rechazado limpia su estado y permite recuperarse. No se cierra por solicitud. `closeMongo` se usa para cierre explícito y limpieza de pruebas. Organizations, identidad, invitaciones y notificaciones tienen adaptadores MongoDB propios; sus sesiones y modelos no escapan a Infrastructure.
 
 `IdentityVerifier` conecta el adaptador JWT/JWKS en bootstrap. Configuración completa activa validación perezosa en rutas protegidas; ausencia permite técnicos públicos pero `/api/auth/me` responde 503. Configuración parcial se rechaza. No hay identidades ficticias. Las URLs deben ser HTTP local o HTTPS, sin credenciales embebidas; producción exige HTTPS.
 
@@ -22,4 +22,6 @@ La conexión MongoDB es perezosa, comparte promesa/pool por proceso y sobrevive 
 
 JWKS se comparte por proceso con caché máxima de 10 minutos, timeout de 5 segundos y cooldown de 30 segundos para nuevas claves. Sin clave utilizable se deniega acceso y la resolución puede recuperarse. No se consulta ninguna URL del JWT ni se registran tokens/claims. [Configuración, Swagger y operación](authentication.md) detalla direcciones host/Compose, audiencia, roles y errores.
 
-Pruebas unitarias: `npm --prefix backend test`. Integración: proporcionar `MONGODB_TEST_URI` a una base terminada en `_test` y ejecutar `npm --prefix backend run test:integration`. Las pruebas de datos hacen ping, reutilización y recuperación; no escriben modelos de negocio. `test:http`, después de build, levanta procesos Next aislados en puertos libres y los cierra al terminar. `TEST_API_BASE_URL` permite comprobar además un backend ya iniciado.
+Pruebas unitarias: `npm --prefix backend test`. Integración: proporcionar `MONGODB_TEST_URI` a una base terminada en `_test` y ejecutar `npm --prefix backend run test:integration`. Para el Compose local, publica `127.0.0.1:27019` y usa `?replicaSet=invoices-rs&directConnection=true`; la conexión directa evita seguir el hostname interno `mongodb` fuera de Compose. Para ejecutar únicamente los flujos de terceros usa desde `backend`: `npx vitest run --config vitest.integration.config.ts tests/integration/third-party-management.test.ts`. La suite de terceros crea una base aleatoria terminada en `_test`, prueba transacciones y elimina solo esa base aislada al finalizar. La suite de directorio requiere sus credenciales Keycloak efímeras. `test:http`, después de build, levanta procesos Next aislados en puertos libres y los cierra al terminar. `TEST_API_BASE_URL` permite comprobar además un backend ya iniciado.
+
+Las operaciones de terceros requieren un replica set escribible. El perfil canónico y la proyección organizacional se actualizan en una transacción; no hay fallback no transaccional. `third-party-readiness.ts` añade únicamente `revision`, `updatedAt` y `mutationFence` faltantes a relaciones legadas. `npm --prefix backend run third-parties:inventory-legacy` guarda un inventario idempotente de organizaciones THIRD_PARTY sin perfil; no crea NIT, correo, perfiles ni relaciones.

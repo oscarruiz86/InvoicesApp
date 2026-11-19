@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { ApplicationError } from '@/shared/application/application-error';
 import type { PermissionScope } from '@/modules/authentication/domain/permissions';
-import type { InvitationApi, InvitationPage, InvitationPreview, InvitationRecord, InvitationRole, InvitationStatus, InvitationTransport, MembershipRecord, OrganizationTarget, Page, ReceivedInvitation } from '../application/invitation-api';
+import type { InvitationApi, InvitationListTarget, InvitationPage, InvitationPreview, InvitationRecord, InvitationRole, InvitationSearchFilters, InvitationStatus, InvitationTransport, MembershipRecord, OrganizationTarget, Page, ReceivedInvitation } from '../application/invitation-api';
 
 const role = z.enum(['COMPANY_ADMIN', 'THIRD_PARTY_ADMIN', 'DRIVER']);
 const invitation = z.object({ id: z.string(), organizationId: z.string(), organizationType: z.enum(['COMPANY', 'THIRD_PARTY']), companyId: z.string().nullable(),
+  organizationName: z.string().optional(),
   recipientEmail: z.string().email(), roles: z.array(role).min(1).max(3), status: z.enum(['PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'EXPIRED']),
   expiresAt: z.string(), version: z.number().int().positive(), deliveryStatus: z.enum(['UNKNOWN', 'LOGGED', 'FAILED']), createdAt: z.string(), resolvedAt: z.string().nullable() }).strict();
 const preview = z.object({ organizationId: z.string(), organizationType: z.enum(['COMPANY', 'THIRD_PARTY']), organizationName: z.string(), recipientEmail: z.string().email(), roles: z.array(role), expiresAt: z.string(), version: z.number().int().positive() }).strict();
@@ -19,19 +20,28 @@ const parse = async <T>(schema: z.ZodType<T>, work: Promise<unknown>): Promise<T
   if (!result.success) throw new ApplicationError('INVALID_RESPONSE');
   return result.data;
 };
-const targetQuery = (target: OrganizationTarget, status: string, pageNumber: number, extra: Record<string, string> = {}, pageSize = 20) => new URLSearchParams({ organizationId: target.organizationId,
+const targetQuery = (target: OrganizationTarget | InvitationListTarget, status: string, pageNumber: number, extra: Record<string, string> = {}, pageSize = 20) => new URLSearchParams({ organizationId: target.organizationId,
   organizationType: target.organizationType, ...(target.companyId ? { companyId: target.companyId } : {}), ...(status ? { status } : {}), ...extra, page: String(pageNumber), pageSize: String(pageSize) }).toString();
 const assertScope = (scope: PermissionScope, target: OrganizationTarget) => {
   if (scope.kind === 'self' || (target.organizationType === 'COMPANY' && target.companyId !== null)
-    || (target.organizationType === 'THIRD_PARTY' && target.companyId !== null && scope.companyId !== target.companyId)) throw new ApplicationError('FORBIDDEN');
+    || (target.organizationType === 'THIRD_PARTY' && target.companyId !== null && scope.kind === 'organization' && scope.companyId !== target.companyId)) throw new ApplicationError('FORBIDDEN');
   if (scope.kind === 'organization' && (target.organizationType === 'COMPANY'
     ? scope.companyId !== target.organizationId
     : scope.thirdPartyId !== target.organizationId && !(scope.companyId && target.companyId === scope.companyId))) throw new ApplicationError('FORBIDDEN');
 };
+const assertListScope = (scope: PermissionScope, target: OrganizationTarget | InvitationListTarget) => {
+  if (target.organizationType !== 'ALL') { assertScope(scope, target); return; }
+  if (!target.companyId || target.organizationId !== target.companyId || scope.kind === 'self' || scope.thirdPartyId
+    || (scope.kind === 'organization' && scope.companyId !== target.companyId)) throw new ApplicationError('FORBIDDEN');
+};
 
 export function createInvitationApi(http: InvitationTransport): InvitationApi {
   return {
-    list(scope, target, status, pageNumber, signal, pageSize = 20) { assertScope(scope, target); return parse(page(invitation), http.organization('GET', 'invitations', targetQuery(target, status, pageNumber, {}, pageSize), undefined, signal)) as Promise<InvitationPage>; },
+    list(scope, target, status, pageNumber, signal, pageSize = 20, filters: InvitationSearchFilters = {}) {
+      assertListScope(scope, target);
+      const extra = Object.fromEntries(Object.entries(filters).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && Boolean(entry[1])));
+      return parse(page(invitation), http.organization('GET', 'invitations', targetQuery(target, status, pageNumber, extra, pageSize), undefined, signal)) as Promise<InvitationPage>;
+    },
     create(scope, target, recipientEmail, roles, signal) {
       assertScope(scope, target);
       const invitationTarget = target.organizationType === 'COMPANY' ? { ...target, companyId: target.organizationId } : target;

@@ -1,6 +1,6 @@
 # Invoices App
 
-Dos aplicaciones independientes: WebApp React/Vite y API REST Next.js. Incluye fundamentos técnicos, autenticación Keycloak mediante OIDC/PKCE, sesión frontend y `/api/auth/me` protegido con JWT/JWKS. El núcleo de autorización añade política de permisos y `/api/auth/permissions`; organizaciones, facturas, flota y sus integraciones reales siguen pendientes. No se ha desplegado en TrueNAS ni en otro entorno. Ver [autorización y preparación de la política](docs/authorization.md) y [estado de implementación](docs/authorization-progress.md).
+Dos aplicaciones independientes: WebApp React/Vite y API REST Next.js. Incluye autenticación Keycloak mediante OIDC/PKCE, sesión frontend y `/api/auth/me` protegido con JWT/JWKS. El núcleo de autorización añade política de permisos y `/api/auth/permissions`; la administración de empresas y terceros está disponible, mientras facturas, flota y sus integraciones siguen pendientes. No se ha desplegado en TrueNAS ni en otro entorno. Ver [autorización y preparación de la política](docs/authorization.md), [estado de implementación](docs/authorization-progress.md) y [arquitectura](docs/architecture.md).
 
 ## Requisitos y versiones
 
@@ -101,6 +101,14 @@ curl.exe --fail http://localhost:5173/api/health
 
 En shells Unix se puede usar `curl` en lugar de `curl.exe`.
 
+## Gestión de terceros
+
+La WebApp ofrece `/third-parties` para consulta paginada, creación, detalle, edición y cambios de estado según el scope confirmado. La API publica `GET/POST /api/third-parties`, `GET/PATCH /api/third-parties/{id}`, `POST /api/third-parties/{id}/status` y `GET/PUT /api/third-parties/{id}/relationships/{companyId}`. Todas las respuestas son JSON con `Cache-Control: no-store` y requieren Bearer.
+
+El perfil administrativo vive en `third_parties`; la organización `THIRD_PARTY` reutiliza su ID y proyecta nombre y estado para contextos. El NIT es único incluso al desactivar un tercero. Las relaciones empresa-tercero mantienen versión y estado propios, por lo que inhabilitar una relación no altera otras empresas ni el perfil. La administración no modifica identidades, credenciales ni perfiles personales de Keycloak.
+
+La nueva escritura requiere MongoDB en replica set para confirmar perfil, proyección, relación y auditoría en una transacción. Para inventariar terceros legados sin crear perfiles ni relaciones, configura `.env.local` y ejecuta `npm --prefix backend run third-parties:inventory-legacy`. El comando registra los IDs que necesitan conciliación; puede ejecutarse de nuevo sin duplicar el inventario. No se ejecuta automáticamente durante el arranque.
+
 ## Validación
 
 Los comandos de calidad no necesitan API, MongoDB ni Keycloak:
@@ -129,7 +137,7 @@ Para integración MongoDB, usar exclusivamente una base de pruebas terminada en 
 
 ```powershell
 # Ajustar al MONGO_PORT de .env; en este entorno se configuró 27019.
-$env:MONGODB_TEST_URI='mongodb://127.0.0.1:27019/invoices_foundations_test'
+$env:MONGODB_TEST_URI='mongodb://127.0.0.1:27019/invoices_foundations_test?replicaSet=invoices-rs&directConnection=true'
 npm --prefix backend run test:integration
 ```
 

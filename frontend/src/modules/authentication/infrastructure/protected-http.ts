@@ -25,6 +25,16 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (!valid) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
+    thirdParty(method: 'GET' | 'POST' | 'PATCH' | 'PUT', path: string, query: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
+      const base = /^third-parties(?:\/[a-f0-9]{24})?$/;
+      const status = /^third-parties\/[a-f0-9]{24}\/status$/;
+      const relationship = /^third-parties\/[a-f0-9]{24}\/relationships\/[a-f0-9]{24}$/;
+      const valid = method === 'GET' ? base.test(path) || relationship.test(path)
+        : method === 'PATCH' ? /^third-parties\/[a-f0-9]{24}$/.test(path)
+          : method === 'POST' ? path === 'third-parties' || status.test(path) : relationship.test(path);
+      if (!valid) throw new ApplicationError('CONFIGURATION');
+      return request(path, query, signal, body, method);
+    },
     organization(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: unknown, signal?: AbortSignal): Promise<unknown> {
       const valid = /^(invitations(?:\/[A-Za-z0-9_~-]{1,128}(?:\/(?:cancel|resend))?)?|invitations\/(?:preview|accept|reject)|invitations\/received(?:\/[A-Za-z0-9_~-]{1,128}\/(?:accept|reject))?|organization-memberships(?:\/[A-Za-z0-9_~-]{1,128}(?:\/(?:profile|roles|status))?)?)$/.test(path);
       if (!valid) throw new ApplicationError('CONFIGURATION');
@@ -34,7 +44,7 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       return request('invitations/preview', '', signal, { token }, 'POST', false);
     },
   };
-  async function request(path: string, query: string, signal?: AbortSignal, payload?: unknown, companyMethod?: 'GET' | 'POST' | 'PATCH', authenticated = true): Promise<unknown> {
+  async function request(path: string, query: string, signal?: AbortSignal, payload?: unknown, companyMethod?: 'GET' | 'POST' | 'PATCH' | 'PUT', authenticated = true): Promise<unknown> {
       if (!companyMethod && !(payload === undefined ? ['auth/me', 'auth/permissions', 'organization-contexts'] : ['organization-contexts/resolve']).includes(path)
         && !/^(invitations|organization-memberships)\//.test(path)) throw new ApplicationError('CONFIGURATION');
       const endpoint = new URL(path, base); endpoint.search = query;
@@ -64,7 +74,7 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
         if (companyMethod && [400, 409].includes(response.status)) {
           const failure = await response.json().catch(() => null);
-          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED'];
+          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED'];
           throw new RequestError(codes.includes(failure?.error?.code) ? failure.error.code : 'INVALID_REQUEST', Array.isArray(failure?.error?.fields) ? failure.error.fields.filter((field: unknown) => typeof field === 'string') : []);
         }
         if (!response.ok) throw new ApplicationError('HTTP');

@@ -71,6 +71,21 @@ async function inspect(base) {
   for (const status of ['200', '401', '503', '500']) assert(specification.paths['/api/auth/me'].get.responses[status]);
   assert.deepEqual(specification.paths['/api/auth/permissions'].get.security, [{ bearerAuth: [] }]);
   for (const status of ['200', '400', '401', '403', '503', '500']) assert(specification.paths['/api/auth/permissions'].get.responses[status]);
+  const thirdPartyList = specification.paths['/api/third-parties'].get;
+  assert.deepEqual(thirdPartyList.security, [{ bearerAuth: [] }]);
+  for (const status of ['200', '400', '401', '403', '404', '409', '500', '503']) assert(thirdPartyList.responses[status]);
+  const thirdPartyRelationship = specification.paths['/api/third-parties/{id}/relationships/{companyId}'].put;
+  assert.deepEqual(thirdPartyRelationship.security, [{ bearerAuth: [] }]);
+  assert(thirdPartyRelationship.parameters.some(value => value.name === 'scope' && value.in === 'query'));
+  for (const status of ['200', '400', '401', '403', '404', '409', '500', '503']) assert(thirdPartyRelationship.responses[status]);
+  for (const operation of [thirdPartyList, thirdPartyRelationship]) {
+    for (const response of Object.values(operation.responses)) assert.equal(response.headers?.['Cache-Control']?.schema?.const, 'no-store');
+  }
+  const anonymousThirdParty = await fetch(base + '/api/third-parties?scope=global');
+  assert.equal(anonymousThirdParty.status, 503); assert.equal(anonymousThirdParty.headers.get('cache-control'), 'no-store');
+  assert.equal((await anonymousThirdParty.json()).error.code, 'CONFIGURATION_ERROR');
+  const anonymousRelationship = await fetch(base + `/api/third-parties/${'b'.repeat(24)}/relationships/${'a'.repeat(24)}?scope=global`);
+  assert.equal(anonymousRelationship.status, 503); assert.equal(anonymousRelationship.headers.get('cache-control'), 'no-store');
   const docs = await fetch(base + '/api/docs'); assert.equal(docs.status, 200);
   const html = await docs.text(); assert(html.includes('/api/openapi')); assert(!html.includes('https://'));
   assert(html.includes('persistAuthorization:false'));
@@ -104,6 +119,10 @@ try {
   await withServer(testUri ?? 'mongodb://127.0.0.1:1/unreachable_test', async base => {
     const url = base + '/api/auth/permissions';
     const anonymous = await fetch(url); assert.equal(anonymous.status, 401, JSON.stringify(await anonymous.clone().json()));
+    for (const endpoint of [base + '/api/third-parties?scope=global', base + `/api/third-parties/${'b'.repeat(24)}/relationships/${'a'.repeat(24)}?scope=global`]) {
+      const response = await fetch(endpoint); assert.equal(response.status, 401, JSON.stringify(await response.clone().json()));
+      assert.equal(response.headers.get('cache-control'), 'no-store'); assert.equal((await response.json()).error.code, 'UNAUTHENTICATED');
+    }
     assert.equal((await fetch(url, { headers: { Authorization: 'Bearer invalid.token.value' } })).status, 401);
     const headers = { Authorization: `Bearer ${token}` };
     const me = await fetch(base + '/api/auth/me', { headers }); assert.equal(me.status, 200);

@@ -74,3 +74,30 @@ La autenticación no introduce CRUD, contraseñas en MongoDB ni autorización or
 ## Estado final del incremento
 
 OpenSpec confirma `all_done`: 27/27 tareas completadas. La validación estricta de `implement-authentication` terminó correctamente. El cambio queda disponible para revisión previa a su sincronización y archivo. Los cuatro servicios locales permanecen activos; las pruebas eliminaron sus recursos temporales sin alterar servicios ajenos ni volúmenes de datos locales.
+
+## Gestión de terceros — verificación del 2026-11-18
+
+Se implementó el perfil administrativo canónico, su proyección `Organization`, relaciones empresa-tercero many-to-many, auditoría transaccional, rutas REST y OpenAPI, inventario legado idempotente, selector compartido por invitaciones/memberships y pantallas administrativas responsive. El perfil personal de Keycloak permanece fuera de las escrituras del módulo.
+
+| Verificación | Resultado |
+| --- | --- |
+| `npm run check` en backend | Correcto: lint sin errores, TypeScript, 352 pruebas unitarias y comprobación arquitectónica. ESLint conserva advertencias en scripts y una suite existente. |
+| Frontend | Lint sin errores, typecheck, 135 pruebas Vitest y comprobación arquitectónica correctos. ESLint conserva 11 advertencias de React Hooks en pantallas existentes. |
+| OpenAPI | `npm run openapi:lint` válido. Pruebas HTTP de controladores verifican envelopes JSON/no-store para permisos, errores y scopes. |
+| Build | `npm run build` de backend (incluido standalone) y frontend correctos; Vite advierte que el chunk principal de 896.73 kB supera el umbral de 500 kB (265.50 kB gzip). |
+| HTTP standalone | `npm run test:http` aprobado con MongoDB inaccesible y valores efímeros: salud, contrato OpenAPI 3.1, Swagger/assets, respuestas 503 de runtime no configurado y 401/no-store de endpoints anónimos con JWKS local. |
+| MongoDB | La integración específica de terceros aprobó 9 pruebas transaccionales con `MONGODB_TEST_URI` y conexión local `replicaSet=invoices-rs&directConnection=true`: rollback de escrituras, barreras de revocación, alcance por empresa y auditoría append-only. |
+| Frontend terceros | 13 pruebas unitarias focalizadas verifican adaptador/errores, búsqueda y contexto, conflicto de versión, navegación, permisos y limpieza del formulario. |
+| Integración ampliada | 20 pruebas pasaron y una suite externa de Keycloak se excluyó porque no están configuradas sus credenciales efímeras. `company-management.test.ts` mantiene 2 fallos reproducibles en aislamiento: espera eventos de empresa que no se almacenaron y esperaba `FORBIDDEN` mientras recibió `COMPANY_VERSION_CONFLICT`. |
+| Navegador | `npm run test:e2e -- --workers=1`: 15/15 pruebas correctas contra un servidor Vite aislado, incluidos 360 px, 1280 px, teclado, creación/edición, relaciones y membreships. |
+
+La suite ampliada de integración no queda completamente verde por los dos fallos descritos en `company-management.test.ts`; los flujos de terceros, invitaciones y contexto incluidos en esa ejecución pasaron. La prueba del directorio de Keycloak requiere un issuer, cliente y sujeto efímeros no provistos en esta ejecución. El E2E de creación ahora espera explícitamente el encabezado de la ruta antes de localizar NIT, para no confundirlo con el campo de búsqueda de la lista durante la navegación asíncrona. El comando de inventario legado se probó con fixtures en una base aleatoria `_test`; no se ejecutó contra `.env.local` ni sobre datos operativos, por lo que no se declara un conteo de terceros legados pendientes de conciliación. No se desplegó el cambio.
+
+
+## Cierre OpenSpec — implement-third-party-management (2026-11-18)
+
+- Las 32 tareas del cambio estaban marcadas completas y 0 pendientes. openspec validate implement-third-party-management --strict --no-interactive pasó antes del archivo.
+- openspec archive -y implement-third-party-management sincronizó 11 requisitos nuevos en application-template, third-party-management y user-invitations, y archivó el cambio en openspec/changes/archive/2026-11-18-implement-third-party-management.
+- openspec validate --archived --strict --no-interactive pasó para los 7 cambios archivados. La nueva spec third-party-management valida en modo estricto.
+- La validación estricta completa de user-invitations y application-template aún señala advertencias de longitud en requisitos anteriores a estas adiciones. Las deltas nuevas están sincronizadas y la gestión de terceros no tiene advertencias.
+- No se desplegó el cambio. La revisión y el PR hacia development siguen siendo el paso de integración después del commit local.

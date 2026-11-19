@@ -2,10 +2,16 @@ import type { PermissionScope } from '@/modules/authentication/domain/permission
 
 export type InvitationRole = 'COMPANY_ADMIN' | 'THIRD_PARTY_ADMIN' | 'DRIVER';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED';
-export interface InvitationRecord { readonly id: string; readonly organizationId: string; readonly organizationType: 'COMPANY' | 'THIRD_PARTY'; readonly companyId: string | null;
+export interface InvitationRecord { readonly id: string; readonly organizationId: string; readonly organizationType: 'COMPANY' | 'THIRD_PARTY'; readonly companyId: string | null; readonly organizationName?: string;
   readonly recipientEmail: string; readonly roles: readonly InvitationRole[]; readonly status: InvitationStatus; readonly expiresAt: string; readonly version: number;
   readonly deliveryStatus: 'UNKNOWN' | 'LOGGED' | 'FAILED'; readonly createdAt: string; readonly resolvedAt: string | null }
 export interface OrganizationTarget { readonly organizationId: string; readonly organizationType: 'COMPANY' | 'THIRD_PARTY'; readonly companyId: string | null }
+export interface InvitationListTarget { readonly organizationId: string; readonly organizationType: 'ALL'; readonly companyId: string }
+export interface InvitationSearchFilters {
+  readonly email?: string;
+  readonly role?: InvitationRole;
+  readonly delivery?: InvitationRecord['deliveryStatus'];
+}
 export interface InvitationPage { readonly items: readonly InvitationRecord[]; readonly page: number; readonly pageSize: number; readonly total: number }
 export interface InvitationPreview { readonly organizationId: string; readonly organizationType: 'COMPANY' | 'THIRD_PARTY'; readonly organizationName: string; readonly recipientEmail: string; readonly roles: readonly InvitationRole[]; readonly expiresAt: string; readonly version: number }
 export interface ReceivedInvitation { readonly id: string; readonly organizationId: string; readonly organizationType: 'COMPANY' | 'THIRD_PARTY'; readonly organizationName: string;
@@ -21,7 +27,7 @@ export interface InvitationTransport {
   previewInvitation(token: string, signal?: AbortSignal): Promise<unknown>;
 }
 export interface InvitationApi {
-  list(scope: PermissionScope, target: OrganizationTarget, status: InvitationStatus | '', page: number, signal?: AbortSignal, pageSize?: number): Promise<InvitationPage>;
+  list(scope: PermissionScope, target: OrganizationTarget | InvitationListTarget, status: InvitationStatus | '', page: number, signal?: AbortSignal, pageSize?: number, filters?: InvitationSearchFilters): Promise<InvitationPage>;
   create(scope: PermissionScope, target: OrganizationTarget, recipientEmail: string, roles: readonly InvitationRole[], signal?: AbortSignal): Promise<InvitationRecord>;
   cancel(scope: PermissionScope, id: string, version: number, signal?: AbortSignal): Promise<InvitationRecord>;
   resend(scope: PermissionScope, id: string, version: number, signal?: AbortSignal): Promise<InvitationRecord>;

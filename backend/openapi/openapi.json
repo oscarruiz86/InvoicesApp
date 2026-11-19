@@ -12,6 +12,10 @@
   ],
   "security": [],
   "paths": {
+    "/api/third-parties": {"get":{"operationId":"listThirdParties","summary":"Listar terceros dentro del scope autorizado","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"thirdPartyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"page","in":"query","schema":{"type":"integer","minimum":1,"default":1}},{"name":"pageSize","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}},{"name":"q","in":"query","schema":{"type":"string","maxLength":100}},{"name":"status","in":"query","schema":{"type":"string","enum":["ACTIVE","INACTIVE"]}},{"name":"documentType","in":"query","schema":{"type":"string","const":"NIT"}},{"name":"country","in":"query","schema":{"type":"string","maxLength":128}},{"name":"department","in":"query","schema":{"type":"string","maxLength":128}},{"name":"city","in":"query","schema":{"type":"string","maxLength":128}},{"name":"sort","in":"query","schema":{"type":"string","enum":["businessName","documentNumber","createdAt","updatedAt","status","country","department","city"],"default":"createdAt"}},{"name":"direction","in":"query","schema":{"type":"string","enum":["asc","desc"],"default":"desc"}}],"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyList"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:read"],"x-authorization-scope":"Scope aplicado antes de filtros, conteo y paginación."},"post":{"operationId":"createThirdParty","summary":"Crear tercero y proyección organizacional","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyCreate"}}}},"responses":{"201":{"description":"Tercero creado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:create"],"x-authorization-scope":"Scope global para APP_ADMIN o empresa autorizada para crear su relación inicial."}},
+    "/api/third-parties/{id}": {"get":{"operationId":"getThirdParty","summary":"Consultar tercero dentro del scope autorizado","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"thirdPartyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}}],"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:read"],"x-authorization-scope":"El scope de empresa requiere relación con el tercero."},"patch":{"operationId":"updateThirdParty","summary":"Editar perfil administrativo con control de versión","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"thirdPartyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyUpdate"}}}},"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:update"],"x-authorization-scope":"APP_ADMIN global, COMPANY_ADMIN con relación activa o THIRD_PARTY_ADMIN del propio tercero."}},
+    "/api/third-parties/{id}/status": {"post":{"operationId":"setThirdPartyStatus","summary":"Cambiar estado global del tercero","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyStatusChange"}}}},"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:deactivate"],"x-authorization-scope":"Solo APP_ADMIN en scope global."}},
+    "/api/third-parties/{id}/relationships/{companyId}": {"get":{"operationId":"getThirdPartyRelationship","summary":"Consultar estado de una relación empresa-tercero","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"companyId","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"},"description":"Debe coincidir con companyId de la ruta para scope organization."}],"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRelationshipResult"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:read"],"x-authorization-scope":"APP_ADMIN global o COMPANY_ADMIN de la empresa indicada."},"put":{"operationId":"setThirdPartyRelationship","summary":"Crear, reactivar o desactivar una relación empresa-tercero","tags":["Third parties"],"security":[{"bearerAuth":[]}],"parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"companyId","in":"path","required":true,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"}},{"name":"scope","in":"query","required":true,"schema":{"type":"string","enum":["global","organization"]},"description":"Scope confirmado por autorización."},{"name":"companyId","in":"query","required":false,"schema":{"type":"string","pattern":"^[a-f0-9]{24}$"},"description":"Debe coincidir con companyId de la ruta para scope organization."}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRelationshipChange"}}}},"responses":{"200":{"description":"Operación completada","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyRecord"}}}},"400":{"description":"Solicitud inválida","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"401":{"description":"No autenticado","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthenticationError"}}}},"403":{"description":"Sin permiso","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AuthorizationError"}}}},"404":{"description":"Recurso no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ResourceNotFoundError"}}}},"409":{"description":"Conflicto de identificación, estado o versión","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}},"500":{"description":"Error interno","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TechnicalError"}}}},"503":{"description":"Servicio no disponible","headers":{"Cache-Control":{"schema":{"type":"string","const":"no-store"}}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ThirdPartyError"}}}}},"x-required-permissions":["third-parties:create","third-parties:deactivate"],"x-authorization-scope":"APP_ADMIN global o COMPANY_ADMIN de la empresa indicada."}},
     "/api/health": {
       "get": {
         "operationId": "getHealth",
@@ -2955,6 +2959,562 @@
       "MembershipList": { "type":"object", "additionalProperties":false, "required":["items","page","pageSize","total"], "properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/MembershipView"}},"page":{"type":"integer","minimum":1},"pageSize":{"type":"integer","minimum":1,"maximum":100},"total":{"type":"integer","minimum":0}} },
       "MembershipRolesChange": { "type":"object", "additionalProperties":false, "required":["expectedRevision","organizationId","organizationType","companyId","roles"], "properties":{"expectedRevision":{"type":"integer","minimum":1},"organizationId":{"type":"string","minLength":1,"maxLength":128},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"companyId":{"type":["string","null"]},"roles":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"string","enum":["COMPANY_ADMIN","THIRD_PARTY_ADMIN","DRIVER"]}}} },
       "MembershipStatusChange": { "type":"object", "additionalProperties":false, "required":["expectedRevision","organizationId","organizationType","companyId","status"], "properties":{"expectedRevision":{"type":"integer","minimum":1},"organizationId":{"type":"string","minLength":1,"maxLength":128},"organizationType":{"type":"string","enum":["COMPANY","THIRD_PARTY"]},"companyId":{"type":["string","null"]},"status":{"type":"string","enum":["ACTIVE","INACTIVE"]}} },
+      "ThirdParty": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "const": "NIT",
+            "default": "NIT"
+          },
+          "documentNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{1,20}$"
+          },
+          "verificationDigit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1,
+            "pattern": "^[0-9]$"
+          },
+          "businessName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "tradeName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
+            "format": "email"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 32
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "updatedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "documentType",
+          "documentNumber",
+          "verificationDigit",
+          "businessName",
+          "tradeName",
+          "email",
+          "phone",
+          "address",
+          "country",
+          "department",
+          "city",
+          "id",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy"
+        ]
+      },
+      "ThirdPartyRelationship": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "thirdPartyId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "maxLength": 16
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "updatedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "companyId",
+          "thirdPartyId",
+          "status",
+          "version",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy"
+        ]
+      },
+      "ThirdPartyRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "thirdParty": {
+            "$ref": "#/components/schemas/ThirdParty"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "maxLength": 16
+          },
+          "relationship": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ThirdPartyRelationship"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "thirdParty",
+          "version",
+          "relationship"
+        ]
+      },
+      "ThirdPartyRelationshipResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relationship": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ThirdPartyRelationship"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "relationship"
+        ]
+      },
+      "ThirdPartyList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThirdPartyRecord"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ]
+      },
+      "ThirdPartyCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "const": "NIT",
+            "default": "NIT"
+          },
+          "documentNumber": {
+            "type": "string",
+            "pattern": "^[0-9]{1,20}$"
+          },
+          "verificationDigit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1,
+            "pattern": "^[0-9]$"
+          },
+          "businessName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "tradeName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
+            "format": "email"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 32
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 256
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "documentNumber",
+          "businessName",
+          "email"
+        ]
+      },
+      "ThirdPartyUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "maxLength": 16
+          },
+          "changes": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+              "documentType": {
+                "type": "string",
+                "const": "NIT",
+                "default": "NIT"
+              },
+              "documentNumber": {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              },
+              "verificationDigit": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1,
+                "pattern": "^[0-9]$"
+              },
+              "businessName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "tradeName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 256
+              },
+              "email": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 254,
+                "format": "email"
+              },
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 32
+              },
+              "address": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 256
+              },
+              "country": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 128
+              },
+              "department": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 128
+              },
+              "city": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 128
+              }
+            }
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "changes"
+        ]
+      },
+      "ThirdPartyStatusChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "maxLength": 16
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "status"
+        ]
+      },
+      "ThirdPartyRelationshipChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*$",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "status"
+        ]
+      },
+      "ThirdPartyError": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INVALID_REQUEST",
+                  "THIRD_PARTY_DOCUMENT_CONFLICT",
+                  "THIRD_PARTY_VERSION_CONFLICT",
+                  "THIRD_PARTY_INACTIVE",
+                  "RELATIONSHIP_INACTIVE",
+                  "THIRD_PARTY_STORAGE_UNAVAILABLE",
+                  "AUTHORIZATION_UNAVAILABLE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ResourceNotFoundError": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "RESOURCE_NOT_FOUND"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
       "Health": {
         "type": "object",
         "required": [
@@ -4097,6 +4657,10 @@
     {
       "name": "Companies",
       "description": "Administración autorizada de empresas y sus asociaciones."
+    },
+    {
+      "name": "Third parties",
+      "description": "Gestión administrativa de terceros y sus relaciones con empresas."
     }
   ]
 }

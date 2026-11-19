@@ -14,6 +14,8 @@ import type { ContextStore } from '@/modules/organization-context/presentation/c
 import { ContextSessionBootstrap, OrganizationContextGuard, OrganizationSelectionPage } from '@/modules/organization-context/presentation/organization-selector';
 import type { CompanyApi } from '@/modules/company-management/application/company-api';
 import { CompanyPage } from '@/modules/company-management/presentation/company-page';
+import type { ThirdPartyApi } from '@/modules/third-party-management/application/third-party-api';
+import { ThirdPartyPage } from '@/modules/third-party-management/presentation/third-party-page';
 import { ProtectedRoute } from '@/modules/authentication/presentation/permission-guard';
 import { AuthorizedNavigation } from '@/modules/authentication/presentation/authorized-navigation';
 import type { InvitationApi } from '@/modules/user-invitations/application/invitation-api';
@@ -44,6 +46,7 @@ function OrganizationManagementNavigation({ authorization, context, invitationsA
   };
   const items = [
     { label: 'Empresas', path: '/companies', group: 'Administración', permission: 'companies:read' as const },
+    { label: 'Terceros', path: '/third-parties', group: 'Administración', permission: 'third-parties:read' as const },
     ...(invitationsAvailable ? [
       { label: 'Invitaciones', path: '/invitations', group: 'Administración', permission: 'associations:read' as const },
       { label: 'Usuarios', path: '/organization-memberships', group: 'Administración', permission: 'associations:read' as const },
@@ -79,7 +82,7 @@ function ShellAccountWithContext({ authentication, context }: { authentication: 
   return <AccountMenu store={authentication} context={{ activeContext: current.activeContext, openSelector: current.openSelector }} />;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, invitations, fleet, notificationDeliveries }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; invitations?: InvitationApi; fleet?: FleetApi; notificationDeliveries?: NotificationDeliveryReadPort }) {
+export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, notificationDeliveries }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: FleetApi; notificationDeliveries?: NotificationDeliveryReadPort }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const content = <><RouteHeadingFocus /><AuthenticationActions store={authentication} authorization={authorization} />
@@ -88,6 +91,7 @@ export function App({ store, authentication, authorization, organizationContext,
     <Route path="/" element={<HomePage store={store} authorization={authorization} />} />
     <Route path="/login" element={<AuthenticationLoginPage authentication={authentication} />} />
     {companies && authorization && organizationContext && (['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={mode} path={mode === 'list' ? '/companies' : mode === 'create' ? '/companies/new' : mode === 'detail' ? '/companies/:id' : '/companies/:id/edit'} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={mode === 'create' ? 'companies:create' : mode === 'edit' ? 'companies:update' : 'companies:read'}><OrganizationContextGuard store={organizationContext} authorization={authorization}><CompanyPage key={mode} api={companies} context={organizationContext} authorization={authorization} mode={mode} /></OrganizationContextGuard></ProtectedRoute>} />)}
+    {thirdParties && authorization && organizationContext && (['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={`third-party-${mode}`} path={mode === 'list' ? '/third-parties' : mode === 'create' ? '/third-parties/new' : mode === 'detail' ? '/third-parties/:id' : '/third-parties/:id/edit'} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={mode === 'create' ? 'third-parties:create' : mode === 'edit' ? 'third-parties:update' : 'third-parties:read'}><OrganizationContextGuard store={organizationContext} authorization={authorization}><ThirdPartyPage key={mode} api={thirdParties} context={organizationContext} authorization={authorization} mode={mode} /></OrganizationContextGuard></ProtectedRoute>} />)}
     {invitations && authorization && organizationContext && <Route path="/invitations" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><InvitationPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
     {invitations && <Route path="/invitations/received" element={<PrivateRoute store={authentication}><ReceivedInvitationsPage api={invitations} context={organizationContext} /></PrivateRoute>} />}
     {invitations && authorization && organizationContext && <Route path="/organization-memberships" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MembershipPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}

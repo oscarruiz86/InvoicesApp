@@ -22,7 +22,7 @@ function service(options: Partial<Parameters<typeof createAuthorization>[0]> = {
 }
 describe('authorization matrix and evidence contracts', () => {
   const expected: Record<ApplicationRole, string[]> = {
-    APP_ADMIN: ['companies:create', 'companies:read', 'companies:update', 'companies:deactivate', 'users:create', 'users:read', 'users:update', 'users:associate', 'parameters:read', 'parameters:update', 'roles:read', 'roles:manage', 'associations:read', 'associations:manage'],
+    APP_ADMIN: ['companies:create', 'companies:read', 'companies:update', 'companies:deactivate', 'third-parties:create', 'third-parties:read', 'third-parties:update', 'third-parties:deactivate', 'users:create', 'users:read', 'users:update', 'users:associate', 'parameters:read', 'parameters:update', 'roles:read', 'roles:manage', 'associations:read', 'associations:manage'],
     COMPANY_ADMIN: ['companies:read', 'companies:update', 'third-parties:create', 'third-parties:read', 'third-parties:update', 'third-parties:deactivate', 'users:create', 'users:read', 'users:associate', 'associations:read', 'associations:manage'],
     THIRD_PARTY_ADMIN: ['third-parties:read', 'third-parties:update', 'drivers:create', 'drivers:read', 'drivers:update', 'drivers:deactivate', 'vehicles:create', 'vehicles:read', 'vehicles:update', 'vehicles:deactivate', 'vehicles:assign', 'vehicles:unassign', 'assignments:read', 'invoices:read', 'invoices:update'],
     DRIVER: ['users:read', 'drivers:read', 'vehicles:read', 'assignments:read', 'invoices:create', 'invoices:read', 'invoices:update'],
