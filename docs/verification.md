@@ -116,3 +116,16 @@ La suite ampliada de integración no queda completamente verde por los dos fallo
 | Navegador | 5/5 pruebas de `/roles` aprobadas con Vite aislado: matriz de un solo rol, 360 px, 1280 px, teclado, continuidad, conflicto/recarga, invalidación de navegación y guardia de contexto. Vite temporal en 5174 se detuvo. |
 
 La política conserva `APP_ADMIN / roles:read / global` y `APP_ADMIN / roles:manage / global`. El límite de auditoría sigue siendo 1000 eventos pendientes y la actualización falla cerrada al agotarse. No se modificaron roles, perfiles, asociaciones ni credenciales de Keycloak. La recuperación cuando no existe ningún APP_ADMIN asignado queda a cargo del procedimiento operativo de identidad del entorno. No se desplegó ni se abrió un PR; queda revisión antes de integrar a `development`.
+
+## improve-role-management-save-feedback — 2026-11-19
+
+| Verificación | Resultado |
+| --- | --- |
+| Interfaz de confirmación | Modal accesible aprobado en 10 pruebas unitarias de Roles: muestra la versión vigente, cancelar conserva el borrador y no envía la solicitud. Durante envío muestra CircularProgress con estado accesible y bloquea cierre y solicitudes duplicadas. |
+| Resultado y selección | Éxito muestra la versión devuelta por el servicio. Conflicto 409 y capacidad de auditoría 503 preservan borrador y pestaña, y exigen recarga antes de reintentar. Las pruebas validan que la pestaña seleccionada permanece tras éxito, error y recarga. |
+| Frontend estático | `npm run lint` sin errores (11 advertencias preexistentes de React Hooks); `npm run typecheck` aprobado. |
+| Suite frontend completa | `npm test -- --maxWorkers=1 --reporter=verbose`: 25 archivos y 147 pruebas aprobadas. |
+| Arquitectura | `npm run test:architecture` aprobado; chequeos negativos de frameworks, alias/reexport y ciclos aprobados. |
+| Navegador | E2E Roles: 5/5 pruebas aprobadas, incluidos modal, cancelación, progreso, respuesta y pestaña persistente, teclado, 360 px y 1280 px. Conflicto concurrente e invalidación de navegación también aprobados. |
+
+OpenSpec archivó la propuesta como `openspec/changes/archive/2026-11-19-improve-role-management-save-feedback` y sincronizó un requisito nuevo en `openspec/specs/role-management/spec.md`. `openspec validate --archived --strict --no-interactive` aprobó los 9 cambios archivados. No se desplegó ni se abrió un PR.

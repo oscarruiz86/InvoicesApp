@@ -26,6 +26,9 @@ const ceiling: RoleGrant[] = [
 ];
 let currentGrants = ceiling.filter(grant => grant.role === 'APP_ADMIN');
 let forceConflict = false;
+let delayNextSave = false;
+let releasePendingSave: (() => void) | null = null;
+let replaceCalls = 0;
 let version = '1';
 const permissionsFor = (scope: PermissionScope) => scope.kind === 'global'
   ? currentGrants.filter(grant => grant.role === 'APP_ADMIN' && grant.scope === 'global').map(grant => grant.permission)
@@ -52,6 +55,11 @@ const response = (policyVersion = version): RolePolicyResponse => ({
 const api = {
   read: async () => response(),
   replace: async (expectedVersion: string, grants: readonly RoleGrant[]) => {
+    replaceCalls++;
+    if (delayNextSave) {
+      delayNextSave = false;
+      await new Promise<void>(resolve => { releasePendingSave = resolve; });
+    }
     if (forceConflict) { forceConflict = false; const { RequestError } = await import('@/shared/application/request-error'); throw new RequestError('POLICY_CONFLICT'); }
     if (expectedVersion !== version) { const { RequestError } = await import('@/shared/application/request-error'); throw new RequestError('POLICY_CONFLICT'); }
     currentGrants = grants.map(grant => ({ ...grant }));
@@ -71,9 +79,15 @@ function HarnessControls() {
   return <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', p: 1 }}>
     <Button onClick={() => context.setState({ status: 'ready', activeContext: organizationContext, generation: context.getState().generation + 1 })}>Cambiar a contexto organizacional</Button>
     <Button onClick={() => { forceConflict = true; }}>Simular conflicto de versión</Button>
+    <Button onClick={() => { delayNextSave = true; }}>Demorar próxima respuesta del servicio</Button>
   </Stack>;
 }
-Object.assign(window, { rolePolicyHarness: { revokeRead: () => authorization.setState({ status: 'denied', snapshot: null, expiresAt: 0 }), restoreGlobal: () => { currentGrants = ceiling.filter(grant => grant.role === 'APP_ADMIN'); version = '1'; context.setState({ status: 'ready', activeContext: globalContext, generation: context.getState().generation + 1 }); void authorization.getState().setContext(globalScope); } } });
+Object.assign(window, { rolePolicyHarness: {
+  revokeRead: () => authorization.setState({ status: 'denied', snapshot: null, expiresAt: 0 }),
+  releasePendingSave: () => { releasePendingSave?.(); releasePendingSave = null; },
+  replaceCalls: () => replaceCalls,
+  restoreGlobal: () => { currentGrants = ceiling.filter(grant => grant.role === 'APP_ADMIN'); version = '1'; context.setState({ status: 'ready', activeContext: globalContext, generation: context.getState().generation + 1 }); void authorization.getState().setContext(globalScope); },
+} });
 
 createRoot(document.getElementById('root')!).render(<ThemeProvider theme={theme}><CssBaseline /><MemoryRouter initialEntries={['/roles']}>
   <AppLayout navigation={<Navigation />} account={<Avatar>LR</Avatar>}>
