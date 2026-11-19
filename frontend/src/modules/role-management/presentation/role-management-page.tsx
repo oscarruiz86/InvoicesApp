@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
-import { Alert, Box, Button, Checkbox, FormControlLabel, Paper, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Paper, Stack, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, Typography } from '@mui/material';
 import { RequestError } from '@/shared/application/request-error';
 import { ApplicationError } from '@/shared/application/application-error';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
@@ -45,6 +45,7 @@ export function RoleManagementPage({ api, authorization, context }: { api: RoleP
   const [notice, setNotice] = useState<string | null>(null);
   const loadController = useRef<AbortController | null>(null);
   const saveController = useRef<AbortController | null>(null);
+  const savePending = useRef(false);
   const isGlobal = contextState.status === 'ready' && contextState.activeContext?.kind === 'GLOBAL';
   const canManage = authState.has('roles:manage');
 
@@ -98,7 +99,8 @@ export function RoleManagementPage({ api, authorization, context }: { api: RoleP
   }
 
   async function save() {
-    if (!policy || !canSave) return;
+    if (!policy || !canSave || savePending.current) return;
+    savePending.current = true;
     const controller = new AbortController();
     saveController.current = controller;
     setSaving(true);
@@ -116,6 +118,7 @@ export function RoleManagementPage({ api, authorization, context }: { api: RoleP
         setDraft([]);
         setStatus('error');
         setRefreshRequired(true);
+        setConfirming(false);
         setError('El cambio se aplicó, pero no se pudieron actualizar los permisos. Vuelve a cargar permisos antes de continuar.');
         return;
       }
@@ -124,7 +127,7 @@ export function RoleManagementPage({ api, authorization, context }: { api: RoleP
       setStatus('ready');
       setRefreshRequired(false);
       setConfirming(false);
-      setNotice('La política se actualizó correctamente.');
+      setNotice(`La política se actualizó correctamente. Versión confirmada: ${updated.policy.version}.`);
     } catch (cause) {
       if (controller.signal.aborted) return;
       setError(errorText(cause));
@@ -132,6 +135,7 @@ export function RoleManagementPage({ api, authorization, context }: { api: RoleP
       setConfirming(false);
     } finally {
       if (saveController.current === controller) saveController.current = null;
+      savePending.current = false;
       if (!controller.signal.aborted) setSaving(false);
     }
   }
@@ -188,14 +192,33 @@ export function RoleManagementPage({ api, authorization, context }: { api: RoleP
         </Paper>
       </>}
       {policy.catalog.roles.length > 0 && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}>
-        {!confirming ? <Button variant="contained" disabled={!canSave} onClick={() => setConfirming(true)}>Guardar cambios</Button> : <>
-          <Alert severity="warning" sx={{ flex: 1 }}>Vas a reemplazar toda la matriz con los cambios revisados. La versión vigente es {policy.policy.version}.</Alert>
-          <Button variant="contained" disabled={!canSave} onClick={() => void save()}>Confirmar cambio</Button>
-          <Button variant="outlined" disabled={saving} onClick={() => setConfirming(false)}>Cancelar</Button>
-        </>}
+        <Button variant="contained" disabled={!canSave} onClick={() => setConfirming(true)}>Guardar cambios</Button>
         {refreshRequired && <Button variant="outlined" disabled={saving} onClick={() => void reload()}>Recargar política</Button>}
-        {saving && <Typography role="status">Guardando cambios…</Typography>}
       </Stack>}
+      <Dialog
+        open={confirming}
+        onClose={() => { if (!saving) setConfirming(false); }}
+        fullWidth
+        maxWidth="sm"
+        aria-labelledby="role-policy-confirm-title"
+        aria-describedby="role-policy-confirm-description"
+      >
+        <DialogTitle id="role-policy-confirm-title">Confirmar cambio de permisos</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Typography id="role-policy-confirm-description">Vas a reemplazar toda la matriz con los cambios revisados. La versión vigente es {policy.policy.version}.</Typography>
+            <Alert severity="warning">El servidor validará y registrará este cambio antes de confirmarlo.</Alert>
+            {saving && <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }} role="status">
+              <CircularProgress size={20} aria-label="Guardando cambios" />
+              <Typography>Guardando cambios…</Typography>
+            </Stack>}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, flexWrap: 'wrap' }}>
+          <Button variant="outlined" disabled={saving} onClick={() => setConfirming(false)}>Cancelar</Button>
+          <Button variant="contained" disabled={!canSave || saving} onClick={() => void save()}>{saving ? 'Guardando…' : 'Confirmar cambio'}</Button>
+        </DialogActions>
+      </Dialog>
     </>}
   </Stack>;
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createStore } from 'zustand/vanilla';
 import type { Permission, PermissionScope, PermissionsSnapshot } from '@/modules/authentication/domain/permissions';
@@ -109,14 +109,61 @@ describe('role policy matrix', () => {
     expect(mandatory).toBeChecked();
     expect(mandatory).toBeDisabled();
     await user.click(optional);
+    await user.click(screen.getByRole('tab', { name: 'Administrador de empresa' }));
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
-    expect(screen.getByText(/Vas a reemplazar toda la matriz/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Confirmar cambio de permisos' })).toHaveTextContent(/Vas a reemplazar toda la matriz/);
+    expect(screen.getByRole('dialog', { name: 'Confirmar cambio de permisos' })).toHaveTextContent('La versión vigente es 7.');
     expect(api.replace).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Confirmar cambio' }));
-    await screen.findByText('La política se actualizó correctamente.');
+    await screen.findByText('La política se actualizó correctamente. Versión confirmada: 8.');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmar cambio de permisos' })).not.toBeInTheDocument());
     expect(api.replace).toHaveBeenCalledWith('7', ceiling.filter(grant => !(grant.role === 'APP_ADMIN' && grant.permission === 'companies:read')), expect.any(AbortSignal));
     expect(fixture.refreshContext).toHaveBeenCalledWith(globalScope);
     expect(screen.getByText('Versión vigente: 8')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Administrador de empresa' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: 'Administrador de empresa' })).toBeVisible();
+  });
+
+  it('cancels the confirmation modal without submitting or discarding the draft', async () => {
+    const user = userEvent.setup();
+    const api = { read: vi.fn(async () => response()), replace: vi.fn(async () => response('8')) };
+    const fixture = stores();
+    render(<RoleManagementPage api={api} authorization={fixture.authorization} context={fixture.context} />);
+    await screen.findByText('Versión vigente: 7');
+    const optional = screen.getByRole('checkbox', { name: /companies:read/ });
+    await user.click(optional);
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    const dialog = screen.getByRole('dialog', { name: 'Confirmar cambio de permisos' });
+    expect(dialog).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmar cambio de permisos' })).not.toBeInTheDocument());
+    expect(optional).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeEnabled();
+    expect(api.replace).not.toHaveBeenCalled();
+  });
+
+  it('shows accessible progress and prevents duplicate saves while the service is pending', async () => {
+    const user = userEvent.setup();
+    let resolveReplace!: (value: RolePolicyResponse) => void;
+    const api = {
+      read: vi.fn(async () => response()),
+      replace: vi.fn(() => new Promise<RolePolicyResponse>(resolve => { resolveReplace = resolve; })),
+    };
+    const fixture = stores();
+    render(<RoleManagementPage api={api} authorization={fixture.authorization} context={fixture.context} />);
+    await screen.findByText('Versión vigente: 7');
+    await user.click(screen.getByRole('checkbox', { name: /companies:read/ }));
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    const confirm = screen.getByRole('button', { name: 'Confirmar cambio' });
+    act(() => { fireEvent.click(confirm); fireEvent.click(confirm); });
+    expect(api.replace).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('status')).toHaveTextContent('Guardando cambios…');
+    expect(screen.getByRole('progressbar', { name: 'Guardando cambios' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Guardando…' })).toBeDisabled();
+    await act(async () => { resolveReplace(response('8')); });
+    await screen.findByText('La política se actualizó correctamente. Versión confirmada: 8.');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmar cambio de permisos' })).not.toBeInTheDocument());
   });
 
   it('keeps a safe draft after a version conflict and requires an explicit reload', async () => {
@@ -127,14 +174,20 @@ describe('role policy matrix', () => {
     await screen.findByText('Versión vigente: 7');
     const optional = screen.getByRole('checkbox', { name: /companies:read/ });
     await user.click(optional);
+    await user.click(screen.getByRole('tab', { name: 'Administrador de empresa' }));
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar cambio' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/La política cambió/);
-    expect(optional).not.toBeChecked();
+    await screen.findByText(/La política cambió desde que la cargaste/);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmar cambio de permisos' })).not.toBeInTheDocument());
+    expect(screen.getByRole('tab', { name: 'Administrador de empresa' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('tab', { name: 'Administrador global' }));
+    expect(screen.getByRole('checkbox', { name: /companies:read/ })).not.toBeChecked();
+    await user.click(screen.getByRole('tab', { name: 'Administrador de empresa' }));
     expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Recargar política' }));
     await waitFor(() => expect(api.read).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByRole('checkbox', { name: /companies:read/ })).toBeChecked());
+    await waitFor(() => expect(screen.getByRole('tabpanel', { name: 'Administrador de empresa' })).toBeVisible());
+    expect(screen.getByRole('tab', { name: 'Administrador de empresa' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled();
   });
 
@@ -145,10 +198,12 @@ describe('role policy matrix', () => {
     render(<RoleManagementPage api={api} authorization={fixture.authorization} context={fixture.context} />);
     await screen.findByText('Versión vigente: 7');
     await user.click(screen.getByRole('checkbox', { name: /companies:read/ }));
+    await user.click(screen.getByRole('tab', { name: 'Administrador de empresa' }));
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar cambio' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/capacidad de auditoría está agotada/);
-    expect(screen.getByRole('checkbox', { name: /companies:read/ })).not.toBeChecked();
+    await screen.findByText(/capacidad de auditoría está agotada/);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirmar cambio de permisos' })).not.toBeInTheDocument());
+    expect(screen.getByRole('tab', { name: 'Administrador de empresa' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Recargar política' })).toBeEnabled();
   });
