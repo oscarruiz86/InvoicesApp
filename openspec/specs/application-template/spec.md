@@ -179,3 +179,14 @@ La aplicación MUST mostrar la opción Terceros dentro de Administración cuando
 
 - **WHEN** el usuario cambia o pierde el contexto que habilitaba la gestión de terceros
 - **THEN** la navegación y la vista descartan los datos dependientes y vuelven a evaluar los permisos confirmados
+
+### Requirement: Acceso global al módulo Roles y permisos
+La aplicación MUST mostrar Roles y permisos dentro de Configuración solo cuando el contexto confirmado sea GLOBAL y el snapshot vigente incluya `roles:read`. La ruta MUST requerir ese mismo permiso y MUST mostrar acceso denegado sin exponer la política si el usuario cambia a un contexto organizacional o pierde autorización.
+
+#### Scenario: Navegación global autorizada
+- **WHEN** un APP_ADMIN en contexto GLOBAL tiene `roles:read`
+- **THEN** ve Roles y permisos en Configuración y puede abrir la matriz administrativa
+
+#### Scenario: Cambio de contexto o permiso
+- **WHEN** el usuario cambia a un contexto organizacional o se invalida su permiso `roles:read`
+- **THEN** la navegación deja de mostrar la opción y la ruta deja de presentar datos de la política

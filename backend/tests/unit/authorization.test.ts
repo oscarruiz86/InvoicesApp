@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { grantCeiling, permissions, validGrants, type Permission } from '@/modules/identity/domain/permissions';
+import { grantCeiling, permissions, validGrants, validPolicyGrants, type Permission } from '@/modules/identity/domain/permissions';
 import { checkPermission, validOrganization } from '@/modules/identity/domain/authorization-policy';
 import type { AuthenticatedActor, ApplicationRole } from '@/modules/identity/domain/actor';
 import type { OrganizationEvidence, OrganizationScope, ResourceFacts } from '@/modules/identity/domain/authorization-facts';
@@ -39,6 +39,12 @@ describe('authorization matrix and evidence contracts', () => {
     expect(validGrants([...grantCeiling, grantCeiling[0]])).toBe(false);
     for (const value of ['invoices:*', 'companies', 'unknown:read']) expect(checkPermission(actor(['APP_ADMIN']), policy, value, globalScope).allowed).toBe(false);
     expect(checkPermission(actor([]), policy, 'invoices:delete', selfScope).allowed).toBe(false);
+  });
+  it('requires both global role-management grants in every persistible policy', () => {
+    expect(validPolicyGrants(grantCeiling)).toBe(true);
+    expect(validPolicyGrants(grantCeiling.filter(grant => grant.permission !== 'roles:read'))).toBe(false);
+    expect(validPolicyGrants(grantCeiling.filter(grant => grant.permission !== 'roles:manage'))).toBe(false);
+    expect(validPolicyGrants([])).toBe(false);
   });
   it.each([{ kind: 'organization', companyId: 'c1', thirdPartyId: null }, { kind: 'organization', companyId: null, thirdPartyId: 't1' }, scope] as OrganizationScope[])('validates explicit organization shape %j', selected => {
     const role = selected.thirdPartyId ? 'THIRD_PARTY_ADMIN' : 'COMPANY_ADMIN';
@@ -109,8 +115,8 @@ describe('application and security events', () => {
     let active = true; let current = policy;
     const auth = service({ organizations: { read: async () => active ? evidence('DRIVER') : null }, policies: { read: async () => current } });
     expect((await auth.getEffectivePermissions(actor(['DRIVER']), scope)).permissions).toContain('invoices:update');
-    current = { version: '2', grants: [] };
-    expect((await auth.getEffectivePermissions(actor(['DRIVER']), scope)).permissions).toEqual([]);
+    current = { version: '2', grants: grantCeiling.filter(grant => grant.role !== 'DRIVER') };
+    expect(await auth.getEffectivePermissions(actor(['DRIVER']), scope)).toMatchObject({ permissions: [], policyVersion: '2' });
     active = false;
     await expect(auth.getEffectivePermissions(actor(['DRIVER']), scope)).rejects.toBeInstanceOf(AuthorizationError);
   });
@@ -118,7 +124,8 @@ describe('application and security events', () => {
     const replace = vi.fn(async () => { throw new AuthorizationUnavailable(); });
     const auth = service();
     await expect(auth.updateRolePermissions(actor(['DRIVER']), '1', [], { replace })).rejects.toBeInstanceOf(AuthorizationError);
-    await expect(auth.updateRolePermissions(actor(['APP_ADMIN']), '0', [], { replace })).rejects.toBeInstanceOf(PolicyConflict);
+    await expect(auth.updateRolePermissions(actor(['APP_ADMIN']), '0', grantCeiling, { replace })).rejects.toBeInstanceOf(PolicyConflict);
+    await expect(auth.updateRolePermissions(actor(['APP_ADMIN']), '1', grantCeiling.filter(grant => grant.permission !== 'roles:manage'), { replace })).rejects.toThrow('INVALID_REQUEST');
     await expect(auth.updateRolePermissions(actor(['APP_ADMIN']), '1', [{ role: 'APP_ADMIN', permission: 'invoices:delete', scope: 'global' }], { replace })).rejects.toThrow('INVALID_REQUEST');
     expect(replace).not.toHaveBeenCalled();
     await expect(auth.updateRolePermissions(actor(['APP_ADMIN']), '1', grantCeiling, { replace })).rejects.toBeInstanceOf(AuthorizationUnavailable);

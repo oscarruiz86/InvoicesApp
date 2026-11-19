@@ -64,7 +64,7 @@ it('shows Terceros under Administración when the confirmed scope grants access'
 it('registers the protected third-party route in App', async () => {
   const f = setup(); await act(() => f.authorization.getState().setContext(globalScope)); await mountApp(f);
   expect(await screen.findByRole('heading', { name: 'Terceros' })).toBeTruthy();
-  expect(screen.getByRole('link', { name: 'Crear tercero' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Crear tercero' })).toBeTruthy();
 });
 
 it('denies a direct route and hides navigation when the scope lacks third-party read permission', async () => {

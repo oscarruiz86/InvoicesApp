@@ -10,7 +10,7 @@ export interface NavigationItem {
   readonly group?: string;
   readonly permission?: Permission;
   readonly anyPermission?: readonly Permission[];
-  readonly context?: 'active' | 'organization';
+  readonly context?: 'active' | 'organization' | 'global';
 }
 
 export function AuthorizedNavigation({ store, items, contextKind }: { store: AuthorizationStore; items: readonly NavigationItem[]; contextKind?: 'GLOBAL' | 'ORGANIZATION' }) {
@@ -18,7 +18,8 @@ export function AuthorizedNavigation({ store, items, contextKind }: { store: Aut
   const { pathname } = useLocation();
   const visibleItems = items.filter(item => (!item.permission || store.getState().has(item.permission))
     && (!item.anyPermission || item.anyPermission.some(permission => store.getState().has(permission)))
-    && (item.context !== 'organization' || contextKind === 'ORGANIZATION'));
+    && (item.context !== 'organization' || contextKind === 'ORGANIZATION')
+    && (item.context !== 'global' || contextKind === 'GLOBAL'));
   const groups = new Map<string, NavigationItem[]>();
 
   for (const item of visibleItems) {

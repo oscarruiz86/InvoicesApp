@@ -69,6 +69,18 @@ describe('public permissions contract and authenticated transport', () => {
       await expect(Promise.resolve().then(() => http.organization('POST', 'invitations/received/../accept'))).rejects.toMatchObject({ code: 'CONFIGURATION' });
     } finally { http.dispose(); }
   });
+  it('keeps the roles destination inside its protected route and notifies on forbidden access', async () => {
+    const { port } = session();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ error: { code: 'FORBIDDEN', message: 'denied' } }, { status: 403 }));
+    const http = createProtectedHttp('/api', { getAccessToken: async () => 'VERIFIED_SESSION_TOKEN' }, port, fetcher);
+    const denied = vi.fn(); http.subscribeForbidden(denied);
+    try {
+      await expect(http.roles('GET', 'scope=global')).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      expect(denied).toHaveBeenCalledOnce();
+      expect(new URL(String(fetcher.mock.calls[0][0])).pathname).toBe('/api/roles');
+      await expect(Promise.resolve().then(() => http.organization('GET', 'roles'))).rejects.toMatchObject({ code: 'CONFIGURATION' });
+    } finally { http.dispose(); }
+  });
   it('cancels before sending and discards an ignored cancellation after response', async () => {
     const { port } = session(); const credentials = { getAccessToken: vi.fn(async () => 'SECRET') };
     let complete!: (value: Response) => void;
@@ -181,6 +193,16 @@ describe('permission routes, actions and navigation', () => {
     view.rerender(<MemoryRouter><AuthorizedNavigation store={third.store} items={items} contextKind="ORGANIZATION" /></MemoryRouter>);
     expect(screen.queryByText('Facturas')).not.toBeInTheDocument(); expect(screen.getByText('Vehículos')).toBeInTheDocument();
     expect(screen.getByText('Gestionar invitaciones')).toBeInTheDocument();
+  });
+  it('shows Roles y permisos only with a global context and a confirmed read grant', async () => {
+    const admin = setup(vi.fn(async scope => ({ ...snapshot(scope), roles: ['APP_ADMIN'], permissions: ['roles:read'] as Permission[] })));
+    await act(async () => { await admin.store.getState().setContext({ kind: 'global', companyId: null, thirdPartyId: null }); });
+    const items = [{ label: 'Roles y permisos', path: '/roles', group: 'Configuración', permission: 'roles:read' as const, context: 'global' as const }];
+    const view = render(<MemoryRouter><AuthorizedNavigation store={admin.store} items={items} contextKind="GLOBAL" /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Roles y permisos' })).toBeInTheDocument();
+    await act(async () => { await admin.store.getState().setContext(scopeA); });
+    view.rerender(<MemoryRouter><AuthorizedNavigation store={admin.store} items={items} contextKind="ORGANIZATION" /></MemoryRouter>);
+    expect(screen.queryByRole('link', { name: 'Roles y permisos' })).not.toBeInTheDocument();
   });
   it('renders only the modules granted to each of the four application roles', async () => {
     const items = [
