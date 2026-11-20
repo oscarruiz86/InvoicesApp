@@ -32,6 +32,7 @@ export function createDriverApi(transport: DriverTransport): DriverApi {
       search.set('page', String(query.page)); search.set('pageSize', String(query.pageSize));
       search.set('sort', query.sort); search.set('direction', query.direction);
       if (query.status) search.set('status', query.status);
+      if (query.q) search.set('q', query.q);
       return parse(pageSchema, await transport.driver('GET', 'drivers', search.toString(), undefined, signal)) as FleetPage<DriverDto>;
     },
     async getDriver(scope, id, signal) {

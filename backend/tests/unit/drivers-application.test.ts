@@ -4,6 +4,7 @@ import type { Driver } from '@/modules/fleet/domain/driver';
 import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
 import { AuthorizationError } from '@/modules/identity/application/authentication-error';
 import { AuthorizationUnavailable } from '@/modules/identity/application/authorization-errors';
+import type { AssignmentPresence } from '@/modules/fleet/application/assignment-ports';
 
 const thirdPartyId = '0123456789abcdef01234567';
 const driver: Driver = { id: '1123456789abcdef01234567', subject: 'driver-subject', membershipId: 'membership-1', thirdPartyId,
@@ -15,9 +16,11 @@ function fixture(eligible = true) {
     policyVersion: 'policy-3', contextRevision: JSON.stringify(scope),
   })) };
   const facts = { eligibility: vi.fn(async () => ({ driverId: driver.id, eligible, driverStatus: driver.status, membershipRevision: 2, thirdPartyRevision: 4 })) };
-  const identity = { read: vi.fn(async (subject: string) => ({ subject, enabled: true, email: 'driver@example.invalid', emailVerified: true,
-    fullName: 'Conductor Uno', documentType: 'CC' as const, documentNumber: '123456', profileComplete: true })) };
-  return { service: createDrivers({ repository, authorization: authorization as never, facts, identity }), repository, authorization, facts, identity };
+  const identityProfile = { subject: driver.subject, enabled: true, email: 'driver@example.invalid', emailVerified: true,
+    fullName: 'Conductor Uno', documentType: 'CC' as const, documentNumber: '123456', profileComplete: true };
+  const identity = { read: vi.fn(async (subject: string) => ({ ...identityProfile, subject })), search: vi.fn(async () => [identityProfile]) };
+  const assignments = { readForDriver: vi.fn(async (): Promise<AssignmentPresence> => ({ state: 'CONFIRMED', revision: 'no-active-assignments', hasActive: false })) };
+  return { service: createDrivers({ repository, authorization: authorization as never, facts, identity, assignments }), repository, authorization, facts, identity, assignments };
 }
 
 it('scopes a third-party administrator list to the explicitly selected third party', async () => {
@@ -28,6 +31,17 @@ it('scopes a third-party administrator list to the explicitly selected third par
   expect(f.repository.list).toHaveBeenCalledWith({ thirdPartyId, page: 1, pageSize: 20, sort: 'createdAt', direction: 'desc' });
   expect(result).toMatchObject({ total: 1, items: [{ driver: { id: driver.id, thirdPartyId, status: 'ACTIVE', version: 1 }, identity: { name: 'Conductor Uno', documentNumber: '123456', email: 'driver@example.invalid' } }] });
   expect(Object.keys(result.items[0].driver).sort()).toEqual(['createdAt', 'id', 'status', 'thirdPartyId', 'updatedAt', 'version']);
+});
+
+it('searches active drivers by Identity name and limits the database query to matching subjects', async () => {
+  const f = fixture();
+  const result = await f.service.list(actor('manager', ['THIRD_PARTY_ADMIN']), {
+    thirdPartyId, page: 1, pageSize: 20, sort: 'createdAt', direction: 'desc', status: 'ACTIVE', q: 'Conductor Uno',
+  });
+  expect(f.identity.search).toHaveBeenCalledWith({ text: 'Conductor Uno' });
+  expect(f.repository.list).toHaveBeenCalledWith(expect.objectContaining({ thirdPartyId, status: 'ACTIVE', q: 'Conductor Uno', subjects: [driver.subject] }));
+  expect(result).toMatchObject({ total: 1, items: [{ driver: { id: driver.id }, identity: { name: 'Conductor Uno' } }] });
+  expect(f.identity.read).not.toHaveBeenCalled();
 });
 
 it('limits a driver to its own subject and third-party membership', async () => {
@@ -61,7 +75,24 @@ it('authorizes state transitions at third-party scope with the current policy re
   expect(f.authorization.requirePermission).toHaveBeenCalledWith(expect.objectContaining({ subject: 'manager' }), 'drivers:deactivate',
     { kind: 'organization', companyId: null, thirdPartyId });
   expect(f.repository.transition).toHaveBeenCalledWith(expect.objectContaining({ id: driver.id, thirdPartyId, actorSubject: 'manager',
-    expectedVersion: 1, status: 'INACTIVE', policyVersion: 'policy-3', scope: { kind: 'organization', companyId: null, thirdPartyId } }));
+    expectedVersion: 1, status: 'INACTIVE', assignmentRevision: 'no-active-assignments', policyVersion: 'policy-3', scope: { kind: 'organization', companyId: null, thirdPartyId } }));
+  expect(f.assignments.readForDriver).toHaveBeenCalledWith({ driverId: driver.id, thirdPartyId });
+});
+
+it('blocks driver deactivation when active assignment evidence exists', async () => {
+  const f = fixture();
+  f.assignments.readForDriver.mockResolvedValue({ state: 'CONFIRMED', revision: 'active-assignment', hasActive: true });
+  await expect(f.service.transition(actor('manager', ['THIRD_PARTY_ADMIN']), { id: driver.id, thirdPartyId, expectedVersion: 1, status: 'INACTIVE' }))
+    .rejects.toMatchObject({ code: 'CONFLICT' });
+  expect(f.repository.transition).not.toHaveBeenCalled();
+});
+
+it('fails closed when assignment evidence is unavailable during driver deactivation', async () => {
+  const f = fixture();
+  f.assignments.readForDriver.mockResolvedValue({ state: 'UNAVAILABLE' });
+  await expect(f.service.transition(actor('manager', ['THIRD_PARTY_ADMIN']), { id: driver.id, thirdPartyId, expectedVersion: 1, status: 'INACTIVE' }))
+    .rejects.toMatchObject({ code: 'UNAVAILABLE' });
+  expect(f.repository.transition).not.toHaveBeenCalled();
 });
 
 it('maps permission denial and invalid pagination before repository access', async () => {

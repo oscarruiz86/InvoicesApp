@@ -16,7 +16,7 @@ let selected: PermissionScope = { kind: 'organization', companyId: null, thirdPa
 const session: SessionPort = { snapshot: () => ({ status: 'authenticated', credentialRevision: 1 }), subscribe: () => () => {}, initialize: async () => {}, login: async () => {}, logout: async () => {}, invalidate: () => {} };
 const authorization = createAuthorizationStore(async scope => ({ subject: 'browser-test', scope, roles: driver ? ['DRIVER'] : ['THIRD_PARTY_ADMIN'], permissions: driver ? ['vehicles:read'] : ['vehicles:read', 'vehicles:create', 'vehicles:update', 'vehicles:deactivate'], policyVersion: '1', contextRevision: '1', evaluatedAt: new Date().toISOString(), refreshAfterSeconds: 30 }), session, { automatic: false });
 await authorization.getState().setContext(selected);
-let records: VehicleDto[] = [{ id: 'b'.repeat(24), thirdPartyId: selected.thirdPartyId!, plate: 'ABC123', internalNumber: '0001', propertyCardNumber: '000123', status: 'ACTIVE', version: 1, createdAt: '2026-11-19T00:00:00.000Z', updatedAt: '2026-11-19T00:00:00.000Z', createdBy: 'admin', updatedBy: 'admin', assignmentState: 'UNASSIGNED', currentDriver: null }];
+let records: VehicleDto[] = [{ id: 'b'.repeat(24), thirdPartyId: selected.thirdPartyId!, plate: 'ABC123', internalNumber: '0001', propertyCardNumber: '000123', status: 'ACTIVE', version: 1, createdAt: '2026-11-19T00:00:00.000Z', updatedAt: '2026-11-19T00:00:00.000Z', createdBy: 'admin', updatedBy: 'admin', assignmentState: 'UNASSIGNED', currentDriver: null, currentDrivers: [] }];
 const http = createProtectedHttp('/api', { getAccessToken: async () => 'test-token' }, session, async (input, init) => {
   const url = new URL(String(input)), method = init?.method ?? 'GET';
   const owner = url.searchParams.get('thirdPartyId');

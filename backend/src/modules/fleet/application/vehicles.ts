@@ -4,6 +4,7 @@ import type { PolicyReader } from '@/modules/identity/application/authorization-
 import { AuthorizationError } from '@/modules/identity/application/authentication-error';
 import { AuthorizationUnavailable } from '@/modules/identity/application/authorization-errors';
 import type { Permission } from '@/modules/identity/domain/permissions';
+import { AssignmentConfirmationError } from './assignment-ports';
 import type { DriverFactsReader } from './driver-ports';
 import type { AssignmentAccessReader, AssignmentEvidence, VehicleAuthority, VehicleListQuery, VehicleRepository, VehicleView } from './vehicle-ports';
 import { normalizeVehicleFields, VehicleError, type Vehicle, type VehicleFields, type VehicleStatus } from '../domain/vehicle';
@@ -11,6 +12,7 @@ export type VehicleErrorCode = 'INVALID_REQUEST' | 'FORBIDDEN' | 'RESOURCE_NOT_F
 export class VehicleUseCaseError extends Error { constructor(readonly code: VehicleErrorCode) { super(code); } }
 export function vehicleFailure(error: unknown): never {
   if (error instanceof VehicleUseCaseError) throw error;
+  if (error instanceof AssignmentConfirmationError) throw new VehicleUseCaseError(error.code === 'ACTIVE_ASSIGNMENT_EXISTS' ? 'VEHICLE_HAS_OPEN_ASSIGNMENT' : 'ASSIGNMENT_PROVIDER_UNAVAILABLE');
   if (error instanceof VehicleError) throw new VehicleUseCaseError(error.code);
   if (error instanceof AuthorizationError) throw new VehicleUseCaseError('FORBIDDEN');
   if (error instanceof AuthorizationUnavailable) throw new VehicleUseCaseError('AUTHORIZATION_UNAVAILABLE');
@@ -47,9 +49,12 @@ export function createVehicles(deps: { repository: VehicleRepository; assignment
   }
   async function view(vehicle: Vehicle): Promise<VehicleView> {
     const assignments = await evidence({ thirdPartyId: vehicle.thirdPartyId, vehicleId: vehicle.id });
-    const current = assignments.state === 'CONFIRMED' ? assignments.assignments.find(a => a.vehicleId === vehicle.id && a.thirdPartyId === vehicle.thirdPartyId) : undefined;
-    return { ...vehicle, currentDriver: current ? { id: current.driverId, name: current.driverName } : null,
-      assignmentState: assignments.state === 'UNAVAILABLE' ? 'UNAVAILABLE' : current ? 'ASSIGNED' : 'UNASSIGNED' };
+    const currentDrivers = assignments.state === 'CONFIRMED'
+      ? assignments.assignments.filter(a => a.vehicleId === vehicle.id && a.thirdPartyId === vehicle.thirdPartyId)
+        .map(a => ({ id: a.driverId, name: a.driverName }))
+      : [];
+    return { ...vehicle, currentDrivers, currentDriver: currentDrivers[0] ?? null,
+      assignmentState: assignments.state === 'UNAVAILABLE' ? 'UNAVAILABLE' : currentDrivers.length ? 'ASSIGNED' : 'UNASSIGNED' };
   }
   const mutation = (authority: VehicleAuthority) => ({ authority, correlationId: deps.correlationId() });
   return {

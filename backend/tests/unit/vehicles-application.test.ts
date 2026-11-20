@@ -35,7 +35,7 @@ it('fails closed for DRIVER and deactivation while assignment provider is absent
   const admin = fixture();
   await expect(admin.service.transition(actor, { id: vehicleId, thirdPartyId, expectedVersion: 1, status: 'INACTIVE' })).rejects.toMatchObject({ code: 'ASSIGNMENT_PROVIDER_UNAVAILABLE' });
   expect(admin.repository.transition).not.toHaveBeenCalled();
-  await expect(unavailableAssignments.confirmNoOpen({ vehicleId, thirdPartyId, revision: '1' })).rejects.toMatchObject({ code: 'ASSIGNMENT_PROVIDER_UNAVAILABLE' });
+  await expect(unavailableAssignments.confirmNoOpenForVehicle({ vehicleId, thirdPartyId, revision: '1' })).rejects.toMatchObject({ code: 'ASSIGNMENT_EVIDENCE_UNAVAILABLE' });
 });
 it('filters own eligible assignments before pagination and excludes inactive drivers', async () => {
   const f = fixture(['DRIVER']);

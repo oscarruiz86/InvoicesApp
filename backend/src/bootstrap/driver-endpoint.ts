@@ -1,5 +1,6 @@
 import { createDrivers } from '@/modules/fleet/application/drivers';
 import { createDriverRepository } from '@/modules/fleet/infrastructure/mongodb/driver-repository';
+import { createMongoAssignmentConfirmation, createMongoAssignmentPresenceReader } from '@/modules/fleet/infrastructure/mongodb/assignment-repository';
 import { policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
 import { createIdentityProfileReader } from '@/modules/identity/infrastructure/keycloak/identity-profile-reader';
 import { fileSecretReader } from '@/shared/infrastructure/file-secrets/file-secret-reader';
@@ -19,8 +20,9 @@ const identityConfiguration = async () => {
     clientId: environment.KEYCLOAK_DIRECTORY_CLIENT_ID ?? '', clientSecret };
 };
 const identity = createIdentityProfileReader(identityConfiguration);
-const repository = createDriverRepository(connect, policyConfirmation);
-const service = createDrivers({ repository, facts: repository, authorization, identity });
+const repository = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation);
+const assignments = createMongoAssignmentPresenceReader(connect);
+const service = createDrivers({ repository, facts: repository, assignments, authorization, identity });
 
 export function driversEndpoint(operation: DriverOperation, id?: string) {
   return authenticatedEndpoint((actor, request) => driverResponse(service, operation, actor, request, id));

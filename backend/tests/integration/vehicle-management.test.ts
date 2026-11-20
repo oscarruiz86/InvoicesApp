@@ -100,7 +100,7 @@ it('fails closed without assignment confirmation; a coordinated double can deact
   const auth = await owner(), record = await repository.create({ ...auth, fields: fields() });
   await expect(repository.transition({ ...auth, id: record.id, expectedVersion: 1, status: 'INACTIVE' })).rejects.toMatchObject({ code: 'ASSIGNMENT_PROVIDER_UNAVAILABLE' });
   const withDouble = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s), authority: vehicleAuthorityConfirmation(c, s), assignments: {
-    async confirmNoOpen(input) { expect(input).toMatchObject({ vehicleId: record.id, revision: 'test-only' }); },
+    async confirmNoOpenForVehicle(input) { expect(input).toMatchObject({ vehicleId: record.id, revision: 'test-only' }); },
   } }));
   expect(await withDouble.transition({ ...auth, id: record.id, expectedVersion: 1, status: 'INACTIVE', assignmentRevision: 'test-only' })).toMatchObject({ version: 2, status: 'INACTIVE' });
   expect(await repository.eligibility({ id: record.id, thirdPartyId: record.thirdPartyId })).toMatchObject({ eligible: false });

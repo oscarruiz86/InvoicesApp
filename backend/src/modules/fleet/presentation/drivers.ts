@@ -13,13 +13,14 @@ const listSchema = z.object({
   sort: z.enum(['createdAt', 'status']).default('createdAt'),
   direction: z.enum(['asc', 'desc']).default('desc'),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+  q: z.string().trim().min(2).max(100).optional(),
 }).strict();
 const selectedScopeSchema = z.object({ scope: z.literal('organization'), thirdPartyId: idSchema }).strict();
 const statusSchema = z.object({ expectedVersion: z.number().int().safe().min(1), status: z.enum(['ACTIVE', 'INACTIVE']) }).strict();
 
 export type DriverOperation = 'list' | 'detail' | 'status';
 interface DriverUseCases {
-  list(actor: AuthenticatedActor, input: { thirdPartyId: string; page: number; pageSize: number; sort: 'createdAt' | 'status'; direction: 'asc' | 'desc'; status?: DriverStatus }): Promise<unknown>;
+  list(actor: AuthenticatedActor, input: { thirdPartyId: string; page: number; pageSize: number; sort: 'createdAt' | 'status'; direction: 'asc' | 'desc'; status?: DriverStatus; q?: string }): Promise<unknown>;
   detail(actor: AuthenticatedActor, input: { id: string; thirdPartyId: string }): Promise<unknown>;
   transition(actor: AuthenticatedActor, input: { id: string; thirdPartyId: string; expectedVersion: number; status: DriverStatus }): Promise<unknown>;
 }
@@ -47,7 +48,7 @@ export function driverResponse(service: DriverUseCases, operation: DriverOperati
       const url = new URL(request.url);
       const raw: Record<string, string> = {};
       for (const [key, value] of url.searchParams) {
-        const allowed = operation === 'list' ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'sort', 'direction', 'status'] : ['scope', 'thirdPartyId'];
+        const allowed = operation === 'list' ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'sort', 'direction', 'status', 'q'] : ['scope', 'thirdPartyId'];
         if (Object.hasOwn(raw, key) || !allowed.includes(key)) throw new DriverUseCaseError('INVALID_REQUEST');
         raw[key] = value;
       }
@@ -55,7 +56,8 @@ export function driverResponse(service: DriverUseCases, operation: DriverOperati
       let result: unknown;
       if (operation === 'list') {
         const parsed = listSchema.parse(raw);
-        const input = { thirdPartyId: parsed.thirdPartyId, page: parsed.page, pageSize: parsed.pageSize, sort: parsed.sort, direction: parsed.direction, ...(parsed.status ? { status: parsed.status } : {}) };
+        const input = { thirdPartyId: parsed.thirdPartyId, page: parsed.page, pageSize: parsed.pageSize, sort: parsed.sort, direction: parsed.direction,
+          ...(parsed.status ? { status: parsed.status } : {}), ...(parsed.q ? { q: parsed.q } : {}) };
         result = await service.list(actor, input);
       } else {
         const { thirdPartyId } = selectedScopeSchema.parse(raw);

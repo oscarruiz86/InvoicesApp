@@ -25,11 +25,11 @@ describe('protected driver adapter', () => {
     const transport: DriverTransport = { driver: driverRequest };
     const api = createDriverApi(transport);
     const controller = new AbortController();
-    await expect(api.listDrivers(scope, { page: 1, pageSize: 20, sort: 'createdAt', direction: 'desc' }, controller.signal))
+    await expect(api.listDrivers(scope, { page: 1, pageSize: 20, sort: 'createdAt', direction: 'desc', q: 'Ana' }, controller.signal))
       .resolves.toMatchObject({ items: [driver], total: 1 });
     await api.getDriver(scope, driverId, controller.signal);
     await api.setDriverStatus(scope, driverId, 2, 'INACTIVE', controller.signal);
-    expect(driverRequest.mock.calls[0]).toEqual(['GET', 'drivers', `scope=organization&thirdPartyId=${thirdPartyId}&page=1&pageSize=20&sort=createdAt&direction=desc`, undefined, controller.signal]);
+    expect(driverRequest.mock.calls[0]).toEqual(['GET', 'drivers', `scope=organization&thirdPartyId=${thirdPartyId}&page=1&pageSize=20&sort=createdAt&direction=desc&q=Ana`, undefined, controller.signal]);
     expect(driverRequest.mock.calls[1]).toEqual(['GET', `drivers/${driverId}`, `scope=organization&thirdPartyId=${thirdPartyId}`, undefined, controller.signal]);
     expect(driverRequest.mock.calls[2]).toEqual(['PATCH', `drivers/${driverId}/status`, `scope=organization&thirdPartyId=${thirdPartyId}`, { expectedVersion: 2, status: 'INACTIVE' }, controller.signal]);
   });
@@ -52,10 +52,14 @@ describe('protected driver adapter', () => {
     const auth = session(); const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(driver));
     const http = createProtectedHttp('/api', { getAccessToken: async () => 'token' }, auth.value, fetcher);
     try {
+      await http.driver('GET', 'drivers', `scope=organization&thirdPartyId=${thirdPartyId}&page=1&pageSize=20&sort=createdAt&direction=desc&status=ACTIVE&q=Ana`);
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(fetcher.mock.calls[0][0]).toContain('&q=Ana');
       await expect(Promise.resolve().then(() => http.driver('GET', 'drivers/../auth/me', 'scope=organization&thirdPartyId=' + thirdPartyId))).rejects.toMatchObject({ code: 'CONFIGURATION' });
       await expect(Promise.resolve().then(() => http.driver('GET', 'drivers', 'scope=global&thirdPartyId=' + thirdPartyId))).rejects.toMatchObject({ code: 'CONFIGURATION' });
+      await expect(Promise.resolve().then(() => http.driver('GET', 'drivers', `scope=organization&thirdPartyId=${thirdPartyId}&q=A`))).rejects.toMatchObject({ code: 'CONFIGURATION' });
       await expect(Promise.resolve().then(() => http.driver('PATCH', `drivers/${driverId}/status`, `scope=organization&thirdPartyId=${thirdPartyId}`))).rejects.toMatchObject({ code: 'CONFIGURATION' });
-      expect(fetcher).not.toHaveBeenCalled();
+      expect(fetcher).toHaveBeenCalledOnce();
     } finally { http.dispose(); }
   });
 

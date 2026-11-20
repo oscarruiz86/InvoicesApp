@@ -6,8 +6,10 @@ export interface VehicleTransport { vehicle(method: 'GET' | 'POST' | 'PATCH', pa
 const id = z.string().regex(/^[a-f0-9]{24}$/);
 const vehicle = z.object({ id, thirdPartyId: id, plate: z.string().regex(/^[A-Z]{3}\d{2,3}$/), internalNumber: z.string().regex(/^[A-Z0-9-]{1,40}$/), propertyCardNumber: z.string().regex(/^[A-Z0-9-]{1,64}$/),
   status: z.enum(['ACTIVE', 'INACTIVE']), version: z.number().int().safe().positive(), createdAt: z.string().datetime(), updatedAt: z.string().datetime(), createdBy: z.string().min(1), updatedBy: z.string().min(1),
+  currentDrivers: z.array(z.object({ id: z.string().min(1), name: z.string().min(1) }).strict()),
   currentDriver: z.object({ id: z.string().min(1), name: z.string().min(1) }).strict().nullable(), assignmentState: z.enum(['UNAVAILABLE', 'UNASSIGNED', 'ASSIGNED']) }).strict()
-  .refine(value => (value.assignmentState === 'ASSIGNED') === (value.currentDriver !== null));
+  .refine(value => (value.assignmentState === 'ASSIGNED') === (value.currentDrivers.length > 0)
+    && (value.currentDrivers[0] ? value.currentDriver?.id === value.currentDrivers[0].id && value.currentDriver.name === value.currentDrivers[0].name : value.currentDriver === null));
 const page = z.object({ items: z.array(vehicle), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive().max(100) }).strict();
 function parse<T>(schema: z.ZodType<T>, value: unknown): T { const result = schema.safeParse(value); if (!result.success) throw new ApplicationError('INVALID_RESPONSE'); return result.data; }
 function selected(scope: PermissionScope) {

@@ -4,7 +4,6 @@ import type { PolicyConfirmation } from '@/modules/identity/application/policy-c
 import type { AssignmentConfirmation, VehicleAuthorityConfirmation, VehicleFactsReader, VehicleMutation, VehicleRepository } from '../../application/vehicle-ports';
 import { VehicleUseCaseError, vehicleFailure } from '../../application/vehicles';
 import { changeVehicle, createVehicle, isVehicleEligible, normalizeVehicleFields, type Vehicle } from '../../domain/vehicle';
-import { inventoryVehicles } from './vehicle-inventory';
 const schema = new Schema({
   plate: { type: String, required: true, match: /^[A-Z]{3}\d{2,3}$/ },
   internalNumber: { type: String, required: true, match: /^[A-Z0-9-]{1,40}$/ },
@@ -43,7 +42,6 @@ export function createVehicleRepository(connect: () => Promise<Connection>, part
   let initialized: Promise<void> | undefined;
   async function ready(connection: Connection) {
     if (!initialized) initialized = (async () => {
-      if (!(await inventoryVehicles(connection)).ready) throw new VehicleUseCaseError('VEHICLE_STORAGE_UNAVAILABLE');
       await vehicleModel(connection).createIndexes();
       await connection.collection('vehicle_management_events').createIndex({ eventId: 1 }, { unique: true });
       await connection.collection('vehicle_management_events').createIndex({ thirdPartyId: 1, at: 1, eventId: 1 });
@@ -78,7 +76,7 @@ export function createVehicleRepository(connect: () => Promise<Connection>, part
       if (result.changed) {
         if ('status' in input && input.status === 'INACTIVE') {
           if (!input.assignmentRevision) throw new VehicleUseCaseError('ASSIGNMENT_PROVIDER_UNAVAILABLE');
-          await ports.assignments.confirmNoOpen({ vehicleId: input.id, thirdPartyId: current.thirdPartyId, revision: input.assignmentRevision });
+          await ports.assignments.confirmNoOpenForVehicle({ vehicleId: input.id, thirdPartyId: current.thirdPartyId, revision: input.assignmentRevision });
         }
         const { id: ignoredId, ...document } = result.vehicle;
         void ignoredId;
@@ -123,7 +121,7 @@ export function createVehicleRepository(connect: () => Promise<Connection>, part
     update: change, transition: change,
     async eligibility(input) {
       const vehicle = await repository.find(input);
-      return { vehicleId: vehicle?.id ?? null, version: vehicle?.version ?? null, eligible: isVehicleEligible(vehicle) };
+      return { vehicleId: vehicle?.id ?? null, version: vehicle?.version ?? null, eligible: isVehicleEligible(vehicle), plate: vehicle?.plate };
     },
   };
   return repository;
