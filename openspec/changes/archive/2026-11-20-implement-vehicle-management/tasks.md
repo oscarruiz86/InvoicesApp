@@ -11,7 +11,7 @@
 ## 2. Integraciones de Fleet
 
 - [x] 2.1 Definir AssignmentAccessReader y contrato de confirmación para desactivación, diferenciando ausencia, asignación y proveedor no disponible; verificar con dobles y documentar que no acredita integración real ni doble asignación.
-- [x] 2.2 Componer proveedor no disponible mientras Assignments no exista; verificar 503 en consultas DRIVER y desactivación, y disponibilidad independiente de alta/consulta/edición administrativas.
+- [x] 2.2 Componer el proveedor MongoDB de `vehicle_assignments`; verificar 503 ante indisponibilidad o documentos inválidos, 409 ante asignación activa, desactivación exitosa sin asignaciones y disponibilidad independiente de alta/consulta/edición administrativas.
 - [x] 2.3 Integrar DriverFactsReader y filtros de asignación propia antes de paginar/contar mediante puertos; verificar conductor inactivo, tercero ajeno, asignación ajena e identidad con varios roles sin depender de roles locales del JWT.
 - [x] 2.4 Documentar contratos futuros de Assignments/Invoices y conservación histórica; verificar que no se publican rutas de transferencia ni operaciones de asignación y que ningún cambio reescribe facturas.
 
@@ -39,5 +39,5 @@
 ## Workflow follow-up
 
 - Implementar desde openspec/implement-vehicle-management creada desde development; abrir PR hacia development y respetar revisión aprobada.
-- Revisar integración real de Assignments antes de habilitar acceso DRIVER y desactivación dependientes de ese proveedor. Esa entrega se gestiona en su propio cambio.
-- Sincronizar y archivar después de completar el alcance aprobado y sus verificaciones.
+- La gestión de asignaciones y sus escritores permanecen fuera de alcance; deberán persistir el contrato `vehicle_assignments` y coordinarse con esta confirmación antes de habilitar transferencias o doble asignación.
+- Sincronizar, documentar y archivar después de completar el alcance aprobado y sus verificaciones.
