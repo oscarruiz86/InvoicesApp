@@ -5,7 +5,7 @@ import type { SessionPort } from '@/modules/authentication/application/session-p
 import type { PermissionScope } from '@/modules/authentication/domain/permissions';
 const thirdPartyId = 'a'.repeat(24), id = 'b'.repeat(24);
 const scope: PermissionScope = { kind: 'organization', companyId: null, thirdPartyId };
-const record = { id, thirdPartyId, plate: 'ABC123', internalNumber: '001', propertyCardNumber: '0001', status: 'ACTIVE', version: 1, createdAt: '2026-11-19T00:00:00.000Z', updatedAt: '2026-11-19T00:00:00.000Z', createdBy: 'a', updatedBy: 'a', currentDriver: null, assignmentState: 'UNAVAILABLE' };
+const record = { id, thirdPartyId, plate: 'ABC123', internalNumber: '001', propertyCardNumber: '0001', status: 'ACTIVE', version: 1, createdAt: '2026-11-19T00:00:00.000Z', updatedAt: '2026-11-19T00:00:00.000Z', createdBy: 'a', updatedBy: 'a', currentDriver: null, currentDrivers: [], assignmentState: 'UNAVAILABLE' };
 const fields = { plate: record.plate, internalNumber: record.internalNumber, propertyCardNumber: record.propertyCardNumber };
 const query = { page: 1, pageSize: 20, sort: 'internalNumber' as const, direction: 'asc' as const, q: '001' };
 const signal = new AbortController().signal;

@@ -3,12 +3,13 @@ import { Schema, Types, type ClientSession, type Connection } from 'mongoose';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
 import { AuthorizationError } from '@/modules/identity/application/authentication-error';
 import { AuthorizationUnavailable } from '@/modules/identity/application/authorization-errors';
+import { AssignmentConfirmationError, type AssignmentConfirmationPort } from '../../application/assignment-ports';
 import { createDriver, DriverError, isDriverEligible, transitionDriver, type Driver, type DriverMembershipFacts } from '../../domain/driver';
 import type { DriverFactsReader, DriverRepositoryPort } from '../../application/driver-ports';
 
 export class DriverRepositoryError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'NOT_FOUND' | 'FORBIDDEN' | 'VERSION_CONFLICT'
-    | 'MEMBERSHIP_NOT_ELIGIBLE' | 'DUPLICATE_MEMBERSHIP' | 'STORAGE_UNAVAILABLE') { super(code); }
+    | 'MEMBERSHIP_NOT_ELIGIBLE' | 'DUPLICATE_MEMBERSHIP' | 'OPEN_ASSIGNMENT' | 'ASSIGNMENT_PROVIDER_UNAVAILABLE' | 'STORAGE_UNAVAILABLE') { super(code); }
 }
 
 const schema = new Schema({
@@ -46,6 +47,7 @@ function decode(raw: Record<string, unknown>): Driver {
 function mapError(error: unknown): never {
   if (error instanceof DriverRepositoryError) throw error;
   if (error instanceof DriverError) throw new DriverRepositoryError(error.code);
+  if (error instanceof AssignmentConfirmationError) throw new DriverRepositoryError(error.code === 'ACTIVE_ASSIGNMENT_EXISTS' ? 'OPEN_ASSIGNMENT' : 'ASSIGNMENT_PROVIDER_UNAVAILABLE');
   if (error instanceof AuthorizationError) throw new DriverRepositoryError('FORBIDDEN');
   if (error instanceof AuthorizationUnavailable) throw new DriverRepositoryError('STORAGE_UNAVAILABLE');
   if (error && typeof error === 'object' && 'code' in error && error.code === 11000) throw new DriverRepositoryError('DUPLICATE_MEMBERSHIP');
@@ -128,7 +130,8 @@ export async function synchronizeDriverMembershipInSession(connection: Connectio
     version: driver.version + 1, at: input.now }, { session });
 }
 
-export function createDriverRepository(connect: () => Promise<Connection>, policyFactory: (connection: Connection, session: ClientSession) => PolicyConfirmation): DriverRepositoryPort & DriverFactsReader & {
+export function createDriverRepository(connect: () => Promise<Connection>, policyFactory: (connection: Connection, session: ClientSession) => PolicyConfirmation,
+  assignmentConfirmation: (connection: Connection, session: ClientSession) => Pick<AssignmentConfirmationPort, 'confirmNoOpenForDriver'>): DriverRepositoryPort & DriverFactsReader & {
   nextId(): string;
 } {
   let initialized: Promise<void> | undefined;
@@ -146,11 +149,13 @@ export function createDriverRepository(connect: () => Promise<Connection>, polic
       if (!/^[a-f0-9]{24}$/.test(input.thirdPartyId) || !Number.isSafeInteger(input.page) || input.page < 1
         || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100
         || !['createdAt', 'status'].includes(input.sort) || !['asc', 'desc'].includes(input.direction)
-        || (input.status !== undefined && input.status !== 'ACTIVE' && input.status !== 'INACTIVE')) throw new DriverRepositoryError('INVALID_REQUEST');
+        || (input.status !== undefined && input.status !== 'ACTIVE' && input.status !== 'INACTIVE')
+        || (input.subjects !== undefined && (!input.subjects.length || input.subjects.length > 100 || input.subjects.some(subject => !subject || subject.length > 128)))) throw new DriverRepositoryError('INVALID_REQUEST');
       try {
         const connection = await connect();
         await initialize(connection);
-        const filter = { thirdPartyId: input.thirdPartyId, ...(input.subject ? { subject: input.subject } : {}), ...(input.status ? { status: input.status } : {}) };
+        const filter = { thirdPartyId: input.thirdPartyId, ...(input.subject ? { subject: input.subject } : {}),
+          ...(input.subjects ? { subject: { ...(input.subject ? { $eq: input.subject } : {}), $in: input.subjects } } : {}), ...(input.status ? { status: input.status } : {}) };
         const direction: 1 | -1 = input.direction === 'asc' ? 1 : -1;
         const sort: Record<string, 1 | -1> = { [input.sort]: direction, _id: 1 };
         const [rows, total] = await Promise.all([
@@ -238,6 +243,11 @@ export function createDriverRepository(connect: () => Promise<Connection>, polic
           const changed = transitionDriver({ driver, expectedVersion: input.expectedVersion, status: input.status,
             actor: input.actor, now: new Date(), eligible });
           if (!changed.changed) return changed.driver;
+          if (input.status === 'INACTIVE') {
+            if (!input.assignmentRevision) throw new DriverRepositoryError('ASSIGNMENT_PROVIDER_UNAVAILABLE');
+            await assignmentConfirmation(connection, session).confirmNoOpenForDriver({ driverId: driver.id,
+              thirdPartyId: driver.thirdPartyId, revision: input.assignmentRevision });
+          }
           const update = await driverModel(connection).updateOne({ _id: new Types.ObjectId(input.id), thirdPartyId: input.thirdPartyId,
             version: input.expectedVersion }, { $set: { status: changed.driver.status, version: changed.driver.version,
               updatedAt: changed.driver.updatedAt, updatedBy: changed.driver.updatedBy } }, { session, runValidators: true });

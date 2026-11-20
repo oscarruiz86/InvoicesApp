@@ -7,6 +7,7 @@ export interface DriverListQuery {
   readonly sort: 'createdAt' | 'status';
   readonly direction: 'asc' | 'desc';
   readonly status?: FleetStatus;
+  readonly q?: string;
 }
 export interface VehicleListQuery {
   readonly page: number;
@@ -21,6 +22,28 @@ export interface FleetPage<T> {
   readonly page: number;
   readonly pageSize: number;
   readonly total: number;
+}
+export type AssignmentStatus = 'ACTIVE' | 'CLOSED';
+export interface AssignmentDto {
+  readonly id: string;
+  readonly thirdPartyId: string;
+  readonly vehicleId: string;
+  readonly vehiclePlate?: string | null;
+  readonly driver: { readonly id: string; readonly name: string };
+  readonly status: AssignmentStatus;
+  readonly startedAt: string;
+  readonly endedAt: string | null;
+  readonly version: number;
+}
+export interface AssignmentListQuery {
+  readonly page: number; readonly pageSize: number; readonly sort: 'startedAt' | 'status' | 'driverName' | 'vehicleId';
+  readonly direction: 'asc' | 'desc'; readonly status?: AssignmentStatus; readonly driverId?: string; readonly vehicleId?: string; readonly q?: string;
+}
+export interface AssignmentApi {
+  listAssignments(scope: PermissionScope, query: AssignmentListQuery, signal: AbortSignal): Promise<FleetPage<AssignmentDto>>;
+  getAssignment(scope: PermissionScope, id: string, signal: AbortSignal): Promise<AssignmentDto>;
+  createAssignment(scope: PermissionScope, input: { vehicleId: string; driverId: string }, signal: AbortSignal): Promise<AssignmentDto>;
+  closeAssignment(scope: PermissionScope, id: string, version: number, signal: AbortSignal): Promise<AssignmentDto>;
 }
 export interface DriverDto {
   readonly driver: {
@@ -47,6 +70,7 @@ export interface VehicleDto extends VehicleFields {
   readonly plate: string;
   readonly status: FleetStatus;
   readonly currentDriver: { readonly id: string; readonly name: string } | null;
+  readonly currentDrivers: readonly { readonly id: string; readonly name: string }[];
   readonly version: number;
 }
 

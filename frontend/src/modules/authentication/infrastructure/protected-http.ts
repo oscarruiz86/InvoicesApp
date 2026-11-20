@@ -4,16 +4,17 @@ import type { AccessTokenPort, SessionPort } from '../application/session-ports'
 
 function validDriverQuery(query: string, list: boolean): boolean {
   const parameters = new URLSearchParams(query);
-  const allowed = list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'sort', 'direction', 'status'] : ['scope', 'thirdPartyId'];
+  const allowed = list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'sort', 'direction', 'status', 'q'] : ['scope', 'thirdPartyId'];
   for (const [key] of parameters) if (!allowed.includes(key) || parameters.getAll(key).length !== 1) return false;
   if (parameters.get('scope') !== 'organization' || !/^[a-f0-9]{24}$/.test(parameters.get('thirdPartyId') ?? '')) return false;
   if (!list) return parameters.size === 2;
   const page = parameters.get('page'); const pageSize = parameters.get('pageSize');
   const sort = parameters.get('sort'); const direction = parameters.get('direction');
-  const status = parameters.get('status');
+  const status = parameters.get('status'); const q = parameters.get('q');
   return (page === null || /^[1-9]\d{0,6}$/.test(page)) && (pageSize === null || /^(?:[1-9]|[1-9]\d|100)$/.test(pageSize))
     && (sort === null || ['createdAt', 'status'].includes(sort)) && (direction === null || ['asc', 'desc'].includes(direction))
-    && (status === null || ['ACTIVE', 'INACTIVE'].includes(status));
+    && (status === null || ['ACTIVE', 'INACTIVE'].includes(status))
+    && (q === null || (q.trim() === q && q.length >= 2 && q.length <= 100));
 }
 export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPort, session: SessionPort, fetcher: typeof fetch = globalThis.fetch.bind(globalThis), timeoutMs = 5000) {
   const base = new URL(baseUrl.replace(/\/$/, '') + '/', window.location.origin);
@@ -83,6 +84,27 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
+    assignment(method: 'GET' | 'POST', path: string, query = '', body?: unknown, signal?: AbortSignal): Promise<unknown> {
+      const list = path === 'assignments';
+      const detail = /^assignments\/[a-f0-9]{24}$/.test(path);
+      const close = /^assignments\/[a-f0-9]{24}\/close$/.test(path);
+      const valid = method === 'GET' ? body === undefined && (list || detail)
+        : method === 'POST' ? (list || close) && body !== undefined : false;
+      const params = new URLSearchParams(query);
+      const allowed = method === 'GET' && list
+        ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'sort', 'direction', 'status', 'driverId', 'vehicleId', 'q']
+        : ['scope', 'thirdPartyId'];
+      for (const [key] of params) if (!allowed.includes(key) || params.getAll(key).length !== 1) throw new ApplicationError('CONFIGURATION');
+      if (!valid || params.get('scope') !== 'organization' || !/^[a-f0-9]{24}$/.test(params.get('thirdPartyId') ?? '')) throw new ApplicationError('CONFIGURATION');
+      if (params.has('page') && !/^[1-9]\d{0,6}$/.test(params.get('page')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('pageSize') && !/^(?:[1-9]|[1-9]\d|100)$/.test(params.get('pageSize')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('sort') && !['startedAt', 'status', 'driverName', 'vehicleId'].includes(params.get('sort')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('direction') && !['asc', 'desc'].includes(params.get('direction')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('status') && !['ACTIVE', 'CLOSED'].includes(params.get('status')!)) throw new ApplicationError('CONFIGURATION');
+      for (const key of ['driverId', 'vehicleId']) if (params.has(key) && !/^[a-f0-9]{24}$/.test(params.get(key)!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
+      return request(path, query, signal, body, method);
+    },
     previewInvitation(token: string, signal?: AbortSignal): Promise<unknown> {
       return request('invitations/preview', '', signal, { token }, 'POST', false);
     },
@@ -117,12 +139,13 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
           const failure = await response.json().catch(() => null);
           if (path === 'roles' && failure?.error?.code === 'POLICY_AUDIT_CAPACITY') throw new RequestError('POLICY_AUDIT_CAPACITY');
           if (path.startsWith('vehicles/') && failure?.error?.code === 'ASSIGNMENT_PROVIDER_UNAVAILABLE') throw new RequestError('ASSIGNMENT_PROVIDER_UNAVAILABLE');
+          if (path.startsWith('assignments') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           throw new ApplicationError('UNAVAILABLE');
         }
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
         if (companyMethod && path !== 'roles' && [400, 409].includes(response.status)) {
           const failure = await response.json().catch(() => null);
-          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED', 'VEHICLE_VERSION_CONFLICT', 'VEHICLE_IDENTIFIER_CONFLICT', 'VEHICLE_HAS_OPEN_ASSIGNMENT'];
+          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED', 'VEHICLE_VERSION_CONFLICT', 'VEHICLE_IDENTIFIER_CONFLICT', 'VEHICLE_HAS_OPEN_ASSIGNMENT', 'ACTIVE_ASSIGNMENT_CONFLICT', 'ASSIGNMENT_VERSION_CONFLICT', 'DRIVER_NOT_ELIGIBLE', 'VEHICLE_NOT_ELIGIBLE'];
           throw new RequestError(codes.includes(failure?.error?.code) ? failure.error.code : 'INVALID_REQUEST', Array.isArray(failure?.error?.fields) ? failure.error.fields.filter((field: unknown) => typeof field === 'string') : []);
         }
         if (path === 'roles' && [400, 409].includes(response.status)) {

@@ -18,7 +18,7 @@ Las rutas están protegidas con Bearer y responden `Cache-Control: no-store`:
 - `GET /api/drivers/{id}`: detalle del conductor e identidad nullable.
 - `PATCH /api/drivers/{id}/status`: acepta únicamente `{ expectedVersion, status }`.
 
-Las tres operaciones requieren `scope=organization` y `thirdPartyId` explícitos. `THIRD_PARTY_ADMIN` queda limitado al tercero autorizado; `DRIVER` solo puede consultar su propio subject y membership activa. IDs ajenos e inexistentes tienen el mismo `404`. Un cambio de estado exige `drivers:deactivate` y versión vigente, incluso para activar. `drivers:update` no se usa para editar perfiles y no hay `POST`/`PUT` de conductor.
+Las tres operaciones requieren `scope=organization` y `thirdPartyId` explícitos. `THIRD_PARTY_ADMIN` queda limitado al tercero autorizado; `DRIVER` solo puede consultar su propio subject y membership activa. IDs ajenos e inexistentes tienen el mismo `404`. Un cambio de estado exige `drivers:deactivate` y versión vigente, incluso para activar. Antes de desactivar, Assignment confirma la ausencia de asignaciones ACTIVE; una asignación abierta devuelve 409 y evidencia indisponible devuelve 503 sin cambiar el conductor. `drivers:update` no se usa para editar perfiles y no hay `POST`/`PUT` de conductor.
 
 ## Inventario y migración
 
@@ -46,6 +46,6 @@ npm --prefix backend run openapi:lint
 
 El esquema publicado está en [OpenAPI](../backend/openapi/openapi.json), disponible además en `/api/openapi` y Swagger en `/api/docs`.
 
-## Límites de esta entrega
+## Límites de identidad
 
-No se agregan licencia, teléfono, dirección ni otros campos operativos; vehículos, asignaciones y facturas no se crean, reasignan ni modifican. Keycloak no se cambia. El historial local de Driver es durable, pero no implica entrega transversal a un Audit persistente. La pantalla de administración de Drivers y su recorrido de invitación se implementan en las tareas frontend de esta propuesta.
+No se agregan licencia, teléfono, dirección ni otros campos operativos. La identidad canónica permanece en Keycloak y se lee desde Identity; Fleet nunca modifica perfiles ni credenciales. El historial local de Driver es durable, pero no implica entrega transversal a un Audit persistente. La administración de vehículos y asignaciones se documenta en [gestión de vehículos](vehicle-management.md) y [gestión de asignaciones](assignment-management.md).

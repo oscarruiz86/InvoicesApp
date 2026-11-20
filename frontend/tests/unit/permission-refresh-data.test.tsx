@@ -18,7 +18,7 @@ const scope: PermissionScope = { kind: 'organization', companyId: null, thirdPar
 const snapshot = (): PermissionsSnapshot => ({ subject: 'user', scope, roles: ['THIRD_PARTY_ADMIN'], permissions: ['vehicles:read', 'vehicles:update'],
   policyVersion: '1', contextRevision: '1', evaluatedAt: new Date().toISOString(), refreshAfterSeconds: 30 });
 const vehicle: VehicleDto = { id: 'b'.repeat(24), thirdPartyId, plate: 'ABC123', internalNumber: '0001', propertyCardNumber: '000123', status: 'ACTIVE', version: 1,
-  createdAt: '2026-11-20T00:00:00.000Z', updatedAt: '2026-11-20T00:00:00.000Z', createdBy: 'user', updatedBy: 'user', assignmentState: 'UNAVAILABLE', currentDriver: null };
+  createdAt: '2026-11-20T00:00:00.000Z', updatedAt: '2026-11-20T00:00:00.000Z', createdBy: 'user', updatedBy: 'user', assignmentState: 'UNAVAILABLE', currentDriver: null, currentDrivers: [] };
 const disposals: (() => void)[] = [];
 afterEach(() => { cleanup(); disposals.splice(0).forEach(dispose => dispose()); });
 async function setup() {

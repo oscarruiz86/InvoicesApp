@@ -6242,6 +6242,17 @@
               ],
               "default": "desc"
             }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Busca conductores activos por nombre en Identity y limita resultados al tercero seleccionado.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            }
           }
         ],
         "responses": {
@@ -7073,6 +7084,25 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleList"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
             "headers": {
@@ -7174,25 +7204,6 @@
               }
             }
           },
-          "503": {
-            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
-            "headers": {
-              "Cache-Control": {
-                "description": "Respuesta privada sin caché",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VehicleError"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Error interno seguro.",
             "headers": {
@@ -7212,8 +7223,8 @@
               }
             }
           },
-          "200": {
-            "description": "Operación confirmada.",
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
             "headers": {
               "Cache-Control": {
                 "description": "Respuesta privada sin caché",
@@ -7226,7 +7237,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VehicleList"
+                  "$ref": "#/components/schemas/VehicleError"
                 }
               }
             }
@@ -7270,6 +7281,31 @@
           }
         ],
         "responses": {
+          "201": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Location": {
+                "description": "Detalle con contexto explícito.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
             "headers": {
@@ -7371,25 +7407,6 @@
               }
             }
           },
-          "503": {
-            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
-            "headers": {
-              "Cache-Control": {
-                "description": "Respuesta privada sin caché",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VehicleError"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Error interno seguro.",
             "headers": {
@@ -7409,8 +7426,8 @@
               }
             }
           },
-          "201": {
-            "description": "Operación confirmada.",
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
             "headers": {
               "Cache-Control": {
                 "description": "Respuesta privada sin caché",
@@ -7418,18 +7435,12 @@
                   "type": "string",
                   "const": "no-store"
                 }
-              },
-              "Location": {
-                "description": "Detalle con contexto explícito.",
-                "schema": {
-                  "type": "string"
-                }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Vehicle"
+                  "$ref": "#/components/schemas/VehicleError"
                 }
               }
             }
@@ -7494,6 +7505,25 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
             "headers": {
@@ -7595,25 +7625,6 @@
               }
             }
           },
-          "503": {
-            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
-            "headers": {
-              "Cache-Control": {
-                "description": "Respuesta privada sin caché",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VehicleError"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Error interno seguro.",
             "headers": {
@@ -7633,8 +7644,8 @@
               }
             }
           },
-          "200": {
-            "description": "Operación confirmada.",
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
             "headers": {
               "Cache-Control": {
                 "description": "Respuesta privada sin caché",
@@ -7647,7 +7658,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Vehicle"
+                  "$ref": "#/components/schemas/VehicleError"
                 }
               }
             }
@@ -7700,6 +7711,25 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
             "headers": {
@@ -7801,25 +7831,6 @@
               }
             }
           },
-          "503": {
-            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
-            "headers": {
-              "Cache-Control": {
-                "description": "Respuesta privada sin caché",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VehicleError"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Error interno seguro.",
             "headers": {
@@ -7839,8 +7850,8 @@
               }
             }
           },
-          "200": {
-            "description": "Operación confirmada.",
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
             "headers": {
               "Cache-Control": {
                 "description": "Respuesta privada sin caché",
@@ -7853,7 +7864,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Vehicle"
+                  "$ref": "#/components/schemas/VehicleError"
                 }
               }
             }
@@ -7918,6 +7929,25 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
             "headers": {
@@ -8019,25 +8049,6 @@
               }
             }
           },
-          "503": {
-            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
-            "headers": {
-              "Cache-Control": {
-                "description": "Respuesta privada sin caché",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VehicleError"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Error interno seguro.",
             "headers": {
@@ -8057,8 +8068,8 @@
               }
             }
           },
-          "200": {
-            "description": "Operación confirmada.",
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
             "headers": {
               "Cache-Control": {
                 "description": "Respuesta privada sin caché",
@@ -8071,7 +8082,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Vehicle"
+                  "$ref": "#/components/schemas/VehicleError"
                 }
               }
             }
@@ -8092,6 +8103,651 @@
           }
         },
         "x-authorization-scope": "organization con thirdPartyId explícito; capacidad local y permiso vigentes."
+      }
+    },
+    "/api/assignments": {
+      "get": {
+        "operationId": "listAssignments",
+        "summary": "Listar asignaciones del tercero seleccionado",
+        "tags": [
+          "Assignments"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "driverId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "vehicleId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "CLOSED"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "startedAt",
+                "status",
+                "driverName",
+                "vehicleId"
+              ],
+              "default": "startedAt"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de asignaciones seguras.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token Bearer ausente o inválido.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o ámbito insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Asignación inexistente en el ámbito indicado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de versión o asignación activa.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error técnico inesperado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo confirmar disponibilidad, elegibilidad o auditoría.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "assignments:read"
+        ],
+        "x-authorization-scope": "Tercero activo explícito; un conductor solo consulta sus asignaciones ACTIVE."
+      },
+      "post": {
+        "operationId": "createAssignment",
+        "summary": "Asignar un vehículo a un conductor",
+        "tags": [
+          "Assignments"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asignación creada.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Assignment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token Bearer ausente o inválido.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o ámbito insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Asignación inexistente en el ámbito indicado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de versión o asignación activa.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error técnico inesperado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo confirmar disponibilidad, elegibilidad o auditoría.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "vehicles:assign"
+        ],
+        "x-authorization-scope": "Tercero activo explícito del THIRD_PARTY_ADMIN."
+      }
+    },
+    "/api/assignments/{id}": {
+      "get": {
+        "operationId": "getAssignment",
+        "summary": "Consultar una asignación",
+        "tags": [
+          "Assignments"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asignación segura.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Assignment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token Bearer ausente o inválido.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o ámbito insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Asignación inexistente en el ámbito indicado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de versión o asignación activa.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error técnico inesperado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo confirmar disponibilidad, elegibilidad o auditoría.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "assignments:read"
+        ],
+        "x-authorization-scope": "Tercero activo explícito; el conductor solo accede a su asignación ACTIVE."
+      }
+    },
+    "/api/assignments/{id}/close": {
+      "post": {
+        "operationId": "closeAssignment",
+        "summary": "Cerrar explícitamente una asignación activa",
+        "tags": [
+          "Assignments"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentClose"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Asignación cerrada o cierre idempotente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Assignment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token Bearer ausente o inválido.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o ámbito insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Asignación inexistente en el ámbito indicado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflicto de versión o asignación activa.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error técnico inesperado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No se pudo confirmar disponibilidad, elegibilidad o auditoría.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "vehicles:unassign"
+        ],
+        "x-authorization-scope": "Tercero activo explícito del THIRD_PARTY_ADMIN."
       }
     }
   },
@@ -10799,6 +11455,27 @@
             "type": "string",
             "minLength": 1
           },
+          "currentDrivers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          },
           "currentDriver": {
             "oneOf": [
               {
@@ -10845,6 +11522,7 @@
           "updatedAt",
           "createdBy",
           "updatedBy",
+          "currentDrivers",
           "currentDriver",
           "assignmentState"
         ]
@@ -11016,6 +11694,168 @@
         "required": [
           "error"
         ]
+      },
+      "Assignment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "thirdPartyId",
+          "vehicleId",
+          "driver",
+          "status",
+          "startedAt",
+          "endedAt",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "thirdPartyId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "vehicleId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "vehiclePlate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "driver": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{24}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "CLOSED"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AssignmentList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Assignment"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "AssignmentCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vehicleId",
+          "driverId"
+        ],
+        "properties": {
+          "vehicleId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "driverId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          }
+        }
+      },
+      "AssignmentClose": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expectedVersion"
+        ],
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AssignmentError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
       }
     },
     "securitySchemes": {

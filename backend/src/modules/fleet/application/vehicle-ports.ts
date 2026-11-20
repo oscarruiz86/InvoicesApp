@@ -1,4 +1,5 @@
 import type { Vehicle, VehicleFields, VehicleStatus } from '../domain/vehicle';
+import type { AssignmentConfirmationPort, AssignmentReadEvidence, AssignmentReadPort, AssignmentVehicleSnapshot } from './assignment-ports';
 export interface VehicleListQuery {
   readonly thirdPartyId: string; readonly page: number; readonly pageSize: number;
   readonly sort: 'plate' | 'internalNumber' | 'propertyCardNumber' | 'status' | 'createdAt';
@@ -20,18 +21,16 @@ export interface VehicleRepository {
   transition(input: VehicleMutation & { id: string; expectedVersion: number; status: VehicleStatus; assignmentRevision?: string }): Promise<Vehicle>;
 }
 export interface VehicleFactsReader {
-  eligibility(input: { id: string; thirdPartyId: string }): Promise<{ vehicleId: string | null; version: number | null; eligible: boolean }>;
+  eligibility(input: { id: string; thirdPartyId: string }): Promise<{ vehicleId: string | null; version: number | null; eligible: boolean; plate?: string }>;
 }
-export interface ActiveVehicleAssignment { readonly vehicleId: string; readonly thirdPartyId: string; readonly subject: string; readonly driverId: string; readonly driverName: string }
-export type AssignmentEvidence = { readonly state: 'UNAVAILABLE' } | { readonly state: 'CONFIRMED'; readonly revision: string; readonly assignments: readonly ActiveVehicleAssignment[] };
-export interface AssignmentAccessReader {
-  read(input: { readonly thirdPartyId: string; readonly subject?: string; readonly vehicleId?: string }): Promise<AssignmentEvidence>;
-}
-/** Must serialize the no-open-assignment revision with the future assignment writer in the vehicle transaction. */
-export interface AssignmentConfirmation {
-  confirmNoOpen(input: { readonly vehicleId: string; readonly thirdPartyId: string; readonly revision: string }): Promise<void>;
-}
+export type ActiveVehicleAssignment = AssignmentVehicleSnapshot;
+export type AssignmentEvidence = AssignmentReadEvidence;
+export type AssignmentAccessReader = AssignmentReadPort;
+/** Assignment-owned confirmation, called within the Vehicle state-change transaction. */
+export type AssignmentConfirmation = Pick<AssignmentConfirmationPort, 'confirmNoOpenForVehicle'>;
 export interface VehicleView extends Vehicle {
+  readonly currentDrivers: readonly { readonly id: string; readonly name: string }[];
+  /** @deprecated Use currentDrivers; retained as a first-driver compatibility field. */
   readonly currentDriver: { readonly id: string; readonly name: string } | null;
   readonly assignmentState: 'UNAVAILABLE' | 'UNASSIGNED' | 'ASSIGNED';
 }

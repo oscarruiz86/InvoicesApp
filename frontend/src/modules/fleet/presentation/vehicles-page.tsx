@@ -26,7 +26,8 @@ function failure(error: unknown): string {
     ? 'El servicio no está disponible. No se confirmó ningún cambio. La consulta de asignaciones y la desactivación requieren el proveedor de asignaciones.'
     : errorMessage(error instanceof ApplicationError ? error.code : 'UNEXPECTED');
 }
-const assignment = (vehicle: VehicleDto) => vehicle.assignmentState === 'UNAVAILABLE' ? 'Asignación no disponible' : vehicle.currentDriver?.name ?? 'Sin conductor asignado';
+const assignment = (vehicle: VehicleDto) => vehicle.assignmentState === 'UNAVAILABLE' ? 'Asignación no disponible'
+  : vehicle.currentDrivers.length ? vehicle.currentDrivers.map(driver => driver.name).join(', ') : 'Sin conductor asignado';
 type FormState = { generation: number; record: VehicleDto | null; fields: VehicleFields; touched: Partial<Record<keyof VehicleFields, boolean>> };
 export function VehiclesPage({ api, context, authorization }: { api: VehicleApi; context: ContextStore; authorization: AuthorizationStore }) {
   const current = useStore(context), auth = useStore(authorization);

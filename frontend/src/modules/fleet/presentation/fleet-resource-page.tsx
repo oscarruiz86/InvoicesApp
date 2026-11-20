@@ -330,7 +330,7 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
         const version = driver ? driver.driver.version : vehicle!.version;
         const label = driver ? driver.identity?.name ?? 'Conductor' : vehicle!.plate;
         return <TableRow key={id} hover>
-          {driver ? <><TableCell><Typography component="span" sx={{ overflowWrap: 'anywhere' }}>{driver.identity?.name ?? 'Perfil no disponible'}</Typography></TableCell><TableCell>{driverIdentification(driver)}</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{driver.identity?.email ?? '—'}</TableCell></> : <><TableCell>{vehicle!.plate}</TableCell><TableCell>{vehicle!.currentDriver?.name ?? 'Sin conductor asignado'}</TableCell></>}
+          {driver ? <><TableCell><Typography component="span" sx={{ overflowWrap: 'anywhere' }}>{driver.identity?.name ?? 'Perfil no disponible'}</Typography></TableCell><TableCell>{driverIdentification(driver)}</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{driver.identity?.email ?? '—'}</TableCell></> : <><TableCell>{vehicle!.plate}</TableCell><TableCell>{vehicle!.currentDrivers.map(item => item.name).join(', ') || 'Sin conductor asignado'}</TableCell></>}
           <TableCell><Chip size="small" label={status === 'ACTIVE' ? 'Activo' : 'Inactivo'} color={status === 'ACTIVE' ? 'success' : 'default'} /></TableCell>
           <TableCell><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
             {driver && <Button variant="outlined" size="small" onClick={() => setViewDriver(driver)}>Ver</Button>}

@@ -23,11 +23,13 @@ export interface DriverView {
 export interface DriverListQuery {
   readonly thirdPartyId: string;
   readonly subject?: string;
+  readonly subjects?: readonly string[];
   readonly page: number;
   readonly pageSize: number;
   readonly sort: 'createdAt' | 'status';
   readonly direction: 'asc' | 'desc';
   readonly status?: DriverStatus;
+  readonly q?: string;
 }
 
 export interface DriverPage {
@@ -48,6 +50,7 @@ export interface DriverRepositoryPort {
     readonly policyVersion: string;
     readonly contextRevision: string | null;
     readonly scope: OrganizationScope;
+    readonly assignmentRevision?: string;
   }): Promise<Driver>;
 }
 

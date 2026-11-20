@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createDriverRepository, driverModel, provisionDriverInSession } from '@/modules/fleet/infrastructure/mongodb/driver-repository';
+import { createMongoAssignmentConfirmation, createMongoAssignmentPresenceReader } from '@/modules/fleet/infrastructure/mongodb/assignment-repository';
 import { createPolicyRepository, policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
 import { grantCeiling } from '@/modules/identity/domain/permissions';
 
@@ -11,7 +12,8 @@ const database = 'driver_management_' + randomUUID().replaceAll('-', '') + '_tes
 const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 5000 });
 const connect = async () => connection;
 const policies = createPolicyRepository(connect);
-const repository = createDriverRepository(connect, policyConfirmation);
+const repository = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation);
+const assignmentPresence = createMongoAssignmentPresenceReader(connect);
 const now = new Date('2026-11-19T12:00:00.000Z');
 const adminSubject = 'third-party-admin';
 let policyVersion = '1';
@@ -56,10 +58,14 @@ async function createEligibleDriver(label: string) {
   return { driver: driver!, thirdPartyId, subject, membershipId };
 }
 
-const transition = (input: { id: string; thirdPartyId: string; subject: string }, status: 'ACTIVE' | 'INACTIVE', expectedVersion: number) => repository.transition({
-  id: input.id, thirdPartyId: input.thirdPartyId, actorSubject: adminSubject, expectedVersion, status, actor: adminSubject,
-  policyVersion, contextRevision: null, scope: { kind: 'organization', companyId: null, thirdPartyId: input.thirdPartyId },
-});
+const transition = async (input: { id: string; thirdPartyId: string; subject: string }, status: 'ACTIVE' | 'INACTIVE', expectedVersion: number) => {
+  const evidence = status === 'INACTIVE' ? await assignmentPresence.readForDriver({ driverId: input.id, thirdPartyId: input.thirdPartyId }) : null;
+  if (evidence?.state === 'UNAVAILABLE') throw new Error('Assignment presence unavailable in test');
+  return repository.transition({ id: input.id, thirdPartyId: input.thirdPartyId, actorSubject: adminSubject, expectedVersion, status, actor: adminSubject,
+    policyVersion, contextRevision: null, scope: { kind: 'organization', companyId: null, thirdPartyId: input.thirdPartyId },
+    ...(evidence?.state === 'CONFIRMED' ? { assignmentRevision: evidence.revision } : {}),
+  });
+};
 
 it('enforces unique membership ownership and records a durable local provisioning event', async () => {
   const first = await createEligibleDriver('unique');

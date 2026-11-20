@@ -12,7 +12,7 @@ export const markerModules = [
   { key: 'drivers', path: '/drivers', label: 'Conductores', permission: 'drivers:read', context: 'organization', description: 'Lista, detalle de identidad de solo lectura y estado de conductores.' },
   { key: 'vehicles', path: '/vehicles', label: 'Vehículos', permission: 'vehicles:read', context: 'organization', description: 'Lista, edición y estado de vehículos.' },
   { key: 'notification-deliveries', path: '/notification-deliveries', label: 'Entregas de notificaciones', permission: 'notifications:deliveries:read', context: 'active', description: 'Consulta el estado de entrega de notificaciones sin exponer contenido ni credenciales.' },
-  { key: 'assignments', path: '/assignments', label: 'Asignaciones', permission: 'assignments:read', context: 'organization', description: 'Punto de integración para la administración de asignaciones.' },
+  { key: 'assignments', path: '/assignments', label: 'Asignaciones', permission: 'assignments:read', context: 'organization', description: 'Administración del historial de asignaciones de vehículos y conductores.' },
   { key: 'invoices', path: '/invoices', label: 'Facturas', permission: 'invoices:read', context: 'organization', description: 'Punto de integración para la administración de facturas.' },
   { key: 'parameters', path: '/parameters', label: 'Parámetros', permission: 'parameters:read', context: 'active', description: 'Punto de integración para la configuración de parámetros.' },
   { key: 'audit', path: '/audit', label: 'Auditoría', permission: 'audit:read', context: 'active', description: 'Punto de integración para la consulta de auditoría.' },
