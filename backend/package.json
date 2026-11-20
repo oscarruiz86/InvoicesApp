@@ -41,7 +41,7 @@
     "build": "next build",
     "start": "node --env-file-if-exists=.env.local .next/standalone/server.js",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:http": "node scripts/test-http.mjs",
+    "test:http": "node scripts/test-http.mjs && node scripts/test-vehicles-http.mjs",
     "test:production-secrets": "node scripts/test-production-secrets.mjs",
     "openapi:lint": "redocly lint openapi/openapi.json",
     "postbuild": "node scripts/prepare-standalone.mjs",
@@ -50,6 +50,9 @@
     "drivers:inventory": "node --env-file-if-exists=.env.local scripts/migrate-drivers.mjs",
     "drivers:migrate": "node --env-file-if-exists=.env.local scripts/migrate-drivers.mjs --apply",
     "third-parties:inventory-legacy": "node --env-file-if-exists=.env.local --experimental-loader ./scripts/typescript-loader.mjs scripts/inventory-legacy-third-parties.ts",
-    "notifications:worker": "node --env-file-if-exists=.env.local --experimental-loader ./scripts/typescript-loader.mjs src/bootstrap/run-notification-worker.ts"
+    "notifications:worker": "node --env-file-if-exists=.env.local --experimental-loader ./scripts/typescript-loader.mjs src/bootstrap/run-notification-worker.ts",
+    "vehicles:inventory": "node --env-file-if-exists=.env.local scripts/inventory-vehicles.mjs",
+    "test:integration:prepared": "node ../scripts/test-vehicle-management-integration.mjs",
+    "test:http:prepared": "node ../scripts/test-vehicle-management-http.mjs"
   }
 }

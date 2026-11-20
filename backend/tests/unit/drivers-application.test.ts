@@ -48,9 +48,10 @@ it('returns a neutral not-found result to an ineligible driver before querying a
 
 it.each([['APP_ADMIN'], ['COMPANY_ADMIN']] as const)('does not grant global or company access to %s', async role => {
   const f = fixture();
+  f.authorization.requirePermission.mockRejectedValue(new AuthorizationError());
   await expect(f.service.list(actor('manager', [role]), { thirdPartyId, page: 1, pageSize: 20, sort: 'createdAt', direction: 'desc' }))
     .rejects.toMatchObject({ code: 'FORBIDDEN' });
-  expect(f.authorization.requirePermission).not.toHaveBeenCalled();
+  expect(f.authorization.requirePermission).toHaveBeenCalledWith(expect.objectContaining({ subject: 'manager' }), 'drivers:read', { kind: 'organization', companyId: null, thirdPartyId });
   expect(f.repository.list).not.toHaveBeenCalled();
 });
 

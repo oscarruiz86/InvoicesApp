@@ -65,6 +65,24 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (!validMethod || !validDriverQuery(query, method === 'GET' && list)) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
+    vehicle(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: unknown, signal?: AbortSignal): Promise<unknown> {
+      const list = path === 'vehicles';
+      const detail = /^vehicles\/[a-f0-9]{24}$/.test(path);
+      const status = /^vehicles\/[a-f0-9]{24}\/status$/.test(path);
+      const valid = method === 'GET' ? body === undefined && (list || detail)
+        : method === 'POST' ? list && body !== undefined : (detail || status) && body !== undefined;
+      const params = new URLSearchParams(query);
+      const allowed = method === 'GET' && list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'sort', 'direction', 'status', 'q'] : ['scope', 'thirdPartyId'];
+      for (const [key] of params) if (!allowed.includes(key) || params.getAll(key).length !== 1) throw new ApplicationError('CONFIGURATION');
+      if (!valid || params.get('scope') !== 'organization' || !/^[a-f0-9]{24}$/.test(params.get('thirdPartyId') ?? '')) throw new ApplicationError('CONFIGURATION');
+      if (params.has('page') && !/^[1-9]\d{0,6}$/.test(params.get('page')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('pageSize') && !/^(?:[1-9]|[1-9]\d|100)$/.test(params.get('pageSize')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('sort') && !['plate', 'internalNumber', 'propertyCardNumber', 'status', 'createdAt'].includes(params.get('sort')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('direction') && !['asc', 'desc'].includes(params.get('direction')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('status') && !['ACTIVE', 'INACTIVE'].includes(params.get('status')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
+      return request(path, query, signal, body, method);
+    },
     previewInvitation(token: string, signal?: AbortSignal): Promise<unknown> {
       return request('invitations/preview', '', signal, { token }, 'POST', false);
     },
@@ -96,16 +114,15 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
         }
         if (response.status === 404) throw new ApplicationError('NOT_FOUND');
         if (response.status === 503) {
-          if (path === 'roles') {
-            const failure = await response.json().catch(() => null);
-            if (failure?.error?.code === 'POLICY_AUDIT_CAPACITY') throw new RequestError('POLICY_AUDIT_CAPACITY');
-          }
+          const failure = await response.json().catch(() => null);
+          if (path === 'roles' && failure?.error?.code === 'POLICY_AUDIT_CAPACITY') throw new RequestError('POLICY_AUDIT_CAPACITY');
+          if (path.startsWith('vehicles/') && failure?.error?.code === 'ASSIGNMENT_PROVIDER_UNAVAILABLE') throw new RequestError('ASSIGNMENT_PROVIDER_UNAVAILABLE');
           throw new ApplicationError('UNAVAILABLE');
         }
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
         if (companyMethod && path !== 'roles' && [400, 409].includes(response.status)) {
           const failure = await response.json().catch(() => null);
-          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED'];
+          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED', 'VEHICLE_VERSION_CONFLICT', 'VEHICLE_IDENTIFIER_CONFLICT', 'VEHICLE_HAS_OPEN_ASSIGNMENT'];
           throw new RequestError(codes.includes(failure?.error?.code) ? failure.error.code : 'INVALID_REQUEST', Array.isArray(failure?.error?.fields) ? failure.error.fields.filter((field: unknown) => typeof field === 'string') : []);
         }
         if (path === 'roles' && [400, 409].includes(response.status)) {

@@ -113,17 +113,17 @@ describe('authorization state and context generations', () => {
     resolvers[2](snapshot(scopeB)); await pending;
     expect(store.getState()).toMatchObject({ status: 'idle', snapshot: null, scope: selfScope });
   });
-  it('expires at 30 seconds, clears while pending and refreshes on credential revision', async () => {
+  it('revalidates at 30 seconds without changing page readiness and refreshes on credential revision', async () => {
     vi.useFakeTimers();
     const { store, read, publish } = setup();
     await store.getState().refresh(); expect(store.getState().has('invoices:read')).toBe(true);
     read.mockImplementationOnce(() => new Promise(() => {}));
     await vi.advanceTimersByTimeAsync(30_000);
-    expect(store.getState().has('invoices:read')).toBe(true); expect(store.getState().status).toBe('refreshing');
+    expect(store.getState().has('invoices:read')).toBe(true); expect(store.getState().status).toBe('ready'); expect(store.getState().refreshing).toBe(true);
     expect(store.getState().snapshot?.permissions).toContain('invoices:read');
     publish({ status: 'refreshing' }); expect(store.getState().snapshot?.permissions).toContain('invoices:read');
     publish({ status: 'authenticated', credentialRevision: 2 });
-    await vi.advanceTimersByTimeAsync(0); expect(store.getState().status).toBe('ready');
+    await vi.advanceTimersByTimeAsync(0); expect(store.getState().status).toBe('ready'); expect(store.getState().refreshing).toBe(false);
     expect(read).toHaveBeenCalledTimes(3);
   });
   it('revalidates focus and background visibility without persisting grants', async () => {
@@ -157,7 +157,7 @@ describe('permission routes, actions and navigation', () => {
     read.mockImplementationOnce(scope => new Promise(resolve => { resolveRefresh = resolve; void scope; }));
     let pending!: Promise<void>;
     act(() => { pending = store.getState().refresh(); });
-    expect(store.getState().status).toBe('refreshing'); expect(screen.getByText('Private invoices')).toBeInTheDocument();
+    expect(store.getState().status).toBe('ready'); expect(screen.getByText('Private invoices')).toBeInTheDocument();
     await act(async () => { resolveRefresh(snapshot(selfScope)); await pending; });
     act(() => store.getState().invalidate()); expect(screen.queryByText('Private invoices')).not.toBeInTheDocument();
   });

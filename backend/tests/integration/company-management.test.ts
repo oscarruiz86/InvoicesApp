@@ -23,7 +23,7 @@ afterAll(async () => { if (connection.readyState === 1 && connection.name === da
 
 it('creates, isolates, edits, changes state and preserves history without direct association writes', async () => {
   const first = await service.create(global, profile('001'));
-  const other = await service.create(global, profile('002'));
+  await service.create(global, profile('002'));
   expect(first.company.email).toBe('contact@example.com');
   expect(first.company.createdBy).toBe('app-admin');
   expect(first.company.updatedBy).toBeNull();
@@ -51,7 +51,8 @@ it('creates, isolates, edits, changes state and preserves history without direct
   const history = await connection.collection('company_management_events').find({ companyId: first.company.id }).toArray();
   expect(new Set(history.map(event => event.eventId)).size).toBe(history.length);
   expect(history.every(event => event.delivered === false && event.subject && !('token' in event))).toBe(true);
-  expect(events.length).toBeGreaterThan(0);
+  expect(history.map(event => event.action)).toEqual(['COMPANY_CREATED', 'COMPANY_UPDATED', 'COMPANY_DEACTIVATED', 'COMPANY_ACTIVATED']);
+  expect(history.every(event => event.correlationId && event.afterVersion)).toBe(true);
 });
 
 it('has unique concurrent registration and rolls back a failed audit with the projection', async () => {
@@ -66,9 +67,9 @@ it('has unique concurrent registration and rolls back a failed audit with the pr
   expect(await connection.collection('organizations').countDocuments()).toBe(organizationsBefore);
 });
 
-it.each(['policy', 'status'])('serializes pending edit against confirmed %s revocation', async kind => {
+it.each(['policy', 'status'])('rejects a pending edit after a confirmed %s change', async kind => {
   await connection.collection('authorization_policies').updateOne({ _id: 'active' as never }, { $set: { grants: grantCeiling }, $inc: { version: 1 } });
-  const first = await service.create(global, profile(kind === 'policy' ? '201' : kind === 'association' ? '202' : '203'));
+  const first = await service.create(global, profile(kind === 'policy' ? '201' : '203'));
   let signal!: () => void; let resume!: () => void;
   const reached = new Promise<void>(resolve => { signal = resolve; }); const released = new Promise<void>(resolve => { resume = resolve; });
   let blocked = false;
@@ -82,7 +83,7 @@ it.each(['policy', 'status'])('serializes pending edit against confirmed %s revo
   if (kind === 'policy') await connection.collection('authorization_policies').updateOne({ _id: 'active' as never }, { $set: { grants: grantCeiling.filter(grant => grant.permission !== 'companies:update') }, $inc: { version: 1 } });
   else await service.setStatus(global, first.company.id, first.version, 'INACTIVE');
   resume();
-  expect(await outcome).toBe('FORBIDDEN');
+  expect(await outcome).toBe(kind === 'policy' ? 'FORBIDDEN' : 'COMPANY_VERSION_CONFLICT');
   expect((await service.get(global, first.company.id)).company.city).toBeNull();
   expect(await connection.collection('company_management_events').countDocuments({ companyId: first.company.id, action: 'COMPANY_UPDATED' })).toBe(0);
 });

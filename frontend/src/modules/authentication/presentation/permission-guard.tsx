@@ -18,7 +18,7 @@ export function AuthorizationFeedback({ store }: { store: AuthorizationStore }) 
   const state = useStore(store);
   // Permission reads run silently. Protected content remains gated until its
   // first decision; same-scope refreshes retain the authorized screen.
-  if (state.status === 'idle' || state.status === 'loading' || state.status === 'refreshing') return null;
+  if (state.status === 'idle' || state.status === 'loading' || state.status === 'refreshing' || state.refreshing) return null;
   if (state.status === 'denied' || state.status === 'ready') return <Stack spacing={2}><Typography component="h1" variant="h4">Acceso denegado</Typography><Alert severity="warning">Acceso denegado.</Alert></Stack>;
   return <Stack spacing={2}><Typography component="h1" variant="h4">No se pudieron verificar los permisos</Typography><Alert severity="error">{errorMessage(state.error)}</Alert><Button onClick={() => void state.refresh()}>Reintentar permisos</Button></Stack>;
 }

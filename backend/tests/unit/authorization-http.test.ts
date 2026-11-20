@@ -92,7 +92,7 @@ describe('permissions HTTP boundary', () => {
           expect(value['x-authorization-scope']).toBeDefined();
           expect(value['x-required-permissions']).toBeDefined();
         }
-      } else if (path.startsWith('/api/drivers')) {
+      } else if (path.startsWith('/api/drivers') || path.startsWith('/api/vehicles')) {
         for (const value of Object.values(contract.paths[path]) as { security: unknown; 'x-required-permissions': string[]; 'x-authorization-scope': string }[]) {
           expect(value.security).toEqual([{ bearerAuth: [] }]);
           expect(value['x-authorization-scope']).toBeDefined();

@@ -155,18 +155,6 @@
               ],
               "default": "desc"
             }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ACTIVE",
-                "INACTIVE"
-              ]
-            }
           }
         ],
         "responses": {
@@ -6978,6 +6966,1133 @@
         ],
         "x-authorization-scope": "organization limitado al tercero activo del actor."
       }
+    },
+    "/api/vehicles": {
+      "get": {
+        "operationId": "listVehicles",
+        "summary": "Listar vehículos",
+        "tags": [
+          "Vehicles"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "plate",
+                "internalNumber",
+                "propertyCardNumber",
+                "status",
+                "createdAt"
+              ],
+              "default": "plate"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Se requiere Bearer válido.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o capacidad local insuficientes.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente o ajeno, sin distinguir ambos casos.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versión obsoleta, identificador ocupado o asignación abierta.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno seguro.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleList"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "vehicles:read"
+        ],
+        "description": "Tercero explícito sin companyId. Autoridad local vigente; DRIVER requiere vehículo activo, conductor elegible y asignación propia antes de paginar. El proveedor MongoDB de asignaciones puede devolver 503 si no está disponible; una asignación activa bloquea la desactivación con 409. Propietario inmutable; sin transferencia ni gestión de asignaciones.",
+        "x-authorization-scope": "organization con thirdPartyId explícito; capacidad local y permiso vigentes."
+      },
+      "post": {
+        "operationId": "createVehicle",
+        "summary": "Crear vehículo",
+        "tags": [
+          "Vehicles"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Se requiere Bearer válido.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o capacidad local insuficientes.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente o ajeno, sin distinguir ambos casos.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versión obsoleta, identificador ocupado o asignación abierta.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno seguro.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Location": {
+                "description": "Detalle con contexto explícito.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "vehicles:create"
+        ],
+        "description": "Tercero explícito sin companyId. Autoridad local vigente; DRIVER requiere vehículo activo, conductor elegible y asignación propia antes de paginar. El proveedor MongoDB de asignaciones puede devolver 503 si no está disponible; una asignación activa bloquea la desactivación con 409. Propietario inmutable; sin transferencia ni gestión de asignaciones.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleCreate"
+              }
+            }
+          }
+        },
+        "x-authorization-scope": "organization con thirdPartyId explícito; capacidad local y permiso vigentes."
+      }
+    },
+    "/api/vehicles/{id}": {
+      "get": {
+        "operationId": "getVehicle",
+        "summary": "Consultar vehículo",
+        "tags": [
+          "Vehicles"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Se requiere Bearer válido.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o capacidad local insuficientes.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente o ajeno, sin distinguir ambos casos.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versión obsoleta, identificador ocupado o asignación abierta.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno seguro.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "vehicles:read"
+        ],
+        "description": "Tercero explícito sin companyId. Autoridad local vigente; DRIVER requiere vehículo activo, conductor elegible y asignación propia antes de paginar. El proveedor MongoDB de asignaciones puede devolver 503 si no está disponible; una asignación activa bloquea la desactivación con 409. Propietario inmutable; sin transferencia ni gestión de asignaciones.",
+        "x-authorization-scope": "organization con thirdPartyId explícito; capacidad local y permiso vigentes."
+      },
+      "patch": {
+        "operationId": "updateVehicle",
+        "summary": "Editar vehículo",
+        "tags": [
+          "Vehicles"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Se requiere Bearer válido.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o capacidad local insuficientes.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente o ajeno, sin distinguir ambos casos.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versión obsoleta, identificador ocupado o asignación abierta.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno seguro.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "vehicles:update"
+        ],
+        "description": "Tercero explícito sin companyId. Autoridad local vigente; DRIVER requiere vehículo activo, conductor elegible y asignación propia antes de paginar. El proveedor MongoDB de asignaciones puede devolver 503 si no está disponible; una asignación activa bloquea la desactivación con 409. Propietario inmutable; sin transferencia ni gestión de asignaciones.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleUpdate"
+              }
+            }
+          }
+        },
+        "x-authorization-scope": "organization con thirdPartyId explícito; capacidad local y permiso vigentes."
+      }
+    },
+    "/api/vehicles/{id}/status": {
+      "patch": {
+        "operationId": "setVehicleStatus",
+        "summary": "Cambiar estado de vehículo",
+        "tags": [
+          "Vehicles"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Solicitud inválida; cuerpos y parámetros cerrados, sin claves duplicadas.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Se requiere Bearer válido.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string",
+                  "const": "Bearer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso o capacidad local insuficientes.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Recurso inexistente o ajeno, sin distinguir ambos casos.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versión obsoleta, identificador ocupado o asignación abierta.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización, almacenamiento o proveedor de asignaciones no disponibles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno seguro.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Operación confirmada.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Respuesta privada sin caché",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehicle"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "vehicles:deactivate"
+        ],
+        "description": "Tercero explícito sin companyId. Autoridad local vigente; DRIVER requiere vehículo activo, conductor elegible y asignación propia antes de paginar. El proveedor MongoDB de asignaciones puede devolver 503 si no está disponible; una asignación activa bloquea la desactivación con 409. Propietario inmutable; sin transferencia ni gestión de asignaciones.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleStatusChange"
+              }
+            }
+          }
+        },
+        "x-authorization-scope": "organization con thirdPartyId explícito; capacidad local y permiso vigentes."
+      }
     }
   },
   "components": {
@@ -9620,6 +10735,276 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 256
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Vehicle": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "plate": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}\\d{2,3}$"
+          },
+          "internalNumber": {
+            "type": "string",
+            "pattern": "^[A-Z0-9-]{1,40}$"
+          },
+          "propertyCardNumber": {
+            "type": "string",
+            "pattern": "^[A-Z0-9-]{1,64}$"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "thirdPartyId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "updatedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "currentDriver": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ]
+              }
+            ]
+          },
+          "assignmentState": {
+            "type": "string",
+            "enum": [
+              "UNAVAILABLE",
+              "UNASSIGNED",
+              "ASSIGNED"
+            ]
+          }
+        },
+        "required": [
+          "plate",
+          "internalNumber",
+          "propertyCardNumber",
+          "id",
+          "thirdPartyId",
+          "status",
+          "version",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy",
+          "currentDriver",
+          "assignmentState"
+        ]
+      },
+      "VehicleList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Vehicle"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "total"
+        ]
+      },
+      "VehicleCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "plate": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30,
+            "pattern": "^[\\t-\\r ]*[A-Za-z0-9]{3,10}[\\t-\\r ]*$",
+            "description": "ASCII; trim y mayúsculas de servidor."
+          },
+          "internalNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "pattern": "^[\\t-\\r ]*[A-Za-z0-9-]{1,40}[\\t-\\r ]*$",
+            "description": "Identificador textual; conserva ceros iniciales."
+          },
+          "propertyCardNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 84,
+            "pattern": "^[\\t-\\r ]*[A-Za-z0-9-]{1,64}[\\t-\\r ]*$",
+            "description": "Identificador textual, no archivo; conserva ceros iniciales."
+          }
+        },
+        "required": [
+          "plate",
+          "internalNumber",
+          "propertyCardNumber"
+        ]
+      },
+      "VehicleUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "changes": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "plate": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 30,
+                "pattern": "^[\\t-\\r ]*[A-Za-z0-9]{3,10}[\\t-\\r ]*$",
+                "description": "ASCII; trim y mayúsculas de servidor."
+              },
+              "internalNumber": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60,
+                "pattern": "^[\\t-\\r ]*[A-Za-z0-9-]{1,40}[\\t-\\r ]*$",
+                "description": "Identificador textual; conserva ceros iniciales."
+              },
+              "propertyCardNumber": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 84,
+                "pattern": "^[\\t-\\r ]*[A-Za-z0-9-]{1,64}[\\t-\\r ]*$",
+                "description": "Identificador textual, no archivo; conserva ceros iniciales."
+              }
+            },
+            "required": [],
+            "minProperties": 1
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "changes"
+        ]
+      },
+      "VehicleStatusChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "status"
+        ]
+      },
+      "VehicleError": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "INVALID_REQUEST",
+                  "UNAUTHENTICATED",
+                  "FORBIDDEN",
+                  "RESOURCE_NOT_FOUND",
+                  "VEHICLE_VERSION_CONFLICT",
+                  "VEHICLE_IDENTIFIER_CONFLICT",
+                  "VEHICLE_HAS_OPEN_ASSIGNMENT",
+                  "AUTHORIZATION_UNAVAILABLE",
+                  "VEHICLE_STORAGE_UNAVAILABLE",
+                  "ASSIGNMENT_PROVIDER_UNAVAILABLE",
+                  "CONFIGURATION_ERROR",
+                  "INTERNAL_ERROR"
+                ]
+              },
+              "message": {
+                "type": "string"
               }
             },
             "required": [

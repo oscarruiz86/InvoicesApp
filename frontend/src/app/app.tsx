@@ -26,7 +26,8 @@ import { ReceivedInvitationsPage } from '@/modules/user-invitations/presentation
 import { AuthenticationLoginPage } from '@/modules/authentication/presentation/authentication-login-page';
 import { markerModules, MarkerModulePage, type MarkerModuleDefinition } from './module-registry';
 import { RouteHeadingFocus } from '@/shared/components/route-heading-focus';
-import type { DriverApi } from '@/modules/fleet/application/fleet-api';
+import { VehiclesPage } from '@/modules/fleet/presentation/vehicles-page';
+import type { DriverApi, VehicleApi } from '@/modules/fleet/application/fleet-api';
 import { FleetResourcePage } from '@/modules/fleet/presentation/fleet-resource-page';
 import type { NotificationDeliveryReadPort } from '@/modules/notifications/application/delivery-api';
 import { NotificationDeliveriesPage } from '@/modules/notifications/presentation/notification-deliveries-page';
@@ -88,7 +89,7 @@ function ShellAccountWithContext({ authentication, context }: { authentication: 
   return <AccountMenu store={authentication} context={{ activeContext: current.activeContext, openSelector: current.openSelector }} />;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, notificationDeliveries, rolePolicy }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi }) {
+export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, notificationDeliveries, rolePolicy }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const content = <><RouteHeadingFocus /><AuthenticationActions store={authentication} authorization={authorization} />
@@ -116,6 +117,7 @@ export function App({ store, authentication, authorization, organizationContext,
         <OrganizationContextGuard store={organizationContext} authorization={authorization}>
           <MarkerModuleContext module={module} context={organizationContext}>
             {module.key === 'drivers' && fleet ? <FleetResourcePage resource="drivers" api={fleet} invitationApi={invitations} context={organizationContext} authorization={authorization} />
+              : module.key === 'vehicles' && vehicles ? <VehiclesPage api={vehicles} context={organizationContext} authorization={authorization} />
               : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} />
                 : <MarkerModulePage module={module} />}
           </MarkerModuleContext>

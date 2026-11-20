@@ -22,7 +22,7 @@ void authorization.getState().setContext(scope);
 
 let driver: DriverDto = { driver: { id: '1123456789abcdef01234567', thirdPartyId: scope.thirdPartyId!, status: 'ACTIVE', version: 1,
   createdAt: '2026-01-01T12:00:00.000Z', updatedAt: '2026-01-01T12:00:00.000Z' },
-  identity: { name: 'Ana Ruiz', documentNumber: 'CC-1234', email: 'ana@example.invalid' } };
+  identity: { name: 'Ana Ruiz', documentType: 'CC', documentNumber: '1234', email: 'ana@example.invalid' } };
 const api: DriverApi = {
   listDrivers: async () => ({ items: [driver], page: 1, pageSize: 20, total: 1 }),
   getDriver: async () => driver,

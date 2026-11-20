@@ -147,7 +147,7 @@ describe('fleet resource presentation', () => {
   });
 
   it('edits and deactivates a vehicle through its existing scoped port', async () => {
-    const vehicle: VehicleDto = { id: 'vehicle-1', plate: 'ABC123', status: 'ACTIVE', currentDriver: { id: driver.driver.id, name: 'Ana Ruiz' }, version: 4 };
+    const vehicle: VehicleDto = { id: 'vehicle-1', plate: 'ABC123', internalNumber: '001', propertyCardNumber: '0001', thirdPartyId: 'a'.repeat(24), createdAt: '2026-11-19T00:00:00Z', updatedAt: '2026-11-19T00:00:00Z', createdBy: 'a', updatedBy: 'a', assignmentState: 'ASSIGNED', status: 'ACTIVE', currentDriver: { id: driver.driver.id, name: 'Ana Ruiz' }, version: 4 };
     const api = { listVehicles: vi.fn(async () => ({ items: [vehicle], page: 1, pageSize: 20, total: 1 })), listDrivers: vi.fn(), getDriver: vi.fn(),
       updateVehicle: vi.fn(async (_scope: PermissionScope, _id: string, _version: number, input: { plate: string }) => ({ ...vehicle, ...input })),
       setVehicleStatus: vi.fn(async () => ({ ...vehicle, status: 'INACTIVE' as const })), setDriverStatus: vi.fn() } as unknown as FleetApi;

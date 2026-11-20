@@ -11,7 +11,9 @@ export interface DriverListQuery {
 export interface VehicleListQuery {
   readonly page: number;
   readonly pageSize: number;
-  readonly sort: 'plate' | 'status';
+  readonly sort: 'plate' | 'internalNumber' | 'propertyCardNumber' | 'status' | 'createdAt';
+  readonly q?: string;
+  readonly status?: FleetStatus;
   readonly direction: 'asc' | 'desc';
 }
 export interface FleetPage<T> {
@@ -36,7 +38,11 @@ export interface DriverDto {
     readonly email: string | null;
   } | null;
 }
-export interface VehicleDto {
+export interface VehicleFields { readonly plate: string; readonly internalNumber: string; readonly propertyCardNumber: string }
+export interface VehicleDto extends VehicleFields {
+  readonly thirdPartyId: string;
+  readonly createdAt: string; readonly updatedAt: string; readonly createdBy: string; readonly updatedBy: string;
+  readonly assignmentState: 'UNAVAILABLE' | 'UNASSIGNED' | 'ASSIGNED';
   readonly id: string;
   readonly plate: string;
   readonly status: FleetStatus;
@@ -53,8 +59,10 @@ export interface DriverApi {
 
 /** Existing vehicle operations stay in their own contract. */
 export interface VehicleApi {
+  createVehicle(scope: PermissionScope, fields: VehicleFields, signal: AbortSignal): Promise<VehicleDto>;
+  getVehicle(scope: PermissionScope, id: string, signal: AbortSignal): Promise<VehicleDto>;
   listVehicles(scope: PermissionScope, query: VehicleListQuery, signal: AbortSignal): Promise<FleetPage<VehicleDto>>;
-  updateVehicle(scope: PermissionScope, id: string, version: number, input: { readonly plate: string }, signal: AbortSignal): Promise<VehicleDto>;
+  updateVehicle(scope: PermissionScope, id: string, version: number, input: Partial<VehicleFields>, signal: AbortSignal): Promise<VehicleDto>;
   setVehicleStatus(scope: PermissionScope, id: string, version: number, status: FleetStatus, signal: AbortSignal): Promise<VehicleDto>;
 }
 export interface FleetApi extends DriverApi, VehicleApi {}

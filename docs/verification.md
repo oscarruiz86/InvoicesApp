@@ -160,3 +160,49 @@ Se completó la alineación visual de Conductores con el patrón de Empresas: to
 | OpenSpec | `openspec validate implement-driver-management --strict --no-interactive` aprobado; 19/19 tareas completas. |
 
 La integración MongoDB no se repitió durante este cierre porque la sesión no tenía `MONGODB_TEST_URI`; las ejecuciones focales con replica set y base terminada en `_test` quedan documentadas arriba. No se migraron datos operativos, ni se hizo commit, push, merge, despliegue o PR.
+
+## Vehículos — verificación completada el 20 de noviembre de 2026
+
+Cambio `implement-vehicle-management`, implementado en `openspec/implement-vehicle-management` desde `development` (base `480f3ce`). Se completaron dominio, persistencia e historial transaccionales, inventario de solo lectura, REST/OpenAPI, pantalla Fleet y verificación de regresión. No se añadieron dependencias de aplicación ni grants.
+
+| Comprobación | Resultado |
+| --- | --- |
+| `npm --prefix backend run check` | Aprobado: lint, typecheck, 404 pruebas unitarias en 36 archivos y arquitectura con comprobaciones negativas. Quedan advertencias de lint existentes, sin errores. |
+| `npm --prefix backend run test:integration:prepared` | Aprobado: ejecuta `test:integration` con MongoDB y Keycloak efímeros reales; 51/51 pruebas, 13/13 archivos, sin omisiones. Incluye los 8 casos transaccionales de Vehículos y la retención de notificaciones, ahora habilitada en la fixture aislada. |
+| `npm --prefix backend run test:http:prepared` | Aprobado: ejecuta `test:http` sobre el standalone preparado y MongoDB temporal. Verifica Next/OpenAPI/Swagger, JWT y errores de configuración; Vehículos usa JWT firmado, JWKS HTTPS con CA efímera y bases `vehicle_http_*_test`. Alta 201/Location, normalización, cuerpos/parámetros cerrados, búsqueda, versiones, duplicados y 503 del proveedor ausente aprobados. |
+| `npm --prefix backend run openapi:lint` | Aprobado: OpenAPI 3.1, rutas protegidas y esquemas coherentes con la normalización ASCII. |
+| `npm --prefix frontend run check` | Aprobado: lint sin errores, typecheck, 170/170 pruebas unitarias en 27 archivos y arquitectura con comprobaciones negativas. Windows usa un solo proceso aislado; no se ampliaron timeouts. |
+| `npm --prefix frontend run build` | Aprobado; permanece la advertencia existente sobre el tamaño de chunk. |
+| `npm --prefix frontend run test:e2e:prepared` | Aprobado: ejecuta `test:e2e` con Vite y backend standalone en puertos temporales; 30/30 escenarios. Incluye Vehículos y Conductores a 360/1280 px, invitaciones, teclado, foco, ausencia de overflow, cambios de contexto, conflictos y rechazo DRIVER por Assignments ausente. Swagger y health atraviesan el proxy real. |
+| OpenSpec y diff | `openspec validate implement-vehicle-management --strict --no-interactive` y `git diff --check` aprobados; 21/21 tareas completas. |
+
+### Correcciones necesarias para la regresión
+
+Las pruebas de Conductores ahora simulan la denegación desde autorización local y verifican que no se consulta el repositorio. Sus E2E cubren tabla de escritorio, tarjetas móviles y detalle en diálogo, además de conservar la prueba de URL directa. Las identidades de prueba separan tipo y número de documento.
+
+La integración de Empresas verifica los cuatro eventos duraderos de la transacción, correlación y versiones, en vez de esperar una llamada de auditoría externa durante operaciones permitidas. La carrera de política sigue exigiendo FORBIDDEN; una modificación de estado con autoridad global vigente exige COMPANY_VERSION_CONFLICT. En ambos casos se verifica que no persiste la edición ni su evento.
+
+La fixture Keycloak resuelve la URL base antes de importar el realm y obtiene la identidad creada mediante Location, sin suponer que el servidor conserva el username previo a su normalización. Las cuatro pruebas aisladas de membresías aprobaron; no se modificó la pantalla ni se ampliaron timeouts. Vitest utiliza un solo proceso aislado en Windows para evitar el fallo observado al iniciar un worker de threads; en otras plataformas conserva threads.
+
+### Reproducción y aislamiento
+
+Los ejecutores preparados requieren Docker; HTTP también requiere OpenSSL. El backend standalone debe estar compilado antes de HTTP y E2E. No contienen credenciales persistentes: crean servicios, claves y configuración temporales y los retiran al terminar.
+
+```powershell
+npm --prefix backend run build
+npm --prefix backend run check
+npm --prefix backend run test:integration:prepared
+npm --prefix backend run test:http:prepared
+npm --prefix backend run openapi:lint
+npm --prefix frontend run check
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e:prepared
+```
+
+Todas las escrituras Mongo de integración se realizan en bases de prueba, con nombres aislados y sufijo `_test`. Las fixtures limpian sus bases/contenedores. El E2E de health/OpenAPI/Swagger no abre una base de datos; sus escenarios de negocio usan harnesses explícitos. El flujo HTTP de Vehículos sí usa MongoDB real. En este workspace sincronizado fue necesario regenerar únicamente `.next` por un EPERM de Windows en la salida standalone; el build posterior aprobó.
+
+### Límites acreditados
+
+El bootstrap usa el proveedor MongoDB `vehicle_assignments`. DRIVER y la desactivación devuelven 503 si la fuente no está disponible; una asignación activa devuelve 409 y conserva el vehículo activo. Alta, lectura y edición administrativas funcionan. La reactivación no restaura asignaciones. `VehicleFactsReader` informa elegibilidad por estado; no hay transferencia ni CRUD de asignaciones en este cambio. `vehicle_management_events` es historial local duradero, sin acreditar Audit transversal ni escrituras de facturas.
+
+No se migraron datos funcionales ni se crearon índices en bases operativas. No se modificó un Keycloak persistente. Cambios preparados para revisión, sin commit, push, merge, despliegue, PR ni archivo de OpenSpec.

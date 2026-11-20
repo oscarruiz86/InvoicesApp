@@ -54,6 +54,8 @@ export async function createRealmFixture(base, adminUsername, adminPassword, ori
   const template = JSON.parse(await readFile(new URL('../keycloak/invoices-realm.json', import.meta.url), 'utf8'));
   const userProfile = JSON.parse(await readFile(new URL('../keycloak/invoices-user-profile.json', import.meta.url), 'utf8'));
   template.realm = realm;
+  // Admin API imports do not expand container environment placeholders.
+  template.clients[0].baseUrl = `${origins[0] ?? base}/login`;
   template.clients[0].redirectUris = origins.map(origin => `${origin}/auth/callback`);
   template.clients[0].webOrigins = origins;
   template.clients[0].attributes['post.logout.redirect.uris'] = origins.map(origin => `${origin}/`).join('##');
@@ -110,8 +112,13 @@ export async function createRealmFixture(base, adminUsername, adminPassword, ori
       assert.deepEqual(mapped.map(role => role.name).sort(), ['query-users', 'view-users']);
       const targetName = `company-admin-${randomBytes(4).toString('hex')}`;
       const targetPassword = randomBytes(32).toString('base64url');
-      assert.equal((await admin(`${realm}/users`, { method: 'POST', body: JSON.stringify({ username: targetName, enabled: true, email: 'company@example.invalid', emailVerified: true, firstName: 'Company', lastName: 'Administrator', credentials: [{ type: 'password', value: targetPassword, temporary: false }] }) })).status, 201);
-      const [target] = await (await admin(`${realm}/users?username=${targetName}&exact=true`)).json();
+      const createdTarget = await admin(`${realm}/users`, { method: 'POST', body: JSON.stringify({ username: targetName, enabled: true, email: 'company@example.invalid', emailVerified: true, firstName: 'Company', lastName: 'Administrator', credentials: [{ type: 'password', value: targetPassword, temporary: false }] }) });
+      assert.equal(createdTarget.status, 201);
+      // The realm may canonicalize usernames to email. Use the identity returned by creation.
+      const targetId = createdTarget.headers.get('location')?.split('/').at(-1);
+      assert(targetId, 'Created directory fixture must provide a Location');
+      const target = await (await admin(`${realm}/users/${encodeURIComponent(targetId)}`)).json();
+      assert.equal(target.id, targetId);
       const role = await (await admin(`${realm}/roles/COMPANY_ADMIN`)).json();
       assert.equal((await admin(`${realm}/users/${target.id}/role-mappings/realm`, { method: 'POST', body: JSON.stringify([role]) })).status, 204);
       return { clientId, clientSecret, subject: target.id, username: targetName, password: targetPassword };

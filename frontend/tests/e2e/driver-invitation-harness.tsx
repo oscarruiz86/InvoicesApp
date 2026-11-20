@@ -33,7 +33,7 @@ let receivedStatus: 'PENDING' | 'ACCEPTED' = 'PENDING';
 const provisionDriver = () => {
   driver = { driver: { id: '1123456789abcdef01234567', thirdPartyId: scope.thirdPartyId!, status: 'ACTIVE', version: 1,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-    identity: { name: 'Camila Conductora', documentNumber: 'CC-87654321', email: preview.recipientEmail } };
+    identity: { name: 'Camila Conductora', documentType: 'CC', documentNumber: '87654321', email: preview.recipientEmail } };
 };
 const driverApi: DriverApi = {
   listDrivers: async () => ({ items: driver ? [driver] : [], page: 1, pageSize: 20, total: driver ? 1 : 0 }),

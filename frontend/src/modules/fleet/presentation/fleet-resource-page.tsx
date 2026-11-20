@@ -104,7 +104,7 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
           setDataGeneration(contextGeneration);
         }
       } else if (resource === 'drivers') {
-        const query: DriverListQuery = { page, pageSize: driverSearch.trim() ? 100 : pageSize, sort: sort === 'plate' ? 'createdAt' : sort, direction, ...(driverStatus ? { status: driverStatus } : {}) };
+        const query: DriverListQuery = { page, pageSize: driverSearch.trim() ? 100 : pageSize, sort: sort === 'status' ? 'status' : 'createdAt', direction, ...(driverStatus ? { status: driverStatus } : {}) };
         const response = await driverApi!.listDrivers(capture.scope, query, capture.signal);
         if (mounted.current && capture.isCurrent() && current === generation.current) {
           setResult(response);
