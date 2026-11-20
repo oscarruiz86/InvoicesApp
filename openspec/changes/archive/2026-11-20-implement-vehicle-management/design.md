@@ -38,9 +38,9 @@ Toda mutación confirma en transacción MongoDB la versión de política, member
 
 ### Asignaciones y desactivación
 
-Definir AssignmentAccessReader que distingue evidencia confirmada (con revisión) de indisponibilidad. DRIVER necesita Vehicle ACTIVE, DriverFactsReader elegible y asignación propia activa del mismo tercero; filtrar antes de conteo/paginación. currentDriver procede únicamente de ese proveedor. Hasta existir un proveedor real, DRIVER devuelve 503 y currentDriver es null con assignmentState UNAVAILABLE, sin fabricar una asignación.
+Definir AssignmentAccessReader que distingue evidencia confirmada (con revisión) de indisponibilidad. DRIVER necesita Vehicle ACTIVE, DriverFactsReader elegible y asignación propia activa del mismo tercero; filtrar antes de conteo/paginación. currentDriver procede únicamente de ese proveedor. El proveedor MongoDB consulta `vehicle_assignments`, valida los documentos y devuelve 503 ante indisponibilidad o datos inválidos, sin fabricar una asignación.
 
-La desactivación exige evidencia confirmada de ausencia de asignación abierta, coordinada atómicamente con el escritor de asignaciones. Mientras falte el proveedor real, esa transición devuelve 503: no se presume que no hay asignaciones. Se implementan y prueban puertos con dobles, pero la aceptación de integración real queda pendiente del cambio de asignaciones. Alta, lectura y edición administrativas sí funcionan independientemente. Un estado INACTIVE preexistente puede reactivarse con autoridad y versión vigentes; no restaura asignaciones.
+La desactivación exige evidencia confirmada de ausencia de asignación abierta, coordinada atómicamente con la confirmación MongoDB dentro de la transacción del vehículo. Una asignación activa devuelve 409 y conserva el vehículo activo; una base inaccesible o un documento inválido devuelve 503. Alta, lectura y edición administrativas funcionan sin asignaciones abiertas. Un estado INACTIVE preexistente puede reactivarse con autoridad y versión vigentes; no restaura asignaciones.
 
 Transferencia de tercero se difiere al cambio de asignaciones porque requiere autoridad sobre origen/destino y cierre temporal que no está implementado. No hay endpoint de transferencia ni thirdPartyId editable. Facturas y referencias históricas nunca se reescriben. La prevención de doble asignación y la coordinación con desactivación serán invariantes del futuro escritor, no garantías acreditadas con dobles de este incremento.
 
@@ -50,7 +50,7 @@ Extender VehicleApi/VehicleDto, transporte protegido con rutas cerradas, alta/de
 
 ## Risks / Trade-offs
 
-- [Desactivación depende de Assignments] → fail-closed 503 explícito; la revisión debe aceptar esta limitación hasta disponer del proveedor real.
+- [Escritores de Assignments aún no forman parte de este cambio] → el contrato de persistencia es `vehicle_assignments`; cualquier escritor futuro debe coordinar su revisión con la confirmación transaccional de vehículos.
 - [Unicidad global revela que un identificador está ocupado] → conflicto genérico sin propietario ni datos; no hay consulta pública de existencia.
 - [Formato de placa demasiado limitado para futuros tipos] → reglas acotadas propuestas arriba; ampliar exige revisión funcional, no relajación silenciosa.
 - [Cambios activos de autorización/contexto] → reutilizar contratos vigentes y no completar sus tareas pendientes por inferencia.
