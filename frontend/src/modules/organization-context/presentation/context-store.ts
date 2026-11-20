@@ -2,7 +2,7 @@ import { createStore } from 'zustand/vanilla';
 import { ApplicationError, type ErrorCode } from '@/shared/application/application-error';
 import { sameScope } from '@/modules/authentication/domain/permissions';
 import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
-import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
+import { authorizationAvailable, type AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import type { ContextApi, ContextPreference, ResolutionReason, SessionCleanupChannel } from '../application/context-ports';
 import { scopeOf, selectionOf, type AvailableContexts, type ContextSelection, type ResolvedContext } from '../domain/context';
 
@@ -66,7 +66,7 @@ export function createContextStore(deps: { api: ContextApi; preference: ContextP
         if (auth.status !== 'ready' || !auth.snapshot || auth.snapshot.subject !== owner || !sameScope(auth.scope, scopeOf(selection)) || !auth.snapshot.permissions.length) throw new ApplicationError(auth.error ?? 'FORBIDDEN');
         // Role metadata and permission state must describe the same revisions.
         if (auth.snapshot.policyVersion !== context.authorization.policyVersion || auth.snapshot.contextRevision !== context.authorization.contextRevision) throw new ApplicationError('UNAVAILABLE');
-        set({ activeContext: { ...context, authorization: auth.snapshot }, status: 'ready', error: undefined,
+        set({ activeContext: { ...context, roles: auth.snapshot.roles, authorization: auth.snapshot }, status: 'ready', error: undefined,
           persistent: deps.preference.write(owner, selection) });
       } catch (error) { if (valid()) failure(error); }
     },
@@ -110,8 +110,30 @@ export function createContextStore(deps: { api: ContextApi; preference: ContextP
       store.setState({ activeContext: null, status: 'error', error: state.error ?? 'FORBIDDEN' });
       invalidate(); deps.preference.clear(); return;
     }
-    if (state.status === 'ready' && state.snapshot && (state.snapshot.policyVersion !== context.authorization.policyVersion || state.snapshot.contextRevision !== context.authorization.contextRevision)) {
-      void store.getState().select(selectionOf(context), 'RESTORE');
+    if (state.status === 'ready' && state.snapshot) {
+      if (state.snapshot.subject !== identity() || !sameScope(state.snapshot.scope, scopeOf(context))) {
+        store.setState({ activeContext: null, status: 'error', error: 'FORBIDDEN' });
+        invalidate(); deps.preference.clear(); return;
+      }
+      const sameValues = (left: readonly string[], right: readonly string[]) =>
+        left.length === right.length && left.every(value => right.includes(value));
+      const sameAuthority = sameValues(state.snapshot.roles, context.roles)
+        && sameValues(state.snapshot.permissions, context.authorization.permissions);
+      if (!sameAuthority) {
+        // A real grant change can narrow row-level access. Clear old data and
+        // require an explicit selection, but never resolve/restore automatically
+        // in response to a permissions query.
+        current?.abort(); requests.forEach(controller => controller.abort()); requests.clear();
+        participants.forEach(participant => participant.clear());
+        deps.preference.clear();
+        store.setState(value => ({ activeContext: null, status: 'selecting', generation: value.generation + 1 }));
+        return;
+      }
+      if (state.snapshot.policyVersion !== context.authorization.policyVersion || state.snapshot.contextRevision !== context.authorization.contextRevision) {
+        // Timestamps/revision metadata alone do not change the selected
+        // organization. Keep page data and only replace the authorization evidence.
+        store.setState({ activeContext: { ...context, roles: state.snapshot.roles, authorization: state.snapshot } });
+      }
     }
   });
   const unsubscribeChannel = deps.channel.subscribe(() => { remoteCleanup = true; cleanup(false); deps.invalidateSession(); remoteCleanup = false; });
@@ -122,8 +144,8 @@ export function createContextStore(deps: { api: ContextApi; preference: ContextP
     capture() {
       const state = store.getState(); const auth = deps.authorization.getState();
       const sameAuthorizedContext = Boolean(state.activeContext && auth.snapshot && sameScope(auth.scope, scopeOf(state.activeContext)));
-      const authorizationAvailable = auth.status === 'ready' || (auth.status === 'refreshing' && sameAuthorizedContext);
-      if (state.status !== 'ready' || !state.activeContext || !authorizationAvailable || !sameAuthorizedContext) throw new ApplicationError('FORBIDDEN');
+      const available = authorizationAvailable(auth);
+      if (state.status !== 'ready' || !state.activeContext || !available || !sameAuthorizedContext) throw new ApplicationError('FORBIDDEN');
       const generation = state.generation; const owner = identity(); const controller = new AbortController(); requests.add(controller);
       return { scope: { ...scopeOf(state.activeContext) }, signal: controller.signal,
         isCurrent: () => !disposed && !controller.signal.aborted && generation === store.getState().generation && owner === identity() && store.getState().status === 'ready',

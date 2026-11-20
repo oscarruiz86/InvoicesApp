@@ -9,7 +9,7 @@ let connection: Connection | undefined;
 beforeAll(async () => {
   if (!sourceUri) return;
   const uri = new URL(sourceUri);
-  uri.pathname = `/notifications_retention_test_${process.pid}_${Date.now()}`;
+  uri.pathname = `/notifications_retention_${process.pid}_${Date.now()}_test`;
   connection = await mongoose.createConnection(uri.toString(), { serverSelectionTimeoutMS: 5000 }).asPromise();
 });
 afterAll(async () => {

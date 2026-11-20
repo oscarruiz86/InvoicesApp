@@ -77,3 +77,7 @@ Vitest frontend usa un único thread aislado: los forks jsdom concurrentes agota
 `THIRD_PARTY_ADMIN` puede consultar y cambiar estado de conductores en su tercero con `drivers:read` y `drivers:deactivate`. `DRIVER` conserva `drivers:read` en ámbito propio y el backend filtra por su subject y membership activa. Las rutas exigen `scope=organization` y `thirdPartyId`; no hay acceso por empresa o global a esta API. `drivers:update` sigue en el catálogo, pero no habilita edición de identidad mientras no se aprueben campos operativos.
 
 La aceptación de invitación y los cambios de rol sincronizan membership, asociación, Driver e historial en transacción; no cambian Keycloak. La identidad canónica solo se proyecta desde Identity y puede ser nula. Ver [contrato y migración de conductores](driver-management.md).
+
+## Vehículos
+
+La API de vehículos exige contexto de tercero, permiso vigente y capacidades locales efectivas; no confía en roles locales del JWT. Las mutaciones revalidan política, membership, asociación y tercero en transacción con historial duradero. DRIVER falla con 503 si el proveedor MongoDB de asignaciones no está disponible; la desactivación confirma ausencia de asignaciones activas y responde 409 si encuentra una. Véase [Gestión de vehículos](vehicle-management.md) para formatos, unicidad, puertos y límites de integración.

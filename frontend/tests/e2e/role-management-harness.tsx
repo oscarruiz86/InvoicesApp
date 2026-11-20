@@ -35,7 +35,7 @@ const permissionsFor = (scope: PermissionScope) => scope.kind === 'global'
   : [];
 const snapshotFor = (scope: PermissionScope): PermissionsSnapshot => ({ subject: 'browser-test', scope, roles: scope.kind === 'global' ? ['APP_ADMIN'] : [], permissions: permissionsFor(scope), policyVersion: version, contextRevision: null, evaluatedAt: new Date().toISOString(), refreshAfterSeconds: 30 });
 const authorization = Object.assign(createStore<AuthorizationState>((set, get) => ({
-  status: 'ready', scope: globalScope, snapshot: snapshotFor(globalScope), expiresAt: Date.now() + 30_000,
+  status: 'ready', refreshing: false, scope: globalScope, snapshot: snapshotFor(globalScope), expiresAt: Date.now() + 30_000,
   refresh: async () => {},
   setContext: async scope => set({ status: 'ready', scope, snapshot: snapshotFor(scope), expiresAt: Date.now() + 30_000, error: undefined }),
   invalidate: () => set({ status: 'idle', snapshot: null, expiresAt: 0 }),
