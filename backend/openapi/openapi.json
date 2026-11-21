@@ -9521,9 +9521,6 @@
           }
         ],
         "responses": {
-          "403": {
-            "description": "Sin permiso"
-          },
           "200": {
             "description": "Campos normalizados",
             "content": {
@@ -9534,14 +9531,17 @@
               }
             }
           },
-          "413": {
-            "description": "Contenido demasiado grande"
-          },
           "400": {
             "description": "QR incompleto, inválido o incompatible"
           },
           "401": {
             "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso"
+          },
+          "413": {
+            "description": "Contenido demasiado grande"
           }
         },
         "tags": [
@@ -9637,12 +9637,6 @@
           }
         ],
         "responses": {
-          "409": {
-            "description": "Factura duplicada"
-          },
-          "401": {
-            "description": "No autenticado"
-          },
           "201": {
             "description": "Factura QR registrada",
             "content": {
@@ -9656,8 +9650,14 @@
           "400": {
             "description": "QR inválido"
           },
+          "401": {
+            "description": "No autenticado"
+          },
           "403": {
             "description": "Sin permiso"
+          },
+          "409": {
+            "description": "Factura duplicada"
           },
           "413": {
             "description": "Contenido demasiado grande"
@@ -9672,6 +9672,306 @@
           "invoices:create"
         ],
         "x-authorization-scope": "organization thirdPartyId"
+      }
+    },
+    "/api/parameters": {
+      "get": {
+        "operationId": "listFunctionalParameters",
+        "summary": "Consultar catálogo de parámetros inicializados",
+        "tags": [
+          "Configuration"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "global"
+            },
+            "description": "Solo contexto global."
+          }
+        ],
+        "x-required-permissions": [
+          "parameters:read"
+        ],
+        "x-authorization-scope": "global",
+        "responses": {
+          "200": {
+            "description": "Operación completada."
+          },
+          "400": {
+            "description": "Solicitud inválida."
+          },
+          "401": {
+            "description": "Autenticación requerida."
+          },
+          "403": {
+            "description": "Permiso o contexto insuficiente."
+          },
+          "404": {
+            "description": "Parámetro ausente."
+          },
+          "503": {
+            "description": "Configuration no disponible."
+          }
+        }
+      }
+    },
+    "/api/parameters/{key}": {
+      "get": {
+        "operationId": "getFunctionalParameter",
+        "summary": "Consultar parámetro",
+        "tags": [
+          "Configuration"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "invoice.manual-edit-window-seconds"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "global"
+            },
+            "description": "Solo contexto global."
+          }
+        ],
+        "x-required-permissions": [
+          "parameters:read"
+        ],
+        "x-authorization-scope": "global",
+        "responses": {
+          "200": {
+            "description": "Operación completada."
+          },
+          "400": {
+            "description": "Solicitud inválida."
+          },
+          "401": {
+            "description": "Autenticación requerida."
+          },
+          "403": {
+            "description": "Permiso o contexto insuficiente."
+          },
+          "404": {
+            "description": "Parámetro ausente."
+          },
+          "503": {
+            "description": "Configuration no disponible."
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateFunctionalParameter",
+        "summary": "Actualizar valor de parámetro",
+        "tags": [
+          "Configuration"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "invoice.manual-edit-window-seconds"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "global"
+            },
+            "description": "Solo contexto global."
+          }
+        ],
+        "x-required-permissions": [
+          "parameters:update"
+        ],
+        "x-authorization-scope": "global",
+        "responses": {
+          "200": {
+            "description": "Parámetro actualizado o sin cambios."
+          },
+          "400": {
+            "description": "Valor inválido."
+          },
+          "401": {
+            "description": "Autenticación requerida."
+          },
+          "403": {
+            "description": "Permiso o contexto insuficiente."
+          },
+          "404": {
+            "description": "Parámetro no inicializado."
+          },
+          "409": {
+            "description": "La versión enviada ya no es vigente."
+          },
+          "503": {
+            "description": "No se pudo confirmar el cambio y su evento."
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expectedVersion",
+                  "value"
+                ],
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 31536000
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parameters/{key}/history": {
+      "get": {
+        "operationId": "getFunctionalParameterHistory",
+        "summary": "Consultar historial de cambios",
+        "tags": [
+          "Configuration"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "invoice.manual-edit-window-seconds"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "global"
+            },
+            "description": "Solo contexto global."
+          }
+        ],
+        "x-required-permissions": [
+          "parameters:read"
+        ],
+        "x-authorization-scope": "global",
+        "responses": {
+          "200": {
+            "description": "Operación completada."
+          },
+          "400": {
+            "description": "Solicitud inválida."
+          },
+          "401": {
+            "description": "Autenticación requerida."
+          },
+          "403": {
+            "description": "Permiso o contexto insuficiente."
+          },
+          "404": {
+            "description": "Parámetro ausente."
+          },
+          "503": {
+            "description": "Configuration no disponible."
+          }
+        }
       }
     }
   },

@@ -233,3 +233,29 @@ MONGODB_TEST_URI=mongodb://127.0.0.1:<puerto>/<base>_test?replicaSet=<nombre> np
 ```
 
 La suite de integración completa también requiere variables de fixture efímera de Keycloak. Las transacciones no funcionan sobre Mongo standalone.
+
+# Parameter management — 2026-11-21
+
+## Verificación ejecutada
+
+| Comando | Resultado |
+| --- | --- |
+| `npm --prefix backend run typecheck` | Correcto. |
+| `npm --prefix backend test` | 49 archivos, 450 pruebas correctas. |
+| `npm --prefix backend run build` | Correcto; incluye las tres rutas de parámetros. |
+| `npm --prefix backend run openapi:lint` | Correcto; OpenAPI 3.1 válido. |
+| `npm --prefix frontend run lint` | Correcto, con 14 advertencias React Hooks en módulos existentes. |
+| `npm --prefix frontend run typecheck` | Correcto. |
+| `npm --prefix frontend test -- --maxWorkers=4` | 35 archivos, 205 pruebas correctas. |
+| `npm --prefix frontend run test:architecture` | Correcto; verificaciones negativas de frameworks, aliases/reexports y ciclos aprobadas. |
+| `npm --prefix frontend run build` | Correcto; Vite informa bundle mayor a 500 kB. |
+| `openspec validate implement-parameter-management --strict` | Correcto. |
+
+## Pendiente
+
+- `npm --prefix backend run test:architecture` detecta una violación ajena a Configuration: `src/modules/invoices/domain/invoice-qr.ts` importa `crypto`, prohibido por `domain-is-pure`.
+- Las pruebas de integración Mongo están preparadas en `backend/tests/integration/configuration-parameters.test.ts`, pero no se ejecutaron: `MONGODB_TEST_URI` no está configurada y el daemon Docker no está disponible para iniciar el replica set aislado.
+- No se ejecutó `npm --prefix frontend run test:e2e`; falta un harness E2E específico del módulo.
+- `parameters:inventory` y `parameters:init` no se ejecutaron contra ninguna base. Son operaciones explícitas que deben ejercerse con una base aislada o en el despliegue autorizado.
+
+El cambio no se archiva mientras estas verificaciones y las tareas OpenSpec restantes estén pendientes. No se migraron datos ni se inicializó una base operativa.

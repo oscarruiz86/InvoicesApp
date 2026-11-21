@@ -28,4 +28,4 @@ backend/public/docs-assets/
 # OS metadata
 .DS_Store
 Thumbs.db
-next-env.d.ts
+**/next-env.d.ts
