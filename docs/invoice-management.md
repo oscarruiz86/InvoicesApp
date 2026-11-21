@@ -49,7 +49,7 @@ El backend usa `sharp` 0.35.5, ya presente en el lockfile de Next, como dependen
 
 ## Estado de despliegue
 
-Las rutas de facturas deben iniciar con edición deshabilitada mientras Configuration no provea una política temporal efectiva. Habilitar PATCH requiere un adaptador de Configuration que entregue duración positiva, ámbito, revisión y vigencia para el tercero, más confirmación transaccional de esa revisión al persistir. Cada edición vuelve a evaluar la política vigente contra `createdAt`; el límite es exclusivo y no se guarda una duración por factura. Sin ese proveedor, PATCH devuelve `EDIT_POLICY_UNAVAILABLE` (HTTP 503), mientras altas y lecturas siguen operativas.
+La ventana procede del parámetro global `invoice.manual-edit-window-seconds` administrado en [parameter-management.md](parameter-management.md). Se inicializa explícitamente con 43.200 segundos y no hay respaldo de ejecución: si falta o no es válido, PATCH devuelve `EDIT_POLICY_UNAVAILABLE` (HTTP 503), mientras altas y lecturas siguen operativas. Cada edición confirma la revisión dentro de la misma transacción y evalúa el límite exclusivo contra `createdAt` con reloj de servidor después de esa confirmación. El cambio afecta también facturas existentes sin reescribir fechas. QR sigue inmutable (`QR_IMMUTABLE`) y se rechaza antes de consultar la política; esta implementación no declara terminado el cambio OpenSpec de escaneo QR.
 
 Antes de instalar índices, ejecutar inventario de solo lectura sobre las colecciones objetivo y bloquear la inicialización si aparecen datos incompatibles. La persistencia requiere replica set para transacciones. El rollback deshabilita rutas y UI y conserva documentos, imágenes y eventos; no elimina datos ni cambia Keycloak.
 

@@ -16,7 +16,7 @@ type Row = Record<string, unknown>;
 export class InvoiceRepositoryError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'RESOURCE_NOT_FOUND' | 'INVOICE_VERSION_CONFLICT' | 'INVOICE_DUPLICATE'
     | 'IDEMPOTENCY_CONFLICT' | 'INVOICE_MIGRATION_REQUIRED' | 'INVOICE_STORAGE_UNAVAILABLE' | 'INVOICE_AUDIT_UNAVAILABLE'
-    | 'ASSIGNMENT_NOT_ELIGIBLE' | 'ASSIGNMENT_EVIDENCE_UNAVAILABLE' | 'AUTHORIZATION_UNAVAILABLE' | 'EDIT_POLICY_UNAVAILABLE' | 'FORBIDDEN') { super(code); }
+    | 'ASSIGNMENT_NOT_ELIGIBLE' | 'ASSIGNMENT_EVIDENCE_UNAVAILABLE' | 'AUTHORIZATION_UNAVAILABLE' | 'EDIT_POLICY_UNAVAILABLE' | 'EDIT_WINDOW_CLOSED' | 'FORBIDDEN') { super(code); }
 }
 
 export interface InvoiceTransactionPorts {
@@ -71,6 +71,7 @@ function mapError(error: unknown): never {
   if (code === 'FORBIDDEN') throw new InvoiceRepositoryError('FORBIDDEN');
   if (code === 'AUTHORIZATION_UNAVAILABLE' || code === 'POLICY_UNAVAILABLE') throw new InvoiceRepositoryError('AUTHORIZATION_UNAVAILABLE');
   if (code === 'EDIT_POLICY_UNAVAILABLE') throw new InvoiceRepositoryError('EDIT_POLICY_UNAVAILABLE');
+  if (code === 'EDIT_WINDOW_CLOSED') throw new InvoiceRepositoryError('EDIT_WINDOW_CLOSED');
   if (code === 'ASSIGNMENT_NOT_ELIGIBLE' || code === 'ASSIGNMENT_EVIDENCE_UNAVAILABLE' || code === 'ASSIGNMENT_VERSION_CONFLICT')
     throw new InvoiceRepositoryError(code === 'ASSIGNMENT_VERSION_CONFLICT' ? 'ASSIGNMENT_NOT_ELIGIBLE' : code);
   if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
@@ -248,9 +249,13 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
           requiredRole: input.authority.roles.includes('DRIVER') ? 'DRIVER' : 'THIRD_PARTY_ADMIN', transactionContext: { connection, session } });
         await ports.editPolicy.confirm({ thirdPartyId: input.current.thirdPartyId, revision: input.editPolicy.revision,
           scope: input.editPolicy.scope, transactionContext: { connection, session } });
+        const decisionAt = new Date();
+        if (decisionAt < input.editPolicy.validFrom || (input.editPolicy.validUntil && decisionAt >= input.editPolicy.validUntil)) throw new InvoiceRepositoryError('EDIT_POLICY_UNAVAILABLE');
+        if (decisionAt.getTime() >= input.current.createdAt.getTime() + input.editPolicy.durationSeconds * 1000) throw new InvoiceRepositoryError('EDIT_WINDOW_CLOSED');
         const filter = { _id: new Types.ObjectId(input.current.id), thirdPartyId: input.current.thirdPartyId, version: input.expectedVersion,
           ...(input.authority.roles.includes('DRIVER') ? { ownerSubject: input.actorSubject } : {}) };
-        const result = await connection.collection(collectionName).replaceOne(filter, { ...encode(input.next), businessKey: normalizedInvoiceBusinessKey(input.next.issuerNit, input.next.invoiceNumber) }, { session });
+        const committed = { ...input.next, updatedAt: decisionAt };
+        const result = await connection.collection(collectionName).replaceOne(filter, { ...encode(committed), businessKey: normalizedInvoiceBusinessKey(input.next.issuerNit, input.next.invoiceNumber) }, { session });
         if (result.modifiedCount !== 1) throw new InvoiceRepositoryError('INVOICE_VERSION_CONFLICT');
         if (input.image) {
           if (input.current.imageId) await connection.collection(imageCollectionName).deleteOne({ _id: new Types.ObjectId(input.current.imageId), invoiceId: input.current.id }, { session });
@@ -262,11 +267,11 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
         if (changedFields.length) {
           try { await ports.audit.record({ eventId: randomUUID(), correlationId: input.correlationId, action: 'INVOICE_UPDATED',
             actorSubject: input.actorSubject, invoiceId: input.current.id, thirdPartyId: input.current.thirdPartyId,
-            at: input.next.updatedAt.toISOString(), changedFields }); }
+            at: decisionAt.toISOString(), changedFields }); }
           catch { throw new InvoiceRepositoryError('INVOICE_AUDIT_UNAVAILABLE'); }
         }
         const row = await connection.collection(collectionName).findOne({ _id: new Types.ObjectId(input.current.id), thirdPartyId: input.current.thirdPartyId }, { session });
-        return row ? decode(row as Row) : input.next;
+        return row ? decode(row as Row) : committed;
       });
     },
   };

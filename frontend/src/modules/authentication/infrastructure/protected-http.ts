@@ -35,6 +35,11 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if ((method === 'GET' && body !== undefined) || (method === 'PUT' && body === undefined)) throw new ApplicationError('CONFIGURATION');
       return request('roles', query, signal, body, method);
     },
+    parameter(method: 'GET' | 'PATCH', path: string, query = 'scope=global', body?: unknown, signal?: AbortSignal): Promise<unknown> {
+      const valid = /^(?:parameters|parameters\/[A-Za-z0-9._-]{1,128}|parameters\/[A-Za-z0-9._-]{1,128}\/history)$/.test(path);
+      if (!valid || (method === 'GET' && body !== undefined) || (method === 'PATCH' && body === undefined)) throw new ApplicationError('CONFIGURATION');
+      return request(path, query, signal, body, method);
+    },
     company(method: 'GET' | 'POST' | 'PATCH', path: string, query: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
       const base = /^companies(?:\/[a-f0-9]{24})?$/;
       const action = /^companies\/[a-f0-9]{24}\/status$/;
@@ -166,6 +171,7 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
           if (path.startsWith('vehicles/') && failure?.error?.code === 'ASSIGNMENT_PROVIDER_UNAVAILABLE') throw new RequestError('ASSIGNMENT_PROVIDER_UNAVAILABLE');
           if (path.startsWith('assignments') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           if (path.startsWith('invoices') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
+          if (path.startsWith('parameters') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           throw new ApplicationError('UNAVAILABLE');
         }
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
@@ -178,6 +184,10 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
           const failure = await response.json().catch(() => null);
           const expectedCode = response.status === 409 ? 'POLICY_CONFLICT' : 'INVALID_REQUEST';
           throw new RequestError(failure?.error?.code === expectedCode ? expectedCode : 'INVALID_REQUEST');
+        }
+        if (path.startsWith('parameters') && [400, 404, 409].includes(response.status)) {
+          const failure = await response.json().catch(() => null);
+          throw new RequestError(typeof failure?.error?.code === 'string' ? failure.error.code : response.status === 409 ? 'PARAMETER_VERSION_CONFLICT' : 'INVALID_REQUEST');
         }
         if (companyMethod && path.startsWith('invoices') && [413, 415].includes(response.status)) {
           const failure = await response.json().catch(() => null);

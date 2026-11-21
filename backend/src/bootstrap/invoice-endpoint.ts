@@ -12,16 +12,17 @@ import { connectMongo } from '@/shared/infrastructure/mongodb/connection';
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
 import { authorization, policyRepository } from './authorization-endpoint';
 import { authenticatedEndpoint } from './authenticated-endpoint';
+import { parameterUseCases } from './parameter-endpoint';
 
 const connect = () => { const environment = readServerEnvironment(); return connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE }); };
 const assignmentAuthority = createMongoInvoiceAssignmentAuthority(connect);
 const repository = createMongoInvoiceRepository(connect, (connection, session) => ({ policy: policyConfirmation(connection, session),
   authority: invoiceAuthorityConfirmation(connection, session), assignments: assignmentAuthority,
-  editPolicy: { async confirm() { throw new Error('EDIT_POLICY_UNAVAILABLE'); } }, audit: createMongoInvoiceAudit(connection, session) }));
+  editPolicy: { async confirm(input) { await parameterUseCases.confirm({ ...input, transactionContext: input.transactionContext }); } }, audit: createMongoInvoiceAudit(connection, session) }));
 const invoiceAuthorization = createInvoiceAuthorizationPort({ authorization, policies: policyRepository });
 
 export const invoices = createInvoices({ repository, authorization: invoiceAuthorization, assignments: assignmentAuthority,
-  editPolicy: { async read() { return { state: 'UNAVAILABLE' }; } }, imageNormalizer: { normalize: normalizeInvoiceImage }, clock: { now: () => new Date() },
+  editPolicy: { async read(input) { return parameterUseCases.readEffective(input.thirdPartyId); } }, imageNormalizer: { normalize: normalizeInvoiceImage }, clock: { now: () => new Date() },
   ids: { next: () => new Types.ObjectId().toString() }, correlationId: { next: randomUUID } });
 
 export function invoicesEndpoint(operation: InvoiceOperation, id?: string) {
