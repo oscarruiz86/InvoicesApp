@@ -35,6 +35,8 @@ import { NotificationDeliveriesPage } from '@/modules/notifications/presentation
 import type { RolePolicyApi } from '@/modules/role-management/application/role-policy-api';
 import { RoleManagementPage } from '@/modules/role-management/presentation/role-management-page';
 import { GlobalRolePolicyContextGuard } from '@/modules/role-management/presentation/global-role-policy-context-guard';
+import type { InvoiceApi } from '@/modules/invoices/application/invoice-api';
+import { InvoicesPage } from '@/modules/invoices/presentation/invoices-page';
 
 const driverModule = markerModules.find(module => module.key === 'drivers')!;
 
@@ -90,7 +92,7 @@ function ShellAccountWithContext({ authentication, context }: { authentication: 
   return <AccountMenu store={authentication} context={{ activeContext: current.activeContext, openSelector: current.openSelector }} />;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, assignmentApi, notificationDeliveries, rolePolicy }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; assignmentApi?: AssignmentApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi }) {
+export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, assignmentApi, invoices, notificationDeliveries, rolePolicy }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; assignmentApi?: AssignmentApi; invoices?: InvoiceApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const content = <><RouteHeadingFocus /><AuthenticationActions store={authentication} authorization={authorization} />
@@ -120,6 +122,7 @@ export function App({ store, authentication, authorization, organizationContext,
             {module.key === 'drivers' && fleet ? <FleetResourcePage resource="drivers" api={fleet} invitationApi={invitations} context={organizationContext} authorization={authorization} />
               : module.key === 'vehicles' && vehicles ? <VehiclesPage api={vehicles} context={organizationContext} authorization={authorization} />
                 : module.key === 'assignments' && assignmentApi && fleet && vehicles ? <AssignmentsPage api={assignmentApi} drivers={fleet} vehicles={vehicles} context={organizationContext} authorization={authorization} />
+                  : module.key === 'invoices' && invoices && assignmentApi ? <InvoicesPage api={invoices} assignments={assignmentApi} context={organizationContext} authorization={authorization} />
                 : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} />
                 : <MarkerModulePage module={module} />}
           </MarkerModuleContext>

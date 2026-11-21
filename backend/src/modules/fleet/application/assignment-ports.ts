@@ -126,3 +126,23 @@ export interface AssignmentConfirmationPort {
   confirmNoOpenForVehicle(input: { readonly vehicleId: string; readonly thirdPartyId: string; readonly revision: string }): Promise<void>;
   confirmNoOpenForDriver(input: { readonly driverId: string; readonly thirdPartyId: string; readonly revision: string }): Promise<void>;
 }
+
+/** Fleet-owned facts for one concrete relationship; invoices must never infer a driver from a vehicle. */
+export interface InvoiceAssignmentFacts {
+  readonly assignmentId: string;
+  readonly thirdPartyId: string;
+  readonly vehicleId: string;
+  readonly driverId: string;
+  readonly subject: string;
+  readonly assignmentVersion: number;
+  readonly vehicleVersion: number;
+  readonly driverVersion: number;
+  readonly vehiclePlate: string | null;
+}
+
+/** Read is advisory. confirmInTransaction must recheck and fence the same assignment and participants. */
+export interface InvoiceAssignmentAuthority {
+  readOwnActive(input: { readonly actorSubject: string; readonly thirdPartyId: string; readonly assignmentId: string; readonly vehicleId: string }): Promise<InvoiceAssignmentFacts | null>;
+  confirmInTransaction(input: InvoiceAssignmentFacts & { readonly actorSubject: string; readonly policyVersion: string;
+    readonly contextRevision: string | null; readonly transactionContext: unknown }): Promise<void>;
+}

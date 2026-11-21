@@ -1,0 +1,102 @@
+import { z } from 'zod';
+import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
+import { errorResponse } from '@/shared/presentation/http/errors';
+import { InvoiceUseCaseError, type CreateInvoiceCommand, type createInvoices } from '../application/invoices';
+import { InvoiceImageError } from '../application/invoice-image-error';
+
+const id = z.string().regex(/^[a-f\d]{24}$/i);
+const selected = z.object({ scope: z.literal('organization'), thirdPartyId: id }).strict();
+const listQuery = selected.extend({ q: z.string().trim().min(1).max(100).optional(), vehicleId: id.optional(),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sort: z.enum(['invoiceDate', 'invoiceNumber', 'totalAmount', 'createdAt']).default('invoiceDate'), direction: z.enum(['asc', 'desc']).default('desc') });
+const createPayload = z.object({ assignmentId: id, vehicleId: id, invoiceDate: z.string(), invoiceTime: z.string(), invoiceNumber: z.string(),
+  issuerNit: z.string(), buyerDocument: z.string(), amount: z.string(), vatAmount: z.string(), otherTaxesAmount: z.string(), totalAmount: z.string() }).strict();
+const editPayload = createPayload.omit({ assignmentId: true, vehicleId: true }).partial().extend({ expectedVersion: z.number().int().safe().min(1) }).strict();
+export type InvoiceOperation = 'list' | 'detail' | 'create' | 'edit' | 'image';
+type InvoiceUseCases = ReturnType<typeof createInvoices>;
+
+function message(error: InvoiceUseCaseError) {
+  const status = error.code === 'INVALID_REQUEST' ? 400 : error.code === 'FORBIDDEN' ? 403 : error.code === 'RESOURCE_NOT_FOUND' ? 404
+    : ['INVOICE_DUPLICATE', 'IDEMPOTENCY_CONFLICT', 'INVOICE_VERSION_CONFLICT', 'ASSIGNMENT_NOT_ELIGIBLE'].includes(error.code) ? 409
+      : error.code === 'EDIT_WINDOW_CLOSED' ? 403 : 503;
+  const body = status === 400 ? 'Revisa los datos de la solicitud.' : status === 403 ? 'No tienes permiso para esta operación o terminó la ventana de edición.'
+    : status === 404 ? 'No se encontró la factura.' : status === 409 ? 'La factura cambió o existe un conflicto de duplicidad.'
+      : 'El servicio de facturas no está disponible.';
+  return Response.json({ error: { code: error.code, message: body } }, { status, headers: { 'Cache-Control': 'no-store' } });
+}
+function failure(error: unknown) {
+  if (error instanceof z.ZodError || error instanceof SyntaxError) return message(new InvoiceUseCaseError('INVALID_REQUEST'));
+  if (error instanceof InvoiceImageError) {
+    const status = error.code === 'IMAGE_TOO_LARGE' ? 413 : error.code === 'IMAGE_TYPE_UNSUPPORTED' ? 415 : 400;
+    return Response.json({ error: { code: error.code, message: status === 413 ? 'La imagen supera el límite permitido.'
+      : status === 415 ? 'Solo se aceptan imágenes JPEG o PNG.' : 'No se pudo validar la imagen.' } }, { status, headers: { 'Cache-Control': 'no-store' } });
+  }
+  if (error instanceof InvoiceUseCaseError) return message(error);
+  return errorResponse(error);
+}
+
+async function parseMultipart(request: Request, service: InvoiceUseCases): Promise<{ payload: unknown; image?: Awaited<ReturnType<InvoiceUseCases['normalizeImage']>> }> {
+  const length = Number(request.headers.get('content-length') ?? 0);
+  if (length > 6 * 1024 * 1024) throw new InvoiceImageError('IMAGE_TOO_LARGE');
+  const form = await request.formData();
+  for (const key of form.keys()) if (!['payload', 'image'].includes(key)) throw new InvoiceUseCaseError('INVALID_REQUEST');
+  const payloads = form.getAll('payload'), images = form.getAll('image');
+  if (payloads.length !== 1 || typeof payloads[0] !== 'string' || images.length > 1) throw new InvoiceUseCaseError('INVALID_REQUEST');
+  const payload = JSON.parse(payloads[0]);
+  const file = images[0];
+  if (file === undefined) return { payload };
+  if (!(file instanceof File)) throw new InvoiceUseCaseError('INVALID_REQUEST');
+  const normalized = await service.normalizeImage({ data: new Uint8Array(await file.arrayBuffer()), claimedType: file.type });
+  return { payload, image: normalized };
+}
+
+function invoiceView(invoice: Record<string, unknown>) {
+  const { ownerSubject: _ownerSubject, imageId, ...safe } = invoice;
+  return { ...safe, imageUrl: imageId ? `/api/invoices/${String(invoice.id)}/image` : null };
+}
+
+export async function invoiceResponse(service: InvoiceUseCases, operation: InvoiceOperation, actor: AuthenticatedActor,
+  request: Request, idValue?: string): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const raw: Record<string, string> = {};
+    for (const [key, value] of url.searchParams) { if (Object.hasOwn(raw, key)) throw new InvoiceUseCaseError('INVALID_REQUEST'); raw[key] = value; }
+    let result: unknown;
+    if (operation === 'list') {
+      const { scope: _scope, ...input } = listQuery.parse(raw);
+      if (input.dateFrom && input.dateTo && input.dateFrom > input.dateTo) throw new InvoiceUseCaseError('INVALID_REQUEST');
+      const page = await service.list(actor, input);
+      result = { ...page, items: page.items.map(invoice => invoiceView(invoice as unknown as Record<string, unknown>)) };
+    } else {
+      const { thirdPartyId } = selected.parse(raw);
+      if (operation === 'create') {
+        const { payload, image } = await parseMultipart(request, service);
+        const body = createPayload.parse(payload) as CreateInvoiceCommand;
+        result = invoiceView(await service.create(actor, { ...body, ...(image ? { image } : {}), thirdPartyId,
+          idempotencyKey: request.headers.get('Idempotency-Key') ?? '' }) as unknown as Record<string, unknown>);
+      } else if (operation === 'edit') {
+        const invoiceId = id.parse(idValue);
+        const { payload, image } = await parseMultipart(request, service);
+        const body = editPayload.parse(payload);
+        const { expectedVersion, ...changes } = body;
+        result = invoiceView(await service.edit(actor, { id: invoiceId, thirdPartyId, expectedVersion,
+          changes: { ...changes, ...(image ? { image } : {}) } }) as unknown as Record<string, unknown>);
+      } else if (operation === 'detail') {
+        const invoiceId = id.parse(idValue);
+        const detail = await service.detail(actor, { id: invoiceId, thirdPartyId });
+        result = { invoice: invoiceView(detail.invoice as unknown as Record<string, unknown>), editability: detail.editability };
+      }
+      else {
+        const invoiceId = id.parse(idValue);
+        const image = await service.image(actor, { id: invoiceId, thirdPartyId });
+        if (!image) throw new InvoiceUseCaseError('RESOURCE_NOT_FOUND');
+        const bytes = new Uint8Array(image.data.byteLength); bytes.set(image.data);
+        return new Response(bytes, { status: 200, headers: { 'Content-Type': image.contentType, 'Content-Length': String(image.size),
+          'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' } });
+      }
+    }
+    return Response.json(result, { status: operation === 'create' ? 201 : 200, headers: { 'Cache-Control': 'no-store',
+      ...(operation === 'create' && result && typeof result === 'object' && 'id' in result ? { Location: `/api/invoices/${String(result.id)}?scope=organization&thirdPartyId=${raw.thirdPartyId}` } : {}) } });
+  } catch (error) { return failure(error); }
+}
