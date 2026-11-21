@@ -1,4 +1,5 @@
-export type InvoiceOrigin = 'MANUAL';
+export type InvoiceOrigin = 'MANUAL' | 'QR';
+export interface InvoiceQrMetadata { readonly parserVersion: 'invoice-key-value-v1'; readonly contentHash: string; readonly cufe?: string; readonly sourceUrl?: string }
 
 export interface InvoiceAmounts {
   readonly amount: string;
@@ -10,6 +11,7 @@ export interface InvoiceAmounts {
 export interface Invoice {
   readonly id: string;
   readonly origin: InvoiceOrigin;
+  readonly qrMetadata?: InvoiceQrMetadata;
   readonly ownerSubject: string;
   readonly thirdPartyId: string;
   readonly assignmentId: string;
@@ -27,6 +29,16 @@ export interface Invoice {
   readonly version: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+export function createQrInvoice(input: CreateInvoiceInput, metadata: InvoiceQrMetadata, invoiceAtUtc: string): Invoice {
+  if (!metadata || metadata.parserVersion !== 'invoice-key-value-v1' || !/^[a-f0-9]{64}$/.test(metadata.contentHash)
+    || (metadata.cufe !== undefined && !/^[a-f0-9]{96}$/.test(metadata.cufe))
+    || (metadata.sourceUrl !== undefined && !metadata.sourceUrl.startsWith('https://') ) || !Number.isFinite(Date.parse(invoiceAtUtc))) {
+    throw new InvoiceDomainError('INVALID_INVOICE');
+  }
+  const invoice = createInvoice(input);
+  return { ...invoice, origin: 'QR', qrMetadata: Object.freeze({ ...metadata }), invoiceAtUtc: new Date(invoiceAtUtc).toISOString() };
 }
 
 export interface CreateInvoiceInput {

@@ -13,14 +13,14 @@ const listQuery = selected.extend({ q: z.string().trim().min(1).max(100).optiona
 const createPayload = z.object({ assignmentId: id, vehicleId: id, invoiceDate: z.string(), invoiceTime: z.string(), invoiceNumber: z.string(),
   issuerNit: z.string(), buyerDocument: z.string(), amount: z.string(), vatAmount: z.string(), otherTaxesAmount: z.string(), totalAmount: z.string() }).strict();
 const editPayload = createPayload.omit({ assignmentId: true, vehicleId: true }).partial().extend({ expectedVersion: z.number().int().safe().min(1) }).strict();
-export type InvoiceOperation = 'list' | 'detail' | 'create' | 'edit' | 'image';
+export type InvoiceOperation = 'list' | 'detail' | 'create' | 'edit' | 'image' | 'qr-preview' | 'qr-create';
 type InvoiceUseCases = ReturnType<typeof createInvoices>;
 
 function message(error: InvoiceUseCaseError) {
   const status = error.code === 'INVALID_REQUEST' ? 400 : error.code === 'FORBIDDEN' ? 403 : error.code === 'RESOURCE_NOT_FOUND' ? 404
     : ['INVOICE_DUPLICATE', 'IDEMPOTENCY_CONFLICT', 'INVOICE_VERSION_CONFLICT', 'ASSIGNMENT_NOT_ELIGIBLE'].includes(error.code) ? 409
-      : error.code === 'EDIT_WINDOW_CLOSED' ? 403 : 503;
-  const body = status === 400 ? 'Revisa los datos de la solicitud.' : status === 403 ? 'No tienes permiso para esta operación o terminó la ventana de edición.'
+    : ['EDIT_WINDOW_CLOSED', 'QR_IMMUTABLE'].includes(error.code) ? 403 : ['QR_INVALID', 'QR_INCOMPLETE', 'QR_UNSUPPORTED'].includes(error.code) ? 400 : 503;
+  const body = status === 400 ? 'Revisa los datos de la solicitud QR.' : status === 403 ? 'No tienes permiso para esta operación o la factura QR es inmutable.'
     : status === 404 ? 'No se encontró la factura.' : status === 409 ? 'La factura cambió o existe un conflicto de duplicidad.'
       : 'El servicio de facturas no está disponible.';
   return Response.json({ error: { code: error.code, message: body } }, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -68,6 +68,16 @@ export async function invoiceResponse(service: InvoiceUseCases, operation: Invoi
       if (input.dateFrom && input.dateTo && input.dateFrom > input.dateTo) throw new InvoiceUseCaseError('INVALID_REQUEST');
       const page = await service.list(actor, input);
       result = { ...page, items: page.items.map(invoice => invoiceView(invoice as unknown as Record<string, unknown>)) };
+    } else if (operation === 'qr-preview') {
+      const { thirdPartyId } = selected.parse(raw);
+      const body = z.object({ qrContent: z.string().min(1).max(16 * 1024) }).strict().parse(await request.json());
+      result = await service.previewQr(actor, { thirdPartyId, qrContent: body.qrContent });
+    } else if (operation === 'qr-create') {
+      const { thirdPartyId } = selected.parse(raw);
+      const { payload, image } = await parseMultipart(request, service);
+      const body = z.object({ assignmentId: id, vehicleId: id, qrContent: z.string().min(1).max(16 * 1024) }).strict().parse(payload);
+      result = invoiceView(await service.createQr(actor, { ...body, ...(image ? { image } : {}), thirdPartyId,
+        idempotencyKey: request.headers.get('Idempotency-Key') ?? '' }) as unknown as Record<string, unknown>);
     } else {
       const { thirdPartyId } = selected.parse(raw);
       if (operation === 'create') {
@@ -96,7 +106,7 @@ export async function invoiceResponse(service: InvoiceUseCases, operation: Invoi
           'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' } });
       }
     }
-    return Response.json(result, { status: operation === 'create' ? 201 : 200, headers: { 'Cache-Control': 'no-store',
+    return Response.json(result, { status: operation === 'create' || operation === 'qr-create' ? 201 : 200, headers: { 'Cache-Control': 'no-store',
       ...(operation === 'create' && result && typeof result === 'object' && 'id' in result ? { Location: `/api/invoices/${String(result.id)}?scope=organization&thirdPartyId=${raw.thirdPartyId}` } : {}) } });
   } catch (error) { return failure(error); }
 }
