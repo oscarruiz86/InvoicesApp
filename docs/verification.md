@@ -206,3 +206,30 @@ Todas las escrituras Mongo de integración se realizan en bases de prueba, con n
 El bootstrap usa el proveedor MongoDB `vehicle_assignments`. DRIVER y la desactivación devuelven 503 si la fuente no está disponible; una asignación activa devuelve 409 y conserva el vehículo activo. Alta, lectura y edición administrativas funcionan. La reactivación no restaura asignaciones. `VehicleFactsReader` informa elegibilidad por estado; no hay transferencia ni CRUD de asignaciones en este cambio. `vehicle_management_events` es historial local duradero, sin acreditar Audit transversal ni escrituras de facturas.
 
 No se migraron datos funcionales ni se crearon índices en bases operativas. No se modificó un Keycloak persistente. La implementación quedó registrada en el commit `5d58449` de `openspec/implement-vehicle-management`; no se realizó push, merge, despliegue ni PR. La propuesta OpenSpec fue archivada como `2026-11-20-implement-vehicle-management` y la especificación `vehicle-management` quedó publicada en `openspec/specs`.
+# Gestión de facturas — 2026-11-20
+
+## Evidencia ejecutada
+
+- Backend `check`, OpenAPI lint, typecheck y build pasaron; el build genera `/api/invoices`, `/api/invoices/[id]` y `/api/invoices/[id]/image`. Lint conserva advertencias sin errores.
+- Frontend lint, typecheck, build, arquitectura, pruebas dirigidas de facturas y E2E responsive pasaron. E2E: 2 pruebas aprobadas a 360 y 1280 px.
+- La integración Mongo aislada de facturas y asignaciones aprobó 10 pruebas en 2 archivos: alta e imagen, rollback de auditoría/reemplazo, reintentos idempotentes, conflictos de clave/versión, duplicidad concurrente, revocación, asignación concreta, cierre/desactivación concurrente e historial.
+- Inventario de solo lectura y normalización de imágenes cubren filas incompatibles, duplicados, contenido/tipo falso, límites de tamaño y retirada de metadatos. `sharp` se registra como dependencia directa.
+- Pruebas de aplicación y ventana temporal cubren edición no disponible (503), ventana y bordes exclusivos; no se declara Configuration productivo.
+
+## Límites
+
+- Vitest no mostró progreso en la suite unitaria completa del frontend, tanto con los workers configurados como con alternativas. Sus comprobaciones estáticas, build, arquitectura y pruebas dirigidas sí pasaron; repetir la suite completa en CI.
+- La suite completa de integración backend pasó 60 pruebas en 14 archivos; una suite requiere variables de una fixture efímera de Keycloak que no estaban disponibles. Las suites pertinentes de facturas/asignaciones sí pasaron en replica set local aislada.
+- La aceptación combina persistencia Mongo real con pruebas de aplicación para 503 y política controlada; no se ejecutó un recorrido HTTP end-to-end completo con Mongo. No se usaron datos personales ni un tercero productivo.
+
+## Reproducción
+
+Desde la raíz: `npm --prefix backend run check`, `npm --prefix backend run openapi:lint`, `npm --prefix backend run build`, `npm --prefix frontend run lint`, `npm --prefix frontend run typecheck`, `npm --prefix frontend run build` y `npm --prefix frontend run test:e2e -- tests/e2e/invoice-management-responsive.spec.ts --workers=1`.
+
+Para integración Mongo, `MONGODB_TEST_URI` debe apuntar a una base aislada terminada en `_test` sobre replica set:
+
+```text
+MONGODB_TEST_URI=mongodb://127.0.0.1:<puerto>/<base>_test?replicaSet=<nombre> npm --prefix backend run test:integration -- tests/integration/invoice-repository.test.ts tests/integration/assignment-repository.test.ts
+```
+
+La suite de integración completa también requiere variables de fixture efímera de Keycloak. Las transacciones no funcionan sobre Mongo standalone.

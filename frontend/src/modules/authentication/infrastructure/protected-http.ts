@@ -105,11 +105,31 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
+    invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: FormData,
+      options: { readonly signal?: AbortSignal; readonly idempotencyKey?: string; readonly binary?: boolean } = {}): Promise<unknown> {
+      const list = path === 'invoices', detail = /^invoices\/[a-f0-9]{24}$/.test(path), image = /^invoices\/[a-f0-9]{24}\/image$/.test(path);
+      const valid = method === 'GET' ? body === undefined && (list || detail || image)
+        : method === 'POST' ? list && body instanceof FormData && Boolean(options.idempotencyKey)
+          : method === 'PATCH' && detail && body instanceof FormData;
+      const params = new URLSearchParams(query);
+      const allowed = method === 'GET' && list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'q', 'vehicleId', 'dateFrom', 'dateTo', 'sort', 'direction'] : ['scope', 'thirdPartyId'];
+      for (const [key] of params) if (!allowed.includes(key) || params.getAll(key).length !== 1) throw new ApplicationError('CONFIGURATION');
+      if (!valid || params.get('scope') !== 'organization' || !/^[a-f0-9]{24}$/.test(params.get('thirdPartyId') ?? '') || Boolean(options.binary) !== image)
+        throw new ApplicationError('CONFIGURATION');
+      if (params.has('page') && !/^[1-9]\d{0,6}$/.test(params.get('page')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('pageSize') && !/^(?:[1-9]|[1-9]\d|100)$/.test(params.get('pageSize')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('sort') && !['invoiceDate', 'invoiceNumber', 'totalAmount', 'createdAt'].includes(params.get('sort')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('direction') && !['asc', 'desc'].includes(params.get('direction')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('vehicleId') && !/^[a-f0-9]{24}$/.test(params.get('vehicleId')!)) throw new ApplicationError('CONFIGURATION');
+      if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
+      return request(path, query, options.signal, body, method, true, options.idempotencyKey, options.binary);
+    },
     previewInvitation(token: string, signal?: AbortSignal): Promise<unknown> {
       return request('invitations/preview', '', signal, { token }, 'POST', false);
     },
   };
-  async function request(path: string, query: string, signal?: AbortSignal, payload?: unknown, companyMethod?: 'GET' | 'POST' | 'PATCH' | 'PUT', authenticated = true): Promise<unknown> {
+  async function request(path: string, query: string, signal?: AbortSignal, payload?: unknown, companyMethod?: 'GET' | 'POST' | 'PATCH' | 'PUT', authenticated = true,
+    extraHeader?: string, binary = false): Promise<unknown> {
       if (!companyMethod && !(payload === undefined ? ['auth/me', 'auth/permissions', 'organization-contexts'] : ['organization-contexts/resolve']).includes(path)
         && !/^(invitations|organization-memberships)\//.test(path)) throw new ApplicationError('CONFIGURATION');
       const endpoint = new URL(path, base); endpoint.search = query;
@@ -122,9 +142,11 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
         const token = authenticated ? await credentials.getAccessToken() : null;
         if (controller.signal.aborted) throw new ApplicationError(controller.signal.reason);
         timer = setTimeout(() => controller.abort('TIMEOUT'), timeoutMs);
+        const multipart = typeof FormData !== 'undefined' && payload instanceof FormData;
         const response = await fetcher(endpoint.href, { signal: controller.signal, redirect: 'error', cache: 'no-store', credentials: 'omit',
-          ...(payload === undefined ? {} : { body: JSON.stringify(payload) }), method: companyMethod ?? (payload === undefined ? 'GET' : 'POST'),
-          headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(payload === undefined ? {} : { 'Content-Type': 'application/json' }) } });
+          ...(payload === undefined ? {} : { body: multipart ? payload : JSON.stringify(payload) }), method: companyMethod ?? (payload === undefined ? 'GET' : 'POST'),
+          headers: { Accept: binary ? 'image/jpeg, image/png' : 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(payload === undefined || multipart ? {} : { 'Content-Type': 'application/json' }), ...(extraHeader ? { 'Idempotency-Key': extraHeader } : {}) } });
         if (response.status === 401) { session.invalidate(); throw new ApplicationError('UNAUTHENTICATED'); }
         if (response.status === 403) {
           if (path === 'invitations/accept' || path === 'invitations/reject' || path === 'invitations/received' || path.startsWith('invitations/received/')) {
@@ -140,12 +162,13 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
           if (path === 'roles' && failure?.error?.code === 'POLICY_AUDIT_CAPACITY') throw new RequestError('POLICY_AUDIT_CAPACITY');
           if (path.startsWith('vehicles/') && failure?.error?.code === 'ASSIGNMENT_PROVIDER_UNAVAILABLE') throw new RequestError('ASSIGNMENT_PROVIDER_UNAVAILABLE');
           if (path.startsWith('assignments') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
+          if (path.startsWith('invoices') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           throw new ApplicationError('UNAVAILABLE');
         }
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
         if (companyMethod && path !== 'roles' && [400, 409].includes(response.status)) {
           const failure = await response.json().catch(() => null);
-          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED', 'VEHICLE_VERSION_CONFLICT', 'VEHICLE_IDENTIFIER_CONFLICT', 'VEHICLE_HAS_OPEN_ASSIGNMENT', 'ACTIVE_ASSIGNMENT_CONFLICT', 'ASSIGNMENT_VERSION_CONFLICT', 'DRIVER_NOT_ELIGIBLE', 'VEHICLE_NOT_ELIGIBLE'];
+          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED', 'VEHICLE_VERSION_CONFLICT', 'VEHICLE_IDENTIFIER_CONFLICT', 'VEHICLE_HAS_OPEN_ASSIGNMENT', 'ACTIVE_ASSIGNMENT_CONFLICT', 'ASSIGNMENT_VERSION_CONFLICT', 'DRIVER_NOT_ELIGIBLE', 'VEHICLE_NOT_ELIGIBLE', 'INVOICE_DUPLICATE', 'IDEMPOTENCY_CONFLICT', 'INVOICE_VERSION_CONFLICT', 'ASSIGNMENT_NOT_ELIGIBLE'];
           throw new RequestError(codes.includes(failure?.error?.code) ? failure.error.code : 'INVALID_REQUEST', Array.isArray(failure?.error?.fields) ? failure.error.fields.filter((field: unknown) => typeof field === 'string') : []);
         }
         if (path === 'roles' && [400, 409].includes(response.status)) {
@@ -153,7 +176,17 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
           const expectedCode = response.status === 409 ? 'POLICY_CONFLICT' : 'INVALID_REQUEST';
           throw new RequestError(failure?.error?.code === expectedCode ? expectedCode : 'INVALID_REQUEST');
         }
+        if (companyMethod && path.startsWith('invoices') && [413, 415].includes(response.status)) {
+          const failure = await response.json().catch(() => null);
+          const expected = response.status === 413 ? 'IMAGE_TOO_LARGE' : 'IMAGE_TYPE_UNSUPPORTED';
+          throw new RequestError(['IMAGE_TOO_LARGE', 'IMAGE_TYPE_UNSUPPORTED', 'IMAGE_INVALID', 'IMAGE_DIMENSIONS_INVALID'].includes(failure?.error?.code)
+            ? failure.error.code : expected);
+        }
         if (!response.ok) throw new ApplicationError('HTTP');
+        if (binary) {
+          if (!['image/jpeg', 'image/png'].includes(response.headers.get('content-type') ?? '')) throw new ApplicationError('INVALID_RESPONSE');
+          try { return await response.blob(); } catch { throw new ApplicationError('INVALID_RESPONSE'); }
+        }
         let body: unknown;
         try { body = await response.json(); } catch { throw new ApplicationError('INVALID_RESPONSE'); }
         if (controller.signal.aborted) throw new ApplicationError(controller.signal.reason);

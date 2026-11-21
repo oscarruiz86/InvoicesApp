@@ -8749,6 +8749,727 @@
         ],
         "x-authorization-scope": "Tercero activo explícito del THIRD_PARTY_ADMIN."
       }
+    },
+    "/api/invoices": {
+      "get": {
+        "operationId": "listInvoices",
+        "summary": "Listar facturas del tercero autorizado",
+        "tags": [
+          "Invoices"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "vehicleId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "invoiceDate",
+                "invoiceNumber",
+                "totalAmount",
+                "createdAt"
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página filtrada después de aplicar el ámbito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros inválidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización o almacenamiento no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "invoices:read"
+        ],
+        "x-authorization-scope": "Tercero activo explícito; DRIVER queda aislado por propietario."
+      },
+      "post": {
+        "operationId": "createInvoice",
+        "summary": "Registrar factura manual",
+        "tags": [
+          "Invoices"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "type": "string",
+                    "contentMediaType": "application/json",
+                    "contentSchema": {
+                      "$ref": "#/components/schemas/InvoiceCreatePayload"
+                    }
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG o PNG; máximo 5 MiB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Factura creada o resultado idempotente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer ausente o inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente o edición cerrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Factura o imagen no disponible en el ámbito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versión, idempotencia o duplicidad en conflicto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "La imagen excede 5 MiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "La imagen no es JPEG o PNG válido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error técnico neutro.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Proveedor o almacenamiento no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "invoices:create"
+        ],
+        "x-authorization-scope": "DRIVER y asignación concreta propia ACTIVE."
+      }
+    },
+    "/api/invoices/{id}": {
+      "get": {
+        "operationId": "getInvoice",
+        "summary": "Consultar factura",
+        "tags": [
+          "Invoices"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Factura sin propietario interno ni binario, con estado de edición.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Factura no disponible en el ámbito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización o almacenamiento no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "invoices:read"
+        ],
+        "x-authorization-scope": "Tercero activo explícito; DRIVER solo consulta sus facturas."
+      },
+      "patch": {
+        "operationId": "updateInvoice",
+        "summary": "Editar factura versionada",
+        "tags": [
+          "Invoices"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "type": "string",
+                    "contentMediaType": "application/json",
+                    "contentSchema": {
+                      "$ref": "#/components/schemas/InvoiceUpdatePayload"
+                    }
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG o PNG; máximo 5 MiB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Factura actualizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer ausente o inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente o edición cerrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Factura o imagen no disponible en el ámbito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versión, idempotencia o duplicidad en conflicto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "La imagen excede 5 MiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "La imagen no es JPEG o PNG válido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error técnico neutro.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Proveedor o almacenamiento no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "invoices:update"
+        ],
+        "x-authorization-scope": "Factura manual elegible, versión vigente y política temporal efectiva."
+      }
+    },
+    "/api/invoices/{id}/image": {
+      "get": {
+        "operationId": "getInvoiceImage",
+        "summary": "Leer imagen privada de factura",
+        "tags": [
+          "Invoices"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Imagen binaria validada.",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Factura o imagen no disponible en el ámbito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización o almacenamiento no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "invoices:read"
+        ],
+        "x-authorization-scope": "Mismo ámbito de la factura; cache-control no-store."
+      }
     }
   },
   "components": {
@@ -11856,6 +12577,257 @@
             }
           }
         }
+      },
+      "InvoiceAmounts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "amount",
+          "vatAmount",
+          "otherTaxesAmount",
+          "totalAmount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}\\.\\d{2}$",
+            "description": "Decimal COP exacto, representado como texto."
+          },
+          "vatAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}\\.\\d{2}$",
+            "description": "Decimal COP exacto, representado como texto."
+          },
+          "otherTaxesAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}\\.\\d{2}$",
+            "description": "Decimal COP exacto, representado como texto."
+          },
+          "totalAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}\\.\\d{2}$",
+            "description": "Decimal COP exacto, representado como texto."
+          }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "origin",
+          "thirdPartyId",
+          "assignmentId",
+          "driverId",
+          "vehicleId",
+          "vehiclePlate",
+          "invoiceDate",
+          "invoiceTime",
+          "invoiceAtUtc",
+          "invoiceNumber",
+          "issuerNit",
+          "buyerDocument",
+          "amounts",
+          "version",
+          "createdAt",
+          "updatedAt",
+          "imageUrl"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "origin": {
+            "type": "string",
+            "const": "MANUAL"
+          },
+          "thirdPartyId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "assignmentId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "driverId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "vehicleId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "vehiclePlate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "invoiceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "invoiceTime": {
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$"
+          },
+          "invoiceAtUtc": { "type": "string", "format": "date-time", "description": "Instante UTC derivado de invoiceDate e invoiceTime en America/Bogota." },
+          "invoiceNumber": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "issuerNit": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$"
+          },
+          "buyerDocument": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "amounts": {
+            "$ref": "#/components/schemas/InvoiceAmounts"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri-reference"
+          }
+        }
+      },
+      "InvoiceDetails": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "invoice", "editability" ],
+        "properties": {
+          "invoice": { "$ref": "#/components/schemas/Invoice" },
+          "editability": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [ "available", "reason" ],
+            "properties": {
+              "available": { "type": "boolean" },
+              "reason": { "type": [ "string", "null" ], "enum": [ "PERMISSION_INSUFFICIENT", "EDIT_POLICY_UNAVAILABLE", "EDIT_WINDOW_CLOSED", null ] }
+            }
+          }
+        }
+      },
+      "InvoiceCreatePayload": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "assignmentId",
+          "vehicleId",
+          "invoiceDate",
+          "invoiceTime",
+          "invoiceNumber",
+          "issuerNit",
+          "buyerDocument",
+          "amount",
+          "vatAmount",
+          "otherTaxesAmount",
+          "totalAmount"
+        ],
+        "properties": {
+          "assignmentId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+          "vehicleId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+          "invoiceDate": { "type": "string", "format": "date" },
+          "invoiceTime": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$" },
+          "invoiceNumber": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "issuerNit": { "type": "string", "pattern": "^\\d{1,20}$" },
+          "buyerDocument": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "amount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
+          "vatAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
+          "otherTaxesAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
+          "totalAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" }
+        }
+      },
+      "InvoiceUpdatePayload": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [ "expectedVersion" ],
+        "properties": {
+          "expectedVersion": { "type": "integer", "minimum": 1 },
+          "invoiceDate": { "type": "string", "format": "date" },
+          "invoiceTime": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$" },
+          "invoiceNumber": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "issuerNit": { "type": "string", "pattern": "^\\d{1,20}$" },
+          "buyerDocument": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "amount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
+          "vatAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
+          "otherTaxesAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
+          "totalAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" }
+        }
+      },
+      "InvoicePage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Invoice"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "InvoiceError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -11887,6 +12859,10 @@
     {
       "name": "Drivers",
       "description": "Consulta de conductores asociados a terceros y transición de estado."
+    },
+    {
+      "name": "Invoices",
+      "description": "Registro manual, consulta aislada y adjuntos privados de facturas."
     }
   ]
 }

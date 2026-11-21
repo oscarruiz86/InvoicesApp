@@ -29,6 +29,7 @@ import { createVehicleApi } from '@/modules/fleet/infrastructure/http-vehicles';
 import { createDriverApi } from '@/modules/fleet/infrastructure/http-drivers';
 import { createAssignmentApi } from '@/modules/fleet/infrastructure/http-assignments';
 import { createRolePolicyApi } from '@/modules/role-management/application/role-policy-api';
+import { createInvoiceApi } from '@/modules/invoices/infrastructure/http-invoices';
 
 async function composeApplication() {
   try {
@@ -47,7 +48,7 @@ async function composeApplication() {
     import.meta.hot?.dispose(() => { unsubscribeForbidden(); organizationContext.dispose(); authorization.dispose(); http.dispose(); });
     await authentication.getState().initialize();
     const rolePolicy = createRolePolicyApi(createHttpRolePolicy(http));
-    return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} thirdParties={createThirdPartyApi(http)} invitations={createInvitationApi(http)} rolePolicy={rolePolicy} fleet={createDriverApi(http)} vehicles={createVehicleApi(http)} assignmentApi={createAssignmentApi(http)} />;
+    return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} thirdParties={createThirdPartyApi(http)} invitations={createInvitationApi(http)} rolePolicy={rolePolicy} fleet={createDriverApi(http)} vehicles={createVehicleApi(http)} assignmentApi={createAssignmentApi(http)} invoices={createInvoiceApi(http)} />;
   } catch {
     return <ThemeProvider theme={theme}><CssBaseline /><Alert severity="error">{errorMessage('CONFIGURATION')}</Alert></ThemeProvider>;
   }

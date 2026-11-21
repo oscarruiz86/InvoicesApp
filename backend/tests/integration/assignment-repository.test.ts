@@ -6,6 +6,7 @@ import { createAssignments } from '@/modules/fleet/application/assignments';
 import { createDrivers } from '@/modules/fleet/application/drivers';
 import { createVehicles } from '@/modules/fleet/application/vehicles';
 import { createMongoAssignmentAccessReader, createMongoAssignmentAudit, createMongoAssignmentConfirmation, createMongoAssignmentPresenceReader, createMongoAssignmentRepository } from '@/modules/fleet/infrastructure/mongodb/assignment-repository';
+import { createMongoInvoiceAssignmentAuthority } from '@/modules/fleet/infrastructure/mongodb/invoice-assignment-authority';
 import { createDriverRepository, driverModel } from '@/modules/fleet/infrastructure/mongodb/driver-repository';
 import { createVehicleRepository } from '@/modules/fleet/infrastructure/mongodb/vehicle-repository';
 import { createPolicyRepository, policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
@@ -21,6 +22,7 @@ const assignments = createMongoAssignmentRepository(connect, (c, s) => ({ policy
   authority: vehicleAuthorityConfirmation(c, s), audit: createMongoAssignmentAudit(c, s) }));
 const drivers = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation);
 const presence = createMongoAssignmentPresenceReader(connect);
+const invoiceAssignmentAuthority = createMongoInvoiceAssignmentAuthority(connect);
 const vehicleRepository = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s),
   authority: vehicleAuthorityConfirmation(c, s), assignments: createMongoAssignmentConfirmation(c, s) }));
 const now = new Date('2026-11-20T12:00:00.000Z');
@@ -96,6 +98,71 @@ it('rejects cross-third-party participant IDs without writing assignment or audi
   await expect(assignments.create(input)).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   expect(await connection.collection('vehicle_assignments').countDocuments({ thirdPartyId: authA.thirdPartyId })).toBe(0);
   expect(await connection.collection('assignment_events').countDocuments({ thirdPartyId: authA.thirdPartyId })).toBe(0);
+});
+
+it('confirms the chosen assignment only and fences close or deactivation in the same transaction', async () => {
+  const auth = await owner('invoice-assignment'), first = await participants(auth, 'invoice-assignment-first');
+  const second = await participants(auth, 'invoice-assignment-second');
+  const wrongVehicle = await participants(auth, 'invoice-assignment-wrong-vehicle');
+  second.vehicleId = first.vehicleId;
+  const firstAssignment = await assignments.create(createInput(auth, first));
+  await assignments.create(createInput(auth, second));
+
+  const selected = await invoiceAssignmentAuthority.readOwnActive({ actorSubject: first.subject, thirdPartyId: auth.thirdPartyId,
+    assignmentId: firstAssignment.id, vehicleId: first.vehicleId });
+  expect(selected).toMatchObject({ assignmentId: firstAssignment.id, driverId: first.driverId, vehicleId: first.vehicleId, subject: first.subject });
+  expect(await invoiceAssignmentAuthority.readOwnActive({ actorSubject: second.subject, thirdPartyId: auth.thirdPartyId,
+    assignmentId: firstAssignment.id, vehicleId: first.vehicleId })).toBeNull();
+  expect(await invoiceAssignmentAuthority.readOwnActive({ actorSubject: first.subject, thirdPartyId: auth.thirdPartyId,
+    assignmentId: firstAssignment.id, vehicleId: wrongVehicle.vehicleId })).toBeNull();
+  if (!selected) throw new Error('Invoice assignment evidence unavailable');
+
+  const markerId = new mongoose.Types.ObjectId().toString();
+  await connection.transaction(async session => {
+    await invoiceAssignmentAuthority.confirmInTransaction({ ...selected, actorSubject: first.subject, policyVersion, contextRevision: null, transactionContext: { connection, session } });
+    await connection.collection('invoice_assignment_confirmation_test').insertOne({ _id: new mongoose.Types.ObjectId(markerId),
+      assignmentId: selected.assignmentId, driverId: selected.driverId }, { session });
+  }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true } });
+  expect(await connection.collection('invoice_assignment_confirmation_test').findOne({ _id: new mongoose.Types.ObjectId(markerId) }))
+    .toMatchObject({ assignmentId: firstAssignment.id, driverId: first.driverId });
+
+  const racing = await participants(auth, 'invoice-assignment-race');
+  const raceAssignment = await assignments.create(createInput(auth, racing));
+  const raceFacts = await invoiceAssignmentAuthority.readOwnActive({ actorSubject: racing.subject, thirdPartyId: auth.thirdPartyId,
+    assignmentId: raceAssignment.id, vehicleId: racing.vehicleId });
+  if (!raceFacts) throw new Error('Race assignment evidence unavailable');
+  const confirmAndWrite = connection.transaction(async session => {
+    await invoiceAssignmentAuthority.confirmInTransaction({ ...raceFacts, actorSubject: racing.subject, policyVersion, contextRevision: null, transactionContext: { connection, session } });
+    await connection.collection('invoice_assignment_confirmation_test').insertOne({ _id: new mongoose.Types.ObjectId(), assignmentId: raceFacts.assignmentId }, { session });
+  }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true } });
+  const concurrentClose = assignments.close({ authority: auth.authority, id: raceAssignment.id, expectedVersion: 1, actor: auth.subject,
+    now: new Date(now.getTime() + 1000), correlationId: randomUUID() });
+  const outcomes = await Promise.allSettled([confirmAndWrite, concurrentClose]);
+  expect(outcomes.some(result => result.status === 'fulfilled')).toBe(true);
+  const markerCount = await connection.collection('invoice_assignment_confirmation_test').countDocuments({ assignmentId: raceFacts.assignmentId });
+  const current = await assignments.find({ id: raceAssignment.id, thirdPartyId: auth.thirdPartyId });
+  expect(markerCount === 0 || current?.version === 2).toBe(true);
+
+  const deactivationPair = await participants(auth, 'invoice-assignment-deactivation');
+  const deactivationAssignment = await assignments.create(createInput(auth, deactivationPair));
+  const deactivationFacts = await invoiceAssignmentAuthority.readOwnActive({ actorSubject: deactivationPair.subject, thirdPartyId: auth.thirdPartyId,
+    assignmentId: deactivationAssignment.id, vehicleId: deactivationPair.vehicleId });
+  const activeEvidence = await presence.readForDriver({ driverId: deactivationPair.driverId, thirdPartyId: auth.thirdPartyId });
+  if (!deactivationFacts || activeEvidence.state !== 'CONFIRMED') throw new Error('Deactivation evidence unavailable');
+  const deactivationMarkerId = new mongoose.Types.ObjectId().toString();
+  const confirmDuringDeactivation = connection.transaction(async session => {
+    await invoiceAssignmentAuthority.confirmInTransaction({ ...deactivationFacts, actorSubject: deactivationPair.subject,
+      policyVersion, contextRevision: null, transactionContext: { connection, session } });
+    await connection.collection('invoice_assignment_confirmation_test').insertOne({ _id: new mongoose.Types.ObjectId(deactivationMarkerId),
+      assignmentId: deactivationFacts.assignmentId }, { session });
+  }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true } });
+  const deactivateDriver = drivers.transition({ id: deactivationPair.driverId, thirdPartyId: auth.thirdPartyId,
+    actorSubject: auth.subject, actor: auth.subject, expectedVersion: 1, status: 'INACTIVE', policyVersion, contextRevision: null,
+    scope: { kind: 'organization', companyId: null, thirdPartyId: auth.thirdPartyId }, assignmentRevision: activeEvidence.revision });
+  await Promise.allSettled([confirmDuringDeactivation, deactivateDriver]);
+  const inactive = await connection.collection('drivers').findOne({ _id: new mongoose.Types.ObjectId(deactivationPair.driverId), status: 'INACTIVE' });
+  const deactivationMarker = await connection.collection('invoice_assignment_confirmation_test').findOne({ _id: new mongoose.Types.ObjectId(deactivationMarkerId) });
+  expect(Boolean(inactive && deactivationMarker)).toBe(false);
 });
 
 it('serializes concurrent assignment creation and driver deactivation', async () => {

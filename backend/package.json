@@ -14,6 +14,7 @@
     "next": "16.4.5",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "sharp": "0.35.5",
     "swagger-ui-dist": "5.34.1",
     "zod": "4.6.7"
   },
@@ -54,6 +55,7 @@
     "vehicles:inventory": "node --env-file-if-exists=.env.local scripts/inventory-vehicles.mjs",
     "assignments:inventory": "node --env-file-if-exists=.env.local scripts/inventory-assignments.mjs",
     "assignments:migrate": "node --env-file-if-exists=.env.local scripts/migrate-assignments.mjs",
+    "invoices:inventory": "node --env-file-if-exists=.env.local scripts/invoices-inventory.mjs",
     "test:integration:prepared": "node ../scripts/test-vehicle-management-integration.mjs",
     "test:http:prepared": "node ../scripts/test-vehicle-management-http.mjs"
   }
