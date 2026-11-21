@@ -40,12 +40,15 @@ function decode(row: Row): Invoice {
   const amounts = row.amounts as Row | undefined;
   if (!(row._id instanceof Types.ObjectId) || typeof row.ownerSubject !== 'string' || !row.ownerSubject
     || ![row.thirdPartyId, row.assignmentId, row.driverId, row.vehicleId].every(value => typeof value === 'string' && validId(value))
-    || row.origin !== 'MANUAL' || typeof row.invoiceDate !== 'string' || typeof row.invoiceTime !== 'string' || typeof row.invoiceAtUtc !== 'string'
+    || !['MANUAL', 'QR'].includes(String(row.origin)) || typeof row.invoiceDate !== 'string' || typeof row.invoiceTime !== 'string' || typeof row.invoiceAtUtc !== 'string'
     || typeof row.invoiceNumber !== 'string' || typeof row.issuerNit !== 'string' || typeof row.buyerDocument !== 'string'
     || !amounts || !Number.isSafeInteger(row.version) || Number(row.version) < 1
     || !(row.createdAt instanceof Date) || !(row.updatedAt instanceof Date)) throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
   const imageId = row.imageId === undefined || row.imageId === null ? null : String(row.imageId);
-  return { id: row._id.toString(), origin: 'MANUAL', ownerSubject: row.ownerSubject, thirdPartyId: String(row.thirdPartyId),
+  const qrMetadata = row.qrMetadata as Row | undefined;
+  if (row.origin === 'QR' && (!qrMetadata || qrMetadata.parserVersion !== 'invoice-key-value-v1'
+    || typeof qrMetadata.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(qrMetadata.contentHash))) throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
+  return { id: row._id.toString(), origin: row.origin as Invoice['origin'], ...(row.origin === 'QR' ? { qrMetadata: qrMetadata as unknown as NonNullable<Invoice['qrMetadata']> } : {}), ownerSubject: row.ownerSubject, thirdPartyId: String(row.thirdPartyId),
     assignmentId: String(row.assignmentId), driverId: String(row.driverId), vehicleId: String(row.vehicleId),
     vehiclePlate: typeof row.vehiclePlate === 'string' ? row.vehiclePlate : null, invoiceDate: row.invoiceDate, invoiceTime: row.invoiceTime, invoiceAtUtc: row.invoiceAtUtc,
     invoiceNumber: row.invoiceNumber, issuerNit: row.issuerNit, buyerDocument: row.buyerDocument,
@@ -72,7 +75,7 @@ function mapError(error: unknown): never {
     throw new InvoiceRepositoryError(code === 'ASSIGNMENT_VERSION_CONFLICT' ? 'ASSIGNMENT_NOT_ELIGIBLE' : code);
   if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
     const keyPattern = 'keyPattern' in error ? error.keyPattern as Row : {};
-    if (keyPattern.issuerNit || keyPattern.businessKey) throw new InvoiceRepositoryError('INVOICE_DUPLICATE');
+    if (keyPattern.issuerNit || keyPattern.businessKey || keyPattern['qrMetadata.cufe']) throw new InvoiceRepositoryError('INVOICE_DUPLICATE');
     throw new InvoiceRepositoryError('IDEMPOTENCY_CONFLICT');
   }
   if (error instanceof Error && error.message === 'INVOICE_AUDIT_UNAVAILABLE') throw new InvoiceRepositoryError('INVOICE_AUDIT_UNAVAILABLE');
@@ -97,6 +100,7 @@ function ensureReady(connection: Connection): Promise<void> {
     if (!(await inventoryInvoices(connection)).ready) throw new InvoiceRepositoryError('INVOICE_MIGRATION_REQUIRED');
     await Promise.all([
       invoices.createIndex({ thirdPartyId: 1, issuerNit: 1, invoiceNumber: 1 }, { unique: true, name: 'invoices_business_key_unique' }),
+      invoices.createIndex({ thirdPartyId: 1, 'qrMetadata.cufe': 1 }, { unique: true, partialFilterExpression: { 'qrMetadata.cufe': { $type: 'string' } }, name: 'invoices_third_party_cufe_unique' }),
       invoices.createIndex({ thirdPartyId: 1, invoiceDate: -1, _id: 1 }, { name: 'invoices_third_party_date' }),
       invoices.createIndex({ thirdPartyId: 1, ownerSubject: 1, invoiceDate: -1, _id: 1 }, { name: 'invoices_owner_date' }),
       connection.collection(idempotencyCollectionName).createIndex({ thirdPartyId: 1, actorSubject: 1, key: 1 }, { unique: true, name: 'invoice_idempotency_actor_key_unique' }),

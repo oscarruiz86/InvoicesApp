@@ -16,7 +16,10 @@ export interface InvoiceInventoryReport {
 
 function compatible(row: Record<string, unknown>): boolean {
   const amounts = row.amounts as Record<string, unknown> | undefined;
-  return row._id instanceof Types.ObjectId && row.origin === 'MANUAL' && typeof row.ownerSubject === 'string' && !!row.ownerSubject
+  const qr = row.origin === 'QR' ? row.qrMetadata as Record<string, unknown> | undefined : undefined;
+  return row._id instanceof Types.ObjectId && ['MANUAL', 'QR'].includes(String(row.origin))
+    && (row.origin !== 'QR' || (!!qr && qr.parserVersion === 'invoice-key-value-v1' && typeof qr.contentHash === 'string' && /^[a-f0-9]{64}$/.test(qr.contentHash)))
+    && typeof row.ownerSubject === 'string' && !!row.ownerSubject
     && typeof row.thirdPartyId === 'string' && /^[a-f0-9]{24}$/.test(row.thirdPartyId)
     && typeof row.assignmentId === 'string' && /^[a-f0-9]{24}$/.test(row.assignmentId)
     && typeof row.vehicleId === 'string' && /^[a-f0-9]{24}$/.test(row.vehicleId)

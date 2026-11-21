@@ -24,7 +24,8 @@ const record: InvoiceDto = { id: 'abcdef0123456789abcdef01', origin: 'MANUAL', t
   amounts: { amount: '100.00', vatAmount: '19.00', otherTaxesAmount: '0.00', totalAmount: '119.00' }, version: 1,
   createdAt: '2026-11-20T12:00:00.000Z', updatedAt: '2026-11-20T12:00:00.000Z', imageUrl: null };
 const api: InvoiceApi = { list: async (_scope, query) => ({ items: query.page === 1 ? [record] : [], total: 1, page: query.page, pageSize: query.pageSize }),
-  detail: async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' } }), create: async () => record, update: async () => record, image: async () => new Blob() };
+  detail: async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' } }), create: async () => record, update: async () => record, image: async () => new Blob(),
+  previewQr: async () => { throw new Error('Not implemented in this harness'); }, createQr: async () => record };
 const assignment = { id: record.assignmentId, thirdPartyId: record.thirdPartyId, vehicleId: record.vehicleId, vehiclePlate: record.vehiclePlate!,
   driver: { id: record.driverId, name: 'Conductor de prueba' }, status: 'ACTIVE' as const, startedAt: record.createdAt, endedAt: null, version: 1 };
 const assignments: AssignmentApi = { listAssignments: async () => ({ items: [assignment], total: 1, page: 1, pageSize: 100 }),

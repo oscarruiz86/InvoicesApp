@@ -210,6 +210,7 @@ export function InvoicesPage({ api, assignments, context, authorization }: { rea
         {safeDetail.invoice.imageUrl && detailImage && <Box component="img" src={detailImage} alt="Imagen adjunta a la factura" sx={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain' }} />}
         {safeDetail.editability.reason === 'EDIT_POLICY_UNAVAILABLE' && <Alert severity="info">La edición no está disponible hasta que Configuration entregue una política temporal válida. Puedes seguir consultando la factura.</Alert>}
         {safeDetail.editability.reason === 'EDIT_WINDOW_CLOSED' && <Alert severity="info">La ventana de edición de esta factura terminó.</Alert>}
+        {safeDetail.editability.reason === 'QR_IMMUTABLE' && <Alert severity="info">Factura capturada desde QR. Sus datos, asignación e imagen son inmutables y el origen no constituye validación fiscal.</Alert>}
       </>}
     </Stack></DialogContent><DialogActions><Button onClick={() => setDetail(null)}>Cerrar</Button>{safeDetail?.editability.available && has('invoices:update') && <Button variant="contained" onClick={() => { editDraft(safeDetail.invoice); setDetail(null); }}>Editar</Button>}</DialogActions></Dialog>
   </Stack>;

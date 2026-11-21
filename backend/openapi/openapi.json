@@ -9470,6 +9470,209 @@
         ],
         "x-authorization-scope": "Mismo ámbito de la factura; cache-control no-store."
       }
+    },
+    "/api/invoices/qr/preview": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "qrContent"
+                ],
+                "properties": {
+                  "qrContent": {
+                    "maxLength": 16384,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "enum": [
+                "organization"
+              ],
+              "type": "string"
+            },
+            "in": "query",
+            "required": true,
+            "name": "scope"
+          },
+          {
+            "schema": {
+              "pattern": "^[a-f0-9]{24}$",
+              "type": "string"
+            },
+            "in": "query",
+            "required": true,
+            "name": "thirdPartyId"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "Sin permiso"
+          },
+          "200": {
+            "description": "Campos normalizados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Contenido demasiado grande"
+          },
+          "400": {
+            "description": "QR incompleto, inválido o incompatible"
+          },
+          "401": {
+            "description": "No autenticado"
+          }
+        },
+        "tags": [
+          "Invoices"
+        ],
+        "operationId": "previewInvoiceQr",
+        "summary": "Validar y previsualizar QR de factura",
+        "x-required-permissions": [
+          "invoices:create"
+        ],
+        "x-authorization-scope": "organization thirdPartyId"
+      }
+    },
+    "/api/invoices/qr": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "qrContent",
+                      "assignmentId",
+                      "vehicleId"
+                    ],
+                    "properties": {
+                      "qrContent": {
+                        "maxLength": 16384,
+                        "type": "string"
+                      },
+                      "vehicleId": {
+                        "pattern": "^[a-f0-9]{24}$",
+                        "type": "string"
+                      },
+                      "assignmentId": {
+                        "pattern": "^[a-f0-9]{24}$",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "image": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "enum": [
+                "organization"
+              ],
+              "type": "string"
+            },
+            "in": "query",
+            "required": true,
+            "name": "scope"
+          },
+          {
+            "schema": {
+              "pattern": "^[a-f0-9]{24}$",
+              "type": "string"
+            },
+            "in": "query",
+            "required": true,
+            "name": "thirdPartyId"
+          },
+          {
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            },
+            "in": "header",
+            "required": true,
+            "name": "Idempotency-Key"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "409": {
+            "description": "Factura duplicada"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "201": {
+            "description": "Factura QR registrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "QR inválido"
+          },
+          "403": {
+            "description": "Sin permiso"
+          },
+          "413": {
+            "description": "Contenido demasiado grande"
+          }
+        },
+        "tags": [
+          "Invoices"
+        ],
+        "operationId": "createQrInvoice",
+        "summary": "Registrar factura desde QR",
+        "x-required-permissions": [
+          "invoices:create"
+        ],
+        "x-authorization-scope": "organization thirdPartyId"
+      }
     }
   },
   "components": {
@@ -12631,7 +12834,8 @@
           "version",
           "createdAt",
           "updatedAt",
-          "imageUrl"
+          "imageUrl",
+          "origin"
         ],
         "properties": {
           "id": {
@@ -12639,8 +12843,11 @@
             "pattern": "^[a-f0-9]{24}$"
           },
           "origin": {
-            "type": "string",
-            "const": "MANUAL"
+            "enum": [
+              "MANUAL",
+              "QR"
+            ],
+            "type": "string"
           },
           "thirdPartyId": {
             "type": "string",
@@ -12672,7 +12879,11 @@
             "type": "string",
             "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$"
           },
-          "invoiceAtUtc": { "type": "string", "format": "date-time", "description": "Instante UTC derivado de invoiceDate e invoiceTime en America/Bogota." },
+          "invoiceAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante UTC derivado de invoiceDate e invoiceTime en America/Bogota."
+          },
           "invoiceNumber": {
             "type": "string",
             "maxLength": 64
@@ -12706,22 +12917,47 @@
               "null"
             ],
             "format": "uri-reference"
+          },
+          "qrMetadata": {
+            "$ref": "#/components/schemas/InvoiceQrMetadata"
           }
         }
       },
       "InvoiceDetails": {
         "type": "object",
         "additionalProperties": false,
-        "required": [ "invoice", "editability" ],
+        "required": [
+          "invoice",
+          "editability"
+        ],
         "properties": {
-          "invoice": { "$ref": "#/components/schemas/Invoice" },
+          "invoice": {
+            "$ref": "#/components/schemas/Invoice"
+          },
           "editability": {
             "type": "object",
             "additionalProperties": false,
-            "required": [ "available", "reason" ],
+            "required": [
+              "available",
+              "reason"
+            ],
             "properties": {
-              "available": { "type": "boolean" },
-              "reason": { "type": [ "string", "null" ], "enum": [ "PERMISSION_INSUFFICIENT", "EDIT_POLICY_UNAVAILABLE", "EDIT_WINDOW_CLOSED", null ] }
+              "available": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "PERMISSION_INSUFFICIENT",
+                  "EDIT_POLICY_UNAVAILABLE",
+                  "EDIT_WINDOW_CLOSED",
+                  null,
+                  "QR_IMMUTABLE"
+                ]
+              }
             }
           }
         }
@@ -12743,34 +12979,103 @@
           "totalAmount"
         ],
         "properties": {
-          "assignmentId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
-          "vehicleId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
-          "invoiceDate": { "type": "string", "format": "date" },
-          "invoiceTime": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$" },
-          "invoiceNumber": { "type": "string", "minLength": 1, "maxLength": 64 },
-          "issuerNit": { "type": "string", "pattern": "^\\d{1,20}$" },
-          "buyerDocument": { "type": "string", "minLength": 1, "maxLength": 40 },
-          "amount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
-          "vatAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
-          "otherTaxesAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
-          "totalAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" }
+          "assignmentId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "vehicleId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "invoiceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "invoiceTime": {
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$"
+          },
+          "invoiceNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "issuerNit": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$"
+          },
+          "buyerDocument": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$"
+          },
+          "vatAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$"
+          },
+          "otherTaxesAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$"
+          },
+          "totalAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$"
+          }
         }
       },
       "InvoiceUpdatePayload": {
         "type": "object",
         "additionalProperties": false,
-        "required": [ "expectedVersion" ],
+        "required": [
+          "expectedVersion"
+        ],
         "properties": {
-          "expectedVersion": { "type": "integer", "minimum": 1 },
-          "invoiceDate": { "type": "string", "format": "date" },
-          "invoiceTime": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$" },
-          "invoiceNumber": { "type": "string", "minLength": 1, "maxLength": 64 },
-          "issuerNit": { "type": "string", "pattern": "^\\d{1,20}$" },
-          "buyerDocument": { "type": "string", "minLength": 1, "maxLength": 40 },
-          "amount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
-          "vatAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
-          "otherTaxesAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" },
-          "totalAmount": { "type": "string", "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$" }
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "invoiceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "invoiceTime": {
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$"
+          },
+          "invoiceNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "issuerNit": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$"
+          },
+          "buyerDocument": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$"
+          },
+          "vatAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$"
+          },
+          "otherTaxesAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$"
+          },
+          "totalAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,14}(?:\\.\\d{1,2})?$"
+          }
         }
       },
       "InvoicePage": {
@@ -12826,6 +13131,33 @@
                 "type": "string"
               }
             }
+          }
+        }
+      },
+      "InvoiceQrMetadata": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "parserVersion",
+          "contentHash"
+        ],
+        "properties": {
+          "contentHash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "parserVersion": {
+            "const": "invoice-key-value-v1",
+            "type": "string"
+          },
+          "sourceUrl": {
+            "format": "uri",
+            "type": "string",
+            "pattern": "^https://"
+          },
+          "cufe": {
+            "pattern": "^[a-f0-9]{96}$",
+            "type": "string"
           }
         }
       }

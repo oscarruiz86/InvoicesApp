@@ -2,7 +2,9 @@
 
 ## Reglas comerciales
 
-- Esta entrega registra facturas de origen `MANUAL`. El cliente no puede declarar origen, propietario ni vínculos de organización.
+- Facturas admite alta `MANUAL` y `QR`; el servidor fija el origen. El cliente no puede declarar propietario ni vínculos de organización.
+- QR v1 acepta exclusivamente las claves NumFac, FecFac, HorFac, NitFac, DocAdq, ValFac, ValIva, ValOtroIm y ValTolFac; CUFE (96 hexadecimales) y QRCode (HTTPS) son opcionales. Rechaza claves desconocidas, duplicadas, valores ausentes y URL-only. El contenido se analiza de nuevo en servidor, no se guarda en bruto ni se valida fiscalmente.
+- QR conserva hash SHA-256 normalizado, versión de parser y CUFE/URL opcionales. La factura QR es inmutable para todos los roles. CUFE es único por tercero mediante índice parcial; la clave NIT+número sigue aplicando entre ambos orígenes.
 - Los importes se capturan como cadenas decimales COP no negativas, con hasta 14 dígitos enteros y 2 decimales. No se redondea. El total debe ser exactamente valor + IVA + otros impuestos.
 - El NIT emisor conserva ceros iniciales y contiene de 1 a 20 dígitos. El número de factura se normaliza con NFC, trim y mayúsculas para comparar. La clave comercial se limita al tercero.
 - Documento adquiriente se conserva como texto NFC y no se contrasta con Keycloak.
@@ -22,6 +24,8 @@ Invoices solo pide a Fleet hechos de una relación `assignmentId` + `vehicleId` 
 | Alta | Permitida con asignación propia activa | Denegada | Denegada |
 | Listado, detalle e imagen | Solo facturas propias | Facturas del tercero activo | Denegado |
 | Edición | Solo facturas propias elegibles | Facturas del tercero activo elegibles | Denegada |
+
+La factura QR rechaza edición, incluidos vínculos e imagen, con `QR_IMMUTABLE` después de autorizar el recurso y antes de consultar Configuration; aplica también a DRIVER y THIRD_PARTY_ADMIN.
 
 La API exige `scope=organization` y `thirdPartyId` explícito. El ámbito se autoriza antes de consultar por ID, imagen o contar/paginar; la consulta de conductor incluye `ownerSubject` en Mongo. Cerrar o invalidar una asignación no elimina facturas históricas ni cambia sus vínculos. Las escrituras vuelven a confirmar permiso y evidencia vigente dentro de la transacción.
 
@@ -49,4 +53,4 @@ Las rutas de facturas deben iniciar con edición deshabilitada mientras Configur
 
 Antes de instalar índices, ejecutar inventario de solo lectura sobre las colecciones objetivo y bloquear la inicialización si aparecen datos incompatibles. La persistencia requiere replica set para transacciones. El rollback deshabilita rutas y UI y conserva documentos, imágenes y eventos; no elimina datos ni cambia Keycloak.
 
-El comando `npm --prefix backend run invoices:inventory` informa únicamente conteos de filas incompatibles, duplicados comerciales/idempotentes y referencias de imagen huérfanas; no imprime documentos personales ni escribe índices. Debe ejecutarse contra la base destino antes del despliegue. El bootstrap de Invoices repite la comprobación completa y no crea índices si `ready` es falso. Al rollback se apagan rutas y UI; se conservan datos e índices.
+El comando `npm --prefix backend run invoices:inventory` informa únicamente conteos de filas incompatibles, duplicados comerciales/idempotentes y referencias de imagen huérfanas; no imprime documentos personales ni escribe índices. Debe ejecutarse contra la base destino antes del despliegue. El bootstrap de Invoices repite la comprobación completa y no crea índices si `ready` es falso. Antes de habilitar QR, desplegar primero lectores MANUAL|QR y el índice parcial CUFE tras inventario; después habilitar endpoints y captura. En rollback, apagar rutas y UI pero conservar documentos, eventos e índices, manteniendo lectores que reconocen origen QR.

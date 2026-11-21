@@ -105,11 +105,14 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
-    invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: FormData,
+    invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: FormData | { readonly qrContent: string },
       options: { readonly signal?: AbortSignal; readonly idempotencyKey?: string; readonly binary?: boolean } = {}): Promise<unknown> {
       const list = path === 'invoices', detail = /^invoices\/[a-f0-9]{24}$/.test(path), image = /^invoices\/[a-f0-9]{24}\/image$/.test(path);
+      const qrPreview = path === 'invoices/qr/preview', qrCreate = path === 'invoices/qr';
       const valid = method === 'GET' ? body === undefined && (list || detail || image)
-        : method === 'POST' ? list && body instanceof FormData && Boolean(options.idempotencyKey)
+        : method === 'POST' ? (list && body instanceof FormData && Boolean(options.idempotencyKey))
+          || (qrCreate && body instanceof FormData && Boolean(options.idempotencyKey))
+          || (qrPreview && body !== undefined && !(body instanceof FormData))
           : method === 'PATCH' && detail && body instanceof FormData;
       const params = new URLSearchParams(query);
       const allowed = method === 'GET' && list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'q', 'vehicleId', 'dateFrom', 'dateTo', 'sort', 'direction'] : ['scope', 'thirdPartyId'];
@@ -122,14 +125,14 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (params.has('direction') && !['asc', 'desc'].includes(params.get('direction')!)) throw new ApplicationError('CONFIGURATION');
       if (params.has('vehicleId') && !/^[a-f0-9]{24}$/.test(params.get('vehicleId')!)) throw new ApplicationError('CONFIGURATION');
       if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
-      return request(path, query, options.signal, body, method, true, options.idempotencyKey, options.binary);
+      return request(path, query, options.signal, body, method, true, options.idempotencyKey, options.binary, body instanceof FormData);
     },
     previewInvitation(token: string, signal?: AbortSignal): Promise<unknown> {
       return request('invitations/preview', '', signal, { token }, 'POST', false);
     },
   };
   async function request(path: string, query: string, signal?: AbortSignal, payload?: unknown, companyMethod?: 'GET' | 'POST' | 'PATCH' | 'PUT', authenticated = true,
-    extraHeader?: string, binary = false): Promise<unknown> {
+    extraHeader?: string, binary = false, multipartPayload?: boolean): Promise<unknown> {
       if (!companyMethod && !(payload === undefined ? ['auth/me', 'auth/permissions', 'organization-contexts'] : ['organization-contexts/resolve']).includes(path)
         && !/^(invitations|organization-memberships)\//.test(path)) throw new ApplicationError('CONFIGURATION');
       const endpoint = new URL(path, base); endpoint.search = query;
@@ -142,9 +145,9 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
         const token = authenticated ? await credentials.getAccessToken() : null;
         if (controller.signal.aborted) throw new ApplicationError(controller.signal.reason);
         timer = setTimeout(() => controller.abort('TIMEOUT'), timeoutMs);
-        const multipart = typeof FormData !== 'undefined' && payload instanceof FormData;
+        const multipart = multipartPayload ?? (typeof FormData !== 'undefined' && payload instanceof FormData);
         const response = await fetcher(endpoint.href, { signal: controller.signal, redirect: 'error', cache: 'no-store', credentials: 'omit',
-          ...(payload === undefined ? {} : { body: multipart ? payload : JSON.stringify(payload) }), method: companyMethod ?? (payload === undefined ? 'GET' : 'POST'),
+          ...(payload === undefined ? {} : { body: multipart ? payload as FormData : JSON.stringify(payload) }), method: companyMethod ?? (payload === undefined ? 'GET' : 'POST'),
           headers: { Accept: binary ? 'image/jpeg, image/png' : 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(payload === undefined || multipart ? {} : { 'Content-Type': 'application/json' }), ...(extraHeader ? { 'Idempotency-Key': extraHeader } : {}) } });
         if (response.status === 401) { session.invalidate(); throw new ApplicationError('UNAUTHENTICATED'); }
