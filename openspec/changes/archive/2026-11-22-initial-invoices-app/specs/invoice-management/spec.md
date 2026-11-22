@@ -1,9 +1,5 @@
 # Invoice Management
 
-## Purpose
-
-Proteger la creación y modificación de facturas manuales y QR mediante reglas de asignación, origen, edición, autorización organizacional y trazabilidad verificables en el backend.
-
 ## ADDED Requirements
 
 ### Requirement: Vehículo asignado validado al crear

@@ -112,7 +112,7 @@ El backend MUST aplicar autenticación reutilizable en cada handler protegido. M
 - **THEN** el endpoint responde 200 con atributos ausentes como null y `roles: []`
 
 ### Requirement: Roles generales sin autorización organizacional implícita
-El realm MUST definir `APP_ADMIN`, `COMPANY_ADMIN`, `THIRD_PARTY_ADMIN` y `DRIVER`. El backend MUST mapear únicamente esos roles desde claims verificados y ofrecer una política reutilizable por roles, sin asignación privilegiada por defecto, jerarquías implícitas ni acceso organizacional derivado solo del rol.
+El realm MUST definir `APP_ADMIN`, `COMPANY_ADMIN`, `THIRD_PARTY_ADMIN` y `DRIVER`. El backend MUST obtenerlos de identidad verificada y comprobar en cada operación el permiso requerido, la asociación activa, el contexto y el propietario del recurso. Roles o contextos declarados por el cliente MUST NOT sustituir estas comprobaciones ni conceder acceso transitivo empresa-tercero. No hay asignaciones privilegiadas por defecto ni jerarquías implícitas.
 
 #### Scenario: Roles manipulados o desconocidos
 - **WHEN** el cliente declara roles en headers, query o cuerpo, o el token contiene otros roles
@@ -122,6 +122,14 @@ El realm MUST definir `APP_ADMIN`, `COMPANY_ADMIN`, `THIRD_PARTY_ADMIN` y `DRIVE
 - **WHEN** se prueba una operación protegida de prueba que exige un rol ausente en el actor válido
 - **THEN** la política deniega con categoría de autorización traducible a 403, sin crear endpoints de negocio
 - **AND** `/api/auth/me` continúa disponible para cualquier actor autenticado
+
+#### Scenario: Rol suficiente sin asociación válida
+- **WHEN** un actor presenta el rol general requerido, pero no tiene asociación activa con la organización propietaria del recurso
+- **THEN** el backend deniega la operación sin leer ni modificar el recurso
+
+#### Scenario: Contexto o permiso manipulado
+- **WHEN** el cliente declara un permiso o selecciona un contexto sin asociación válida
+- **THEN** el backend vuelve a resolver actor, asociación y ámbito desde fuentes confiables y deniega la operación
 
 ### Requirement: Integración de sesión verificable de extremo a extremo
 La integración MUST demostrar con Keycloak real que una visita anónima a una ruta privada inicia OIDC, regresa autenticada, envía un Access Token al backend y muestra la identidad devuelta por `/api/auth/me`. MUST verificar también rechazo backend sin depender de controles visuales.
