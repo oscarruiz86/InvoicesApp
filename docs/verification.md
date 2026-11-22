@@ -258,4 +258,8 @@ La suite de integración completa también requiere variables de fixture efímer
 - No se ejecutó `npm --prefix frontend run test:e2e`; falta un harness E2E específico del módulo.
 - `parameters:inventory` y `parameters:init` no se ejecutaron contra ninguna base. Son operaciones explícitas que deben ejercerse con una base aislada o en el despliegue autorizado.
 
-El cambio no se archiva mientras estas verificaciones y las tareas OpenSpec restantes estén pendientes. No se migraron datos ni se inicializó una base operativa.
+### Revisión final — 2026-11-21
+
+En esta revisión se confirmaron `backend` y `frontend` typecheck, 29 pruebas unitarias backend enfocadas, 38 pruebas unitarias frontend enfocadas en cinco archivos, arquitectura frontend y `openapi:lint`. Las pruebas frontend incluyen el retorno a `/parameters?page=2#history`, el rechazo de un catálogo sin `initialValue` y que la página conserve los datos sin repetir el listado ante un refresco de permisos sin cambios. Se corrigió la expectativa de login para reflejar ambos argumentos del puerto.
+
+La integración `configuration-parameters.test.ts` no pudo arrancar porque `MONGODB_TEST_URI` no está configurada con una base aislada terminada en `_test`. No se ejecutó `parameters:inventory` ni `parameters:init` desde este entorno, ni se realizó una prueba E2E en navegador. El cambio se archiva a solicitud explícita con 12 de 17 tareas aún abiertas; esto registra el trabajo implementado sin declarar completa la aceptación integrada ni habilitar una base productiva.

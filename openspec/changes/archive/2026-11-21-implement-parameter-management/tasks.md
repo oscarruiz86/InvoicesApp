@@ -21,11 +21,11 @@
 ## 4. REST y OpenAPI
 
 - [ ] 4.1 Añadir handlers delgados GET listado/detalle/historial y PATCH de valor con contexto global y schemas Zod estrictos; verificar contratos HTTP, errores 400/401/403/404/409/503/500 y ausencia de altas/bajas públicas.
-- [ ] 4.2 Publicar OpenAPI 3.1 con catálogo, unidad, versiones, paginación e historial; ejecutar openapi:lint y pruebas de correspondencia entre contratos y respuestas.
+- [x] 4.2 Publicar OpenAPI 3.1 con catálogo, unidad, versiones, paginación e historial; ejecutar openapi:lint y pruebas de correspondencia entre contratos y respuestas.
 
 ## 5. Frontend
 
-- [ ] 5.1 Añadir contrato y adaptador de parámetros con validación de respuestas, errores y cancelación; probar transporte global, versiones y rechazo de payload inesperado.
+- [x] 5.1 Añadir contrato y adaptador de parámetros con validación de respuestas, errores y cancelación; probar transporte global, versiones y rechazo de payload inesperado.
 - [ ] 5.2 Sustituir marcador /parameters por guard global y vistas de listado/detalle/historial con componentes compartidos; probar cuatro roles, carga/vacío/error/éxito y falta de inicialización; documentar distribución.
 - [ ] 5.3 Implementar diálogo de valor actual/nuevo y equivalencia con aviso de efecto sobre facturas existentes; probar confirmación, rango, no-op, conflicto con borrador recuperable y doble envío.
 - [ ] 5.4 Verificar limpieza por contexto/permisos y respuestas obsoletas, accesibilidad de teclado/foco y 360/1280 px mediante tests de componentes/E2E; registrar evidencia.
@@ -52,11 +52,11 @@ npm --prefix backend run dev
 npm --prefix frontend run dev
 ```
 
-`parameters:inventory` e `parameters:init` están implementados. Las pruebas de integración requieren `MONGODB_TEST_URI` dirigido a una base aislada terminada en `_test`; no se ejecutaron porque no hay URI ni Docker disponible. Ninguna operación de inventario o inicialización se ejecutó contra una base de datos.
+`parameters:inventory` e `parameters:init` están implementados. Las pruebas de integración requieren `MONGODB_TEST_URI` dirigido a una base aislada terminada en `_test`; no se ejecutaron porque no hay URI configurada en este entorno. Ninguna operación de inventario o inicialización se ejecutó contra una base de datos.
 
 ## Workflow follow-up
 
 - Revisar y aprobar la propuesta, incluido el rango máximo propuesto de 365 días.
 - Aplicar en `openspec/implement-parameter-management` desde `development` y enviar PR; no realizar commits directos en ramas protegidas.
 - Inicializar explícitamente antes de habilitar el proveedor real y verificar el entorno objetivo.
-- Archivar al completar y verificar las tareas aprobadas.
+- Archivar con advertencia de tareas pendientes solo bajo autorización explícita; completar las pruebas de integración y UI en un entorno con replica set y navegador antes de declarar aceptación integral.

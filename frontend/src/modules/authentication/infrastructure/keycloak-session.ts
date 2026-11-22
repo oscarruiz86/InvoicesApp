@@ -6,10 +6,19 @@ import type { OidcConfiguration } from './oidc-configuration';
 export type OidcClient = Pick<Keycloak, 'init' | 'createLoginUrl' | 'createLogoutUrl' | 'updateToken' | 'isTokenExpired' | 'clearToken' | 'authenticated' | 'token' | 'refreshToken' | 'idToken' | 'onTokenExpired'> & Partial<Pick<Keycloak, 'accountManagement'>>;
 const logoutKey = 'invoices.logout';
 const loginReturnPathKey = 'invoices.login-return-path';
-const loginReturnPaths = new Set(['/session', '/invitations/accept', '/invitations/received']);
+const defaultLoginReturnPath = '/session';
+
+function safeLoginReturnPath(path: unknown): string {
+  if (typeof path !== 'string' || path.length > 2048 || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) return defaultLoginReturnPath;
+  try {
+    const url = new URL(path, window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname === '/auth/callback') return defaultLoginReturnPath;
+    return url.pathname + url.search + url.hash;
+  } catch { return defaultLoginReturnPath; }
+}
 
 function saveLoginReturnPath(path: string) {
-  try { sessionStorage.setItem(loginReturnPathKey, JSON.stringify({ path, expires: Date.now() + 86_400_000 })); } catch { /* A failed storage write falls back to the default callback destination. */ }
+  try { sessionStorage.setItem(loginReturnPathKey, JSON.stringify({ path: safeLoginReturnPath(path), expires: Date.now() + 86_400_000 })); } catch { /* A failed storage write falls back to the default callback destination. */ }
 }
 function takeLoginReturnPath(): SessionSnapshot['returnPath'] {
   try {
@@ -17,8 +26,8 @@ function takeLoginReturnPath(): SessionSnapshot['returnPath'] {
     sessionStorage.removeItem(loginReturnPathKey);
     if (!raw) return undefined;
     const value: { path?: unknown; expires?: unknown } = JSON.parse(raw);
-    return typeof value.path === 'string' && loginReturnPaths.has(value.path) && typeof value.expires === 'number' && value.expires > Date.now()
-      ? value.path as SessionSnapshot['returnPath'] : undefined;
+    return typeof value.path === 'string' && typeof value.expires === 'number' && value.expires > Date.now()
+      ? safeLoginReturnPath(value.path) : undefined;
   } catch { return undefined; }
 }
 
@@ -112,7 +121,7 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
       const instance = client;
       if (!instance) return;
       const epoch = generation;
-      const destination = loginReturnPaths.has(returnPath) ? returnPath : '/session';
+      const destination = safeLoginReturnPath(returnPath);
       saveLoginReturnPath(destination);
       publish({ status: 'authenticating' });
       try {

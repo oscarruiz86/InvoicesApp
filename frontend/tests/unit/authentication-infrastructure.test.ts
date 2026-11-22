@@ -59,6 +59,18 @@ describe('OIDC session lifecycle', () => {
     const storedValues = Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.getItem(sessionStorage.key(index)!)).join(' ');
     expect(storedValues).not.toMatch(/access-in-memory|refresh-in-memory|identity-in-memory/);
   });
+  it('preserves a safe in-app route with query and hash through the OIDC callback', async () => {
+    const client = sdk();
+    const login = createKeycloakSession(configuration, { factory: () => client });
+    await login.initialize();
+    await login.login('/parameters?page=2#history');
+    expect(JSON.parse(sessionStorage.getItem('invoices.login-return-path')!)).toMatchObject({ path: '/parameters?page=2#history' });
+
+    window.history.replaceState(null, '', '/auth/callback?code=provider-code&state=provider-state');
+    const callback = createKeycloakSession(configuration, { factory: sdk });
+    await callback.initialize();
+    expect(callback.snapshot()).toMatchObject({ status: 'authenticated', returnPath: '/parameters?page=2#history' });
+  });
   it('keeps the exact Keycloak callback and pre-fills the invited email during registration', async () => {
     const navigate = vi.fn();
     const client = sdk();

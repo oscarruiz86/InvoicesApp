@@ -6,8 +6,10 @@ import type { AuthorizationStore } from '@/modules/authentication/presentation/a
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
 
 export function ParametersPage({ api, authorization, context }: { api: ParameterApi; authorization: AuthorizationStore; context: ContextStore }) {
-  const auth = useStore(authorization); const ctx = useStore(context);
-  const global = ctx.status === 'ready' && ctx.activeContext?.kind === 'GLOBAL'; const canUpdate = auth.has('parameters:update');
+  const ctx = useStore(context);
+  const canRead = useStore(authorization, state => state.has('parameters:read'));
+  const canUpdate = useStore(authorization, state => state.has('parameters:update'));
+  const global = ctx.status === 'ready' && ctx.activeContext?.kind === 'GLOBAL';
   const [items, setItems] = useState<readonly Parameter[]>([]); const [events, setEvents] = useState<readonly ParameterEvent[]>([]);
   const [status, setStatus] = useState<'loading'|'ready'|'error'>('loading'); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState<Parameter|null>(null); const [value, setValue] = useState(''); const [saving, setSaving] = useState(false);
@@ -18,7 +20,7 @@ export function ParametersPage({ api, authorization, context }: { api: Parameter
     catch { if (!controller.signal.aborted) { setError('No se pudo consultar el catálogo. Verifica la inicialización y vuelve a cargar.'); setStatus('error'); } }
     finally { if (request.current === controller) request.current = null; }
   }, [api]);
-  useEffect(() => { if (global && authorization.getState().has('parameters:read')) void load(); else { request.current?.abort(); setItems([]); setEvents([]); setSelected(null); } return () => request.current?.abort(); }, [global, auth, authorization, load]);
+  useEffect(() => { if (global && canRead) void load(); else { request.current?.abort(); setItems([]); setEvents([]); setSelected(null); } return () => request.current?.abort(); }, [global, canRead, authorization, load]);
   async function showHistory(item: Parameter) { const controller = new AbortController(); request.current?.abort(); request.current = controller; setSelected(item); setEvents([]);
     setDialogMode('history'); try { const result = await api.history(item.key, controller.signal); if (!controller.signal.aborted) setEvents(result); } catch { if (!controller.signal.aborted) setError('No se pudo cargar el historial.'); } }
   async function save() { if (!selected || pending.current) return; const n = Number(value); if (!Number.isSafeInteger(n) || n < selected.minimum || n > selected.maximum) { setError(`Ingresa un entero entre ${selected.minimum} y ${selected.maximum} segundos.`); return; }
@@ -28,7 +30,7 @@ export function ParametersPage({ api, authorization, context }: { api: Parameter
   }
   return <Stack spacing={2} sx={{ maxWidth: 1100, minWidth: 0 }}><Typography component="h1" variant="h4">Parámetros funcionales</Typography>
     {!global && <Alert severity="warning">Esta administración solo está disponible en contexto GLOBAL.</Alert>}
-    {global && !auth.has('parameters:read') && <Alert severity="warning">Se requiere permiso parameters:read.</Alert>}
+    {global && !canRead && <Alert severity="warning">Se requiere permiso parameters:read.</Alert>}
     {error && <Alert severity="error">{error}</Alert>}{notice && <Alert severity="success">{notice}</Alert>}
     {status === 'loading' && <CircularProgress aria-label="Cargando parámetros" />}{status === 'error' && <Button onClick={() => void load()}>Recargar</Button>}
     {status === 'ready' && items.length === 0 && <Alert severity="info">El catálogo aún no está inicializado. Ejecuta parameters:init antes de usar la edición de facturas.</Alert>}

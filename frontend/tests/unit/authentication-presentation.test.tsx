@@ -39,10 +39,10 @@ describe('session state and private presentation', () => {
   });
   it('waits for initialization and does not reveal private content to an anonymous visitor', async () => {
     const { store, port, publish } = setup({ status: 'initializing' });
-    render(<MemoryRouter><PrivateRoute store={store}><div>Private content</div></PrivateRoute></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/parameters?page=2#history']}><PrivateRoute store={store}><div>Private content</div></PrivateRoute></MemoryRouter>);
     expect(screen.queryByText('Private content')).not.toBeInTheDocument(); expect(port.login).not.toHaveBeenCalled();
     act(() => publish({ status: 'anonymous' }));
-    await waitFor(() => expect(port.login).toHaveBeenCalledOnce());
+    await waitFor(() => expect(port.login).toHaveBeenCalledWith('/parameters?page=2#history', undefined));
     expect(screen.queryByText('Private content')).not.toBeInTheDocument();
     act(() => publish({ status: 'authenticated' }));
     expect(screen.getByText('Private content')).toBeInTheDocument();

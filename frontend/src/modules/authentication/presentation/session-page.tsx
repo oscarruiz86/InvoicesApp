@@ -50,10 +50,12 @@ export function AccountMenu({ store, context }: { store: AuthenticationStore; co
 
 export function PrivateRoute({ store, children }: { store: AuthenticationStore; children: ReactNode }) {
   const state = useStore(store);
+  const location = useLocation();
   const { status, error, login } = state;
+  const returnPath = `${location.pathname}${location.search}${location.hash}`;
   useEffect(() => {
-    if (status === 'anonymous' && !error) void login();
-  }, [status, error, login]);
+    if (status === 'anonymous' && !error) void login(returnPath);
+  }, [status, error, login, returnPath]);
   return ['authenticated', 'refreshing'].includes(state.status) ? children : <SessionFeedback store={store} />;
 }
 

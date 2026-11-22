@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { ParameterApi } from '../application/parameter-api';
 import { RequestError } from '@/shared/application/request-error';
 
-const parameter = z.object({ key: z.string(), name: z.string(), description: z.string(), type: z.literal('integer'), unit: z.literal('seconds'), minimum: z.number().int(), maximum: z.number().int(), scope: z.literal('global'), value: z.number().int(), version: z.number().int(), effectiveFrom: z.string(), createdAt: z.string(), createdBy: z.string(), updatedAt: z.string(), updatedBy: z.string() }).strict();
+const parameter = z.object({ key: z.string(), name: z.string(), description: z.string(), type: z.literal('integer'), unit: z.literal('seconds'), initialValue: z.number().int(), minimum: z.number().int(), maximum: z.number().int(), scope: z.literal('global'), value: z.number().int(), version: z.number().int(), effectiveFrom: z.string(), createdAt: z.string(), createdBy: z.string(), updatedAt: z.string(), updatedBy: z.string() }).strict();
 const event = z.object({ eventId: z.string(), correlationId: z.string(), key: z.string(), actor: z.string(), at: z.string(), previousValue: z.number().int(), value: z.number().int(), previousVersion: z.number().int(), version: z.number().int() }).strict();
 async function read<T>(body: unknown, schema: z.ZodType<T>): Promise<T> {
   const parsed = schema.safeParse(body); if (!parsed.success) throw new RequestError('INVALID_RESPONSE'); return parsed.data;
