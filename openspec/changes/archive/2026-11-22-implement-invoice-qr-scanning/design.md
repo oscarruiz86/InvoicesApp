@@ -16,9 +16,15 @@ Facturas ya está implementado y archivado como 2026-11-20-implement-invoice-man
 
 Se proponen cámara e imagen JPEG/PNG local (máximo 5 MiB y 20 megapíxeles) con el mismo resultado textual. El área de escaneo enfoca un único código y pausa al primer resultado; el usuario revisa/rechaza antes de continuar. No se garantiza enumerar todos los códigos de una imagen; puede recortar y volver a leer si el resultado no es el esperado.
 
-Seleccionar qr-scanner como candidato, detrás de QrDecoderPort en application e implementación en infrastructure, importación diferida con worker empaquetado localmente. Su documentación describe cámara, imágenes, procesamiento mediante worker y licencia MIT. ZXing Browser es alternativa para formatos adicionales pero el alcance solo requiere QR. BarcodeDetector solo no es suficiente como estrategia de compatibilidad. No se afirma mantenimiento o tamaño de la versión instalada: no hay biblioteca instalada todavía; verificar versión, actividad, licencia, vulnerabilidades y presupuesto de bundle al aplicar, fijando versión compatible sin CDN.
+Se selecciona `qr-scanner@1.4.2`, detrás de `QrDecoderPort` en application e implementación en infrastructure, con importación diferida y worker empaquetado localmente. Su documentación describe cámara, imágenes, procesamiento mediante worker y licencia MIT. ZXing Browser es alternativa para formatos adicionales pero el alcance solo requiere QR. BarcodeDetector solo no es suficiente como estrategia de compatibilidad. La revisión de implementación fijó la versión y licencia, y el build Vite confirmó el adaptador y worker locales sin CDN. La publicación npm es antigua, por lo que el puerto mantiene abierta la posibilidad de reemplazar la biblioteca.
 
 Referencias consultadas: https://github.com/nimiq/qr-scanner y https://github.com/zxing-js/browser . La validación real en navegadores y dispositivos es tarea de implementación, no evidencia de esta propuesta.
+
+### Sincronización de dependencias de desarrollo
+
+Compose monta `frontend-modules` en `/app/node_modules`. Los volúmenes nombrados sobreviven a la reconstrucción de la imagen; por eso un lockfile actualizado podía coexistir con un `node_modules` anterior y hacer que Vite reportara `Failed to resolve import "qr-scanner"`. El entrypoint de desarrollo compara el SHA-256 de `package-lock.json` con un marcador dentro del volumen y corre `npm ci` cuando no coinciden, antes de ejecutar Vite. El build local posterior resolvió el import y emitió los chunks locales del lector y el worker.
+
+La evidencia E2E previa cubre el flujo con cámara simulada (4/4 pruebas). La ejecución de seguimiento no pudo iniciar Playwright porque el ejecutable Chromium requerido no estaba instalado en el entorno. Sigue pendiente probar cámara física en HTTPS con permisos concedidos y denegados en un dispositivo real; esta limitación se registra en `tasks.md` como tarea 5.3.
 
 La cámara requiere contexto seguro compatible (HTTPS o localhost de desarrollo), permisos y navegador con mediaDevices; HTTP en IP de LAN no se considera soportado para cámara. Imagen local ofrece alternativa con teclado. Detener tracks/worker y revocar object URLs al salir o cambiar contexto.
 

@@ -27,3 +27,11 @@ Invoice Management ya permite registro manual, pero no captura los datos disponi
 ## Impact
 
 Frontend agrega adaptador de escaneo local y flujo dentro de Facturas; backend amplía domain/application/persistence y OpenAPI. Los consumidores actuales validan origin como literal MANUAL y requieren despliegue coordinado antes de recibir QR. No se crean colecciones paralelas de facturas. Se propone qr-scanner detrás de un puerto sustituible, sujeto a comprobación de versión, licencia y compatibilidad al implementar. La propuesta es documental y no acredita funcionamiento de cámaras ni bibliotecas en este entorno.
+
+## Seguimiento de implementación — 2026-11-22
+
+La captura reportó que Vite no podía resolver `qr-scanner` desde `qr-scanner-adapter.ts`. La dependencia ya estaba fijada en `frontend/package.json` y `frontend/package-lock.json`, y el build local confirmó que el import se resuelve y que el worker se empaqueta localmente. La causa más probable era una instalación obsoleta en el volumen persistente `frontend-modules` de Compose: reconstruir la imagen no refresca un volumen nombrado ya existente.
+
+El contenedor de desarrollo ahora compara el SHA-256 del lockfile con la instalación montada y ejecuta `npm ci` cuando difieren. Así, agregar o actualizar una dependencia sincroniza el volumen antes de iniciar Vite. El cambio no requiere CDN ni altera el bundle de producción.
+
+La verificación simulada cuenta con evidencia previa de 4/4 pruebas Playwright. La aceptación con cámara física sigue pendiente: requiere HTTPS en dispositivo real, comprobar permisos concedidos y denegados, y registrar navegador y dispositivo. La cámara simulada no se considera evidencia de hardware real. El build Vite volvió a pasar; en la sesión de seguimiento Playwright no pudo arrancar porque faltaba el ejecutable Chromium de su caché.
