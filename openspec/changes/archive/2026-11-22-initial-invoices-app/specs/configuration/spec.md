@@ -1,9 +1,5 @@
 # Configuration
 
-## Purpose
-
-Proporcionar parámetros funcionales válidos con ámbito y vigencia explícitos, de modo que los casos de uso consuman políticas configurables sin acoplarse a su almacenamiento.
-
 ## ADDED Requirements
 
 ### Requirement: Parámetros funcionales tipados y válidos

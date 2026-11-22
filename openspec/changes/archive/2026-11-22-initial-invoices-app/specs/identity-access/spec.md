@@ -1,9 +1,5 @@
 # Identity & Access
 
-## Purpose
-
-Establecer una identidad autenticada y permisos generales mediante un proveedor externo, manteniendo independientes las reglas de aplicación y la autorización organizacional.
-
 ## MODIFIED Requirements
 
 ### Requirement: Roles generales sin autorización organizacional implícita

@@ -26,6 +26,10 @@ Solo APP_ADMIN en contexto global con parameters:read MUST consultar listado, de
 - **WHEN** un actor sin rol, permiso o contexto global requerido solicita una operación administrativa
 - **THEN** responde 403 antes de consultar la existencia del parámetro
 
+#### Scenario: Modificación sin permiso
+- **WHEN** un actor sin autorización intenta cambiar un parámetro funcional
+- **THEN** el valor efectivo no cambia
+
 ### Requirement: Inicialización explícita e idempotente
 
 Una operación administrativa técnica explícita MUST insertar únicamente claves conocidas ausentes, con valor inicial de catálogo y evento durable. MUST conservar valores existentes válidos y bloquearse ante datos incompatibles. Lecturas y operaciones de factura MUST NOT inicializar, reparar ni sobrescribir parámetros.
@@ -41,6 +45,10 @@ Configuration MUST exponer un contrato de política efectiva con duración, revi
 #### Scenario: Consumo por conductor
 - **WHEN** Invoice Management evalúa una edición autorizada para un conductor sin parameters:read
 - **THEN** obtiene internamente la política global efectiva y decide la elegibilidad sin conceder acceso administrativo
+
+#### Scenario: Consulta desde facturación por contexto e instante
+- **WHEN** un caso de uso de facturación solicita la ventana de edición para un contexto organizacional y un instante determinados
+- **THEN** Configuration devuelve la política efectiva mediante su contrato sin exponer ni requerir conocimiento de su almacenamiento
 
 ### Requirement: Edición manual con política vigente
 

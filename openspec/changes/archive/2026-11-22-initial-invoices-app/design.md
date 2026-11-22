@@ -230,7 +230,7 @@ La validación automatizada usa Vitest, Dependency Cruiser, OpenAPI lint, builds
 
 ## Migration Plan
 
-En la inspección inicial no había código ni datos disponibles que migrar. Las capacidades se implementaron después en cambios separados y se integraron en `development`, sin que esta revisión altere datos o despliegue servicios. Las deltas de esta propuesta permanecen activas para revisión y no se archivan con este cierre.
+En la inspección inicial no había código ni datos disponibles que migrar. Las capacidades se implementaron después en cambios separados y se integraron en `development`, sin que esta revisión altere datos o despliegue servicios. Las siete deltas se sincronizaron con sus especificaciones base y la propuesta se archivó el 22 de noviembre de 2026.
 
 ## Decisiones acordadas y trazabilidad
 

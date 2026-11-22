@@ -30,6 +30,10 @@ Crear MUST confirmar una asignación ACTIVE propia del conductor para el vehícu
 - **WHEN** se cierra la asignación antes de confirmar el alta
 - **THEN** el alta se rechaza sin factura ni evento parcial
 
+#### Scenario: Vehículo sin asignación válida
+- **WHEN** el conductor intenta crear una factura para un vehículo sin asignación ACTIVE propia en el tercero autorizado al instante de confirmación
+- **THEN** se rechaza el alta sin persistir la factura ni un evento parcial
+
 ### Requirement: Representación decimal y fechas verificables
 
 Los importes MUST ser decimales no negativos con máximo dos decimales y suma exacta valor más IVA más otros impuestos igual a total. Fecha y hora comercial MUST conservarse separadas del instante UTC de registro. NIT, documento y número MUST tratarse como texto; MUST NOT validar identidad del adquiriente mediante Keycloak.

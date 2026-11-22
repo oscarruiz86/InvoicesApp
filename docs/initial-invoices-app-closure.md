@@ -36,5 +36,6 @@ Estado al 22 de noviembre de 2026: propuesta reconciliada y tareas completadas. 
 
 - P1–P7 quedaron documentadas en `openspec/changes/initial-invoices-app/design.md`; la aprobación explícita para implementar consta en la solicitud del usuario del 22 de noviembre de 2026.
 - Las cuatro tareas que estaban pendientes (2.4, 2.5, 5.2 y 5.3) se cerraron con la decisión de P5, la entrega Audit y el alcance aprobado sin consulta de historial. La configuración mantiene sus endpoints documentados y probados.
-- Progreso registrado: 36/36 tareas. Se ejecutó `openspec validate initial-invoices-app --strict --no-interactive` antes de crear el commit.
-- El cambio permanece activo para revisión; no se archiva en este commit.
+- Progreso registrado: 36/36 tareas. `openspec validate initial-invoices-app --strict --no-interactive` pasó antes del archivo.
+- Las siete deltas se sincronizaron con `openspec/specs/`; `openspec validate --specs` reportó 22 aprobadas y 0 fallidas (con avisos preexistentes en requisitos largos de otras capacidades).
+- La propuesta quedó archivada en `openspec/changes/archive/2026-11-22-initial-invoices-app`.

@@ -21,13 +21,13 @@ Invoices App necesita límites arquitectónicos explícitos antes de desarrollar
 - `project-foundation`: estándares SOLID/DDD/Clean Architecture, aplicaciones independientes, límites de módulos, contratos REST y estrategia de pruebas.
 - `organizations`: empresas, terceros, asociaciones de usuarios, selección de contexto y aislamiento organizacional.
 - `fleet-management`: vehículos, conductores, activación, desactivación, cambio de tercero e historial de asignaciones.
-- `invoice-management`: captura manual/QR, validación de asignación, edición controlada y auditoría de modificaciones.
-- `configuration`: parámetros funcionales tipados y acceso mediante contratos, incluida la política temporal de edición.
 - `audit`: registro durable, sanitizado y recuperable de operaciones; la consulta queda deshabilitada hasta aprobar una política de acceso.
 
 ### Modified Capabilities
 
 - `identity-access`: ampliar el requisito existente de roles generales para exigir verificación complementaria de permiso, asociación organizacional, contexto autorizado y propietario del recurso en cada operación.
+- `configuration`: incorporar escenarios tipados y verificables para la política efectiva, su vigencia temporal y acceso administrativo.
+- `invoice-management`: ampliar los requisitos existentes para asignación, origen MANUAL/QR, ventana temporal, autorización e historial recuperable.
 
 Al crear la propuesta, la inspección disponible era solo documental y no encontraba especificaciones base, cambios previos ni código de aplicación. La implementación evolucionó después en cambios independientes; la clasificación actual refleja la especificación base existente de `identity-access` y la reconciliación registrada en `docs/initial-invoices-app-closure.md`.
 
@@ -35,4 +35,4 @@ Al crear la propuesta, la inspección disponible era solo documental y no encont
 
 La propuesta se creó inicialmente como planificación documental. Posteriormente, las capacidades se implementaron en cambios OpenSpec independientes y se integraron en `development`; `docs/initial-invoices-app-closure.md` registra la evidencia y las decisiones P1–P7. La solicitud del usuario del 22 de noviembre de 2026 autoriza completar las tareas restantes y crear el commit de esta rama.
 
-La arquitectura y las siete capacidades se reconciliaron con las decisiones vigentes. Audit conserva trazabilidad normalizada, entrega recuperable y retención de dos años; el historial permanece privado y no se publica una consulta hasta aprobar una política de acceso específica. El cambio no se archiva en este cierre.
+La arquitectura y las siete capacidades se reconciliaron con las decisiones vigentes. Audit conserva trazabilidad normalizada, entrega recuperable y retención de dos años; el historial permanece privado y no se publica una consulta hasta aprobar una política de acceso específica. Las deltas se sincronizaron con `openspec/specs/` y la propuesta se archivó el 22 de noviembre de 2026.
