@@ -1,27 +1,27 @@
-# Tasks
+# Tareas (Tasks)
 
-## 1. Public Audit contract
+## 1. Contrato público de Audit
 
-- [x] 1.1 Define the normalized event type and strict sanitizer/validator; unit tests reject unsafe or unknown fields and accept valid security and organization facts.
-- [x] 1.2 Document the producer contract, stable event IDs, categories, safe context/resource fields, and the rule that audit history remains unreadable without an approved query policy.
+- [x] 1.1 Definir el tipo de evento normalizado y el saneador/validador estricto; las pruebas unitarias rechazan campos inseguros o desconocidos y aceptan hechos válidos de seguridad y organización.
+- [x] 1.2 Documentar el contrato de productores, los IDs de evento estables, las categorías, los campos seguros de contexto/recurso y la regla de que el historial de auditoría no es legible sin una política de consulta aprobada.
 
-## 2. Durable journal and retention
+## 2. Registro durable y retención
 
-- [x] 2.1 Implement the MongoDB Audit writer with unique event IDs, immutable insert semantics, and conflict detection; integration tests verify repeated delivery creates one record and conflicting reuse preserves the original.
-- [x] 2.2 Add the two-calendar-year expiry timestamp and TTL index idempotently; isolated MongoDB tests verify leap-year boundary calculation, index options, and that unexpired records are preserved.
-- [x] 2.3 Document MongoDB TTL's asynchronous deletion behavior, operational index setup, backup scope, and the two-year retention rule.
+- [x] 2.1 Implementar el escritor Audit de MongoDB con IDs de evento únicos, semántica de inserción inmutable y detección de conflictos; las pruebas de integración verifican que las entregas repetidas creen un único registro y que el uso conflictivo del mismo ID preserve el original.
+- [x] 2.2 Añadir de forma idempotente la fecha de expiración a dos años calendario y el índice TTL; las pruebas aisladas de MongoDB verifican el cálculo de límites en años bisiestos, las opciones del índice y la preservación de registros no vencidos.
+- [x] 2.3 Documentar el comportamiento de eliminación asíncrona TTL de MongoDB, la configuración operativa de índices, el alcance de las copias de seguridad y la regla de retención de dos años.
 
-## 3. Synchronous producer integrations
+## 3. Integraciones síncronas de productores
 
-- [x] 3.1 Route organization association/context audit facts through the public Audit contract using the producer transaction; MongoDB integration tests verify the audit fact commits or rolls back with its organization mutation and contains no unvalidated IDs or payloads.
-- [x] 3.2 Route authorization denials to the sanitized Audit writer while preserving best-effort denial semantics; tests verify a failed audit write never turns a denial into an allow response.
+- [x] 3.1 Canalizar los hechos de auditoría de asociaciones/contexto organizacional por el contrato público de Audit usando la transacción del productor; las pruebas de integración MongoDB verifican que el hecho de auditoría se confirme o revierta junto con la mutación organizacional y no contenga IDs ni payloads sin validar.
+- [x] 3.2 Canalizar las denegaciones de autorización al escritor Audit depurado preservando la semántica de denegación de mejor esfuerzo; las pruebas verifican que un fallo al escribir auditoría nunca convierta una denegación en una respuesta permitida.
 
-## 4. Recoverable policy-event delivery
+## 4. Entrega recuperable de eventos de política
 
-- [x] 4.1 Implement a bounded policy outbox worker that writes captured events to Audit before acknowledging the matching event ID; unit tests cover backoff, bounded batches, and graceful stop.
-- [x] 4.2 Verify real MongoDB recovery after interruption between Audit insert and outbox acknowledgement, including duplicate suppression, unchanged event identity, retained retry on sink failure, and event-count logging without event contents.
-- [x] 4.3 Add the worker command and operational guidance for startup, monitoring counts, restart/recovery, and the existing outbox capacity behavior.
+- [x] 4.1 Implementar un worker acotado de outbox de políticas que escriba los eventos capturados en Audit antes de confirmar el ID de evento correspondiente; las pruebas unitarias cubren espera incremental, lotes acotados y apagado ordenado.
+- [x] 4.2 Verificar la recuperación con MongoDB real después de una interrupción entre la inserción en Audit y la confirmación del outbox, incluidos la supresión de duplicados, la identidad de evento sin cambios, el reintento conservado si falla el destino y el registro de conteos sin contenido de eventos.
+- [x] 4.3 Añadir el comando del worker y las instrucciones operativas para inicio, monitoreo de conteos, reinicio/recuperación y el comportamiento existente de capacidad del outbox.
 
-## 5. Integrated acceptance
+## 5. Aceptación integrada
 
-- [x] 5.1 Run backend checks, isolated MongoDB integration, and strict OpenSpec validation; reconcile the shared Audit contract with the separate Keycloak event-ingestion change without adding a history endpoint or enabling `audit:read`.
+- [x] 5.1 Ejecutar las verificaciones del backend, la integración aislada de MongoDB y la validación estricta de OpenSpec; reconciliar el contrato compartido de Audit con el cambio independiente de ingesta de eventos de Keycloak sin añadir una API de historial ni habilitar `audit:read`.

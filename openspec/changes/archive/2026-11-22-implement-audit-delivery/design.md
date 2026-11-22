@@ -1,44 +1,44 @@
-# Design
+# Diseño (Design)
 
-## Context
+## Contexto (Context)
 
-See [proposal.md](proposal.md). Authorization stores accepted policy-change facts in `authorization_policies.pendingEvents`; Organizations and business modules currently write module-specific event collections. The new contract must preserve existing transaction guarantees and avoid introducing a broker or an audit-history API. Retention is fixed at two years by the user.
+Consulta [proposal.md](proposal.md). La autorización almacena los hechos aceptados de cambios de política en `authorization_policies.pendingEvents`; Organizations y los módulos de negocio actualmente escriben en colecciones de eventos específicas de cada módulo. El nuevo contrato debe preservar las garantías transaccionales existentes y evitar introducir un broker o una API de historial de auditoría. El usuario fijó la retención en dos años.
 
-## Goals / Non-Goals
+## Objetivos y fuera de alcance (Goals / Non-Goals)
 
-**Goals:** provide one sanitized append-only audit sink; make event IDs idempotent; deliver captured policy events after process restarts; retain records for two years; route association changes through the same sink.
+**Objetivos:** ofrecer un único destino de auditoría depurado y de solo anexado; hacer idempotentes los IDs de evento; entregar los eventos de política capturados después de reinicios del proceso; conservar los registros durante dos años; canalizar los cambios de asociaciones por el mismo destino.
 
-**Non-Goals:** expose audit reads, grant `audit:read`, change authorization decisions, centralize every historical business collection in this increment, or add a message broker.
+**Fuera de alcance:** exponer lecturas de auditoría, conceder `audit:read`, cambiar decisiones de autorización, centralizar en este incremento todas las colecciones históricas de negocio o añadir un broker de mensajes.
 
-## Decisions
+## Decisiones (Decisions)
 
-### Event contract and validation
+### Contrato y validación de eventos
 
-Define a small application port and a normalized event envelope: stable `eventId`, `occurredAt`, source, verified actor kind/subject, action, result, categorical reason, correlation ID, optional validated organization scope, safe resource type/ID, and optional before/after revisions. Reject unknown fields and unsafe identifiers. Do not store credentials, tokens, raw claims, client request bodies, or provider event representations. Keycloak ingestion maps only whitelisted administrative fields to this envelope in its separate change.
+Definir un puerto pequeño de aplicación y un sobre normalizado de evento: `eventId` estable, `occurredAt`, origen, tipo/subject del actor verificado, acción, resultado, motivo categórico, ID de correlación, ámbito organizacional validado opcional, tipo/ID de recurso seguros y revisiones anterior/posterior opcionales. Rechazar campos desconocidos e identificadores inseguros. No almacenar credenciales, tokens, claims sin procesar, cuerpos de solicitudes del cliente ni representaciones de eventos del proveedor. La ingesta de Keycloak asigna únicamente campos administrativos permitidos a este sobre en su cambio independiente.
 
-### Append-only MongoDB journal
+### Registro MongoDB de solo anexado
 
-Use a dedicated `audit_events` collection with a unique index on `eventId` and an expiry timestamp equal to `occurredAt + 730 days`. Insert with `$setOnInsert`; a retry with the same event ID and same canonical facts succeeds idempotently, while different facts for that ID are an integrity conflict. MongoDB TTL expiry can run after the exact boundary, but must never remove an event before it. Existing per-module transaction participants can write through the contract using the same Mongo session so the business write and audit capture remain atomic.
+Usar una colección dedicada `audit_events` con un índice único sobre `eventId` y una fecha de expiración igual a `occurredAt + 730 days`. Insertar con `$setOnInsert`; un reintento con el mismo ID de evento y los mismos hechos canónicos se acepta de forma idempotente, mientras que hechos distintos para ese ID constituyen un conflicto de integridad. La expiración TTL de MongoDB puede ejecutarse después del límite exacto, pero nunca debe eliminar un evento antes de tiempo. Los participantes transaccionales existentes de cada módulo pueden escribir mediante el contrato usando la misma sesión Mongo, de modo que la escritura de negocio y la captura de auditoría sigan siendo atómicas.
 
-### Policy outbox delivery
+### Entrega de eventos de política mediante outbox
 
-Keep `pendingEvents` in the policy document because policy version and capture already commit atomically there. A worker reads a bounded batch, writes each event to Audit, then pulls only that event ID from the policy document. A crash between the journal insert and `$pull` causes a retry, which the unique event ID absorbs. A failed journal write leaves the outbox untouched. There is no separate delivery cursor that could get ahead of the durable event.
+Mantener `pendingEvents` en el documento de política porque la versión de la política y su captura ya se confirman atómicamente allí. Un worker lee un lote acotado, escribe cada evento en Audit y luego elimina del documento de política únicamente el ID de ese evento. Si el proceso falla entre la inserción en el registro y el `$pull`, el reintento queda cubierto por el ID único del evento. Si falla la escritura en el registro, el outbox permanece intacto. No hay un cursor de entrega separado que pueda adelantarse al evento durable.
 
-### Worker lifecycle
+### Ciclo de vida del worker
 
-Provide a dedicated bounded worker command with graceful shutdown, backoff on unavailable MongoDB, and structured counts for delivered/retried events that never include event contents. It runs independently from request handlers; no policy update waits for the Audit service to be available after its durable outbox capture.
+Proporcionar un comando de worker dedicado y acotado, con apagado ordenado, espera incremental ante la indisponibilidad de MongoDB y conteos estructurados de eventos entregados/reintentados que nunca incluyan el contenido de los eventos. Se ejecuta independientemente de los controladores de solicitudes; ninguna actualización de política espera a que el servicio Audit esté disponible una vez capturado el evento en el outbox durable.
 
-### Two-year retention and privacy
+### Retención de dos años y privacidad
 
-TTL is based on the server-validated event occurrence timestamp and uses the user-approved 730-day period. No delete endpoint or manual purge script is added. Audit history remains unreadable to application users while `audit:read` is ungranted. Storage/index tests use only isolated `_test` databases.
+El TTL se basa en la marca de tiempo de ocurrencia del evento validada por el servidor y usa el periodo aprobado por el usuario de 730 días. No se añade un endpoint de borrado ni un script de purga manual. El historial de Audit permanece inaccesible para los usuarios de la aplicación mientras `audit:read` no esté concedido. Las pruebas de almacenamiento e índices usan únicamente bases de datos `_test` aisladas.
 
-## Risks / Trade-offs
+## Riesgos y compensaciones (Risks / Trade-offs)
 
-- [TTL deletion is asynchronous] → Records are guaranteed not to expire early; operations documentation states MongoDB may remove them after, rather than exactly at, the two-year boundary.
-- [A policy outbox can grow while Audit is unavailable] → Bound each delivery batch, expose counts, retain events, and fail closed at the existing capture capacity instead of discarding them.
-- [Different producer event shapes can leak sensitive data] → Use a strict normalized schema and source-specific mappers; do not persist generic payload objects.
-- [No history API is available] → This deliberately preserves the currently denied `audit:read` permission until a separately approved query policy exists.
+- [La eliminación TTL es asíncrona] → Se garantiza que los registros no expiren antes de tiempo; la documentación operativa indica que MongoDB puede eliminarlos después del límite de dos años, no necesariamente justo al alcanzarlo.
+- [El outbox de políticas puede crecer mientras Audit no esté disponible] → Limitar cada lote de entrega, exponer conteos, conservar los eventos y detenerse de forma segura al alcanzar la capacidad existente del outbox, en vez de descartarlos.
+- [Los distintos formatos de evento de los productores pueden filtrar datos sensibles] → Usar un esquema normalizado estricto y mappers específicos por origen; no persistir objetos genéricos de payload.
+- [No hay una API de historial disponible] → Esto conserva deliberadamente el permiso `audit:read` denegado hasta que exista una política de consulta aprobada por separado.
 
-## Migration Plan
+## Plan de migración (Migration Plan)
 
-Create the collection and indexes idempotently when the Audit worker/adapters initialize. Do not rewrite or delete existing module event collections. Deploy the Audit worker before connecting deferred producers; on rollback, stop the worker and leave pending policy events intact for later redelivery. No live realm or existing audit records are migrated.
+Crear la colección y los índices de forma idempotente cuando se inicialicen el worker/adaptadores de Audit. No reescribir ni eliminar las colecciones de eventos existentes de los módulos. Desplegar el worker de Audit antes de conectar productores con entrega diferida; para revertir, detener el worker y conservar los eventos de política pendientes para una entrega posterior. No se migra ningún realm activo ni ningún registro de auditoría existente.

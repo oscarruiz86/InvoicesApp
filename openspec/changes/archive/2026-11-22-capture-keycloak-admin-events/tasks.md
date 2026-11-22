@@ -1,23 +1,23 @@
-# Tasks
+# Tareas (Tasks)
 
-## 1. Local Keycloak capture and credentials
+## 1. Captura local de Keycloak y credenciales
 
-- [x] 1.1 Enable local realm administrative events with event details disabled; verify the imported realm representation and a disposable Keycloak initialization.
-- [x] 1.2 Provision a separate local collector service account from a secret file with only `realm-management:view-events`; verify its role mappings and that it cannot perform a realm write.
-- [x] 1.3 Add the opt-in local Compose profile and secret wiring for the collector; verify `docker compose config --quiet` and confirm the default service set does not include the collector.
+- [x] 1.1 Habilitar los eventos administrativos del realm local con los detalles desactivados; verificar la representación del realm importado y la inicialización de una instancia desechable de Keycloak.
+- [x] 1.2 Aprovisionar una cuenta de servicio local separada para el recolector desde un archivo secreto, con solo `realm-management:view-events`; verificar sus asignaciones de roles y que no pueda realizar escrituras en el realm.
+- [x] 1.3 Añadir el perfil local opcional de Compose y la configuración del secreto para el recolector; verificar `docker compose config --quiet` y confirmar que el conjunto predeterminado de servicios no incluya el recolector.
 
-## 2. Safe Keycloak event mapping
+## 2. Mapeo seguro de eventos de Keycloak
 
-- [x] 2.1 Implement the provider-to-Audit mapper using stable provider IDs, timestamps, verified actor identity, and validated action/resource fields; unit tests verify allowed values and malformed events are rejected.
-- [x] 2.2 Exclude representations, free-form details, network identifiers, credentials, and tokens; unit tests assert sensitive provider fields never appear in mapped events.
-- [x] 2.3 Document the local capture boundary, event privacy, service-account setup, and upstream event-retention limitation; verify each documented local command matches Compose/setup configuration.
+- [x] 2.1 Implementar el mapper de proveedor a Audit usando IDs estables del proveedor, marcas de tiempo, identidad verificada del actor y campos validados de acción/recurso; las pruebas unitarias verifican los valores permitidos y el rechazo de eventos malformados.
+- [x] 2.2 Excluir representaciones, valores libres de detalles, identificadores de red, credenciales y tokens; las pruebas unitarias confirman que los campos sensibles del proveedor nunca aparezcan en los eventos mapeados.
+- [x] 2.3 Documentar los límites de captura local, la privacidad de eventos, la configuración de la cuenta de servicio y la limitación de retención del proveedor; verificar que cada comando local documentado coincida con la configuración de Compose y del proceso de configuración.
 
-## 3. Recoverable event collector
+## 3. Recolector de eventos recuperable
 
-- [x] 3.1 Implement a bounded ascending page reader over a fixed time window and an overlapping durable Mongo cursor; unit tests verify paging, retries, overlap, and no cursor advance on sink failure.
-- [x] 3.2 Add the local worker command with graceful shutdown and safe event-count logs; verify the worker starts only from the opt-in profile and does not log event contents or credentials.
-- [x] 3.3 Exercise event capture and `view-events` access against a disposable Keycloak realm, including delivery retry/restart with stable event identity; verify the isolated integration suite passes.
+- [x] 3.1 Implementar un lector de páginas ascendentes y acotadas sobre un intervalo fijo, con un cursor Mongo durable y solapado; las pruebas unitarias verifican paginación, reintentos, solapamiento y que el cursor no avance si falla el destino.
+- [x] 3.2 Añadir el comando local del worker con apagado ordenado y registros seguros del conteo de eventos; verificar que el worker solo se inicie desde el perfil opcional y no registre contenido de eventos ni credenciales.
+- [x] 3.3 Probar la captura de eventos y el acceso `view-events` contra un realm desechable de Keycloak, incluidos reintento y reinicio de la entrega con identidad de evento estable; verificar que pase la suite de integración aislada.
 
-## 4. Integrated acceptance
+## 4. Aceptación integrada
 
-- [x] 4.1 Run backend checks, the prepared Keycloak/Mongo integration, Compose validation, and strict OpenSpec validation; verify production configuration has no event-capture or collector activation.
+- [x] 4.1 Ejecutar las verificaciones del backend, la integración preparada de Keycloak/Mongo, la validación de Compose y la validación estricta de OpenSpec; confirmar que la configuración de producción no active la captura de eventos ni el recolector.
