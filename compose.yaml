@@ -67,6 +67,50 @@ services:
       keycloak:
         condition: service_healthy
     networks: [invoices]
+  keycloak-admin-audit-init:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b}
+    profiles: [keycloak-admin-audit]
+    entrypoint: ["/bin/bash", "/opt/keycloak/project/init-admin-audit-client.sh"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-temp-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/keycloak-bootstrap-admin-password
+      KEYCLOAK_ADMIN_AUDIT_CLIENT_SECRET_FILE: /run/secrets/keycloak-admin-audit-client-secret
+    volumes:
+      - ./keycloak:/opt/keycloak/project:ro
+      - ${KEYCLOAK_SECRET_DIR:-./secrets}:/run/secrets:ro
+      - type: tmpfs
+        target: /run/kcadm
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks: [invoices]
+  keycloak-admin-audit-worker:
+    image: invoices-backend:dev
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    profiles: [keycloak-admin-audit]
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongodb:27017/invoices_app?replicaSet=invoices-rs
+      KEYCLOAK_ADMIN_AUDIT_BASE_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN_AUDIT_REALM: invoices
+      KEYCLOAK_ADMIN_AUDIT_CLIENT_ID: invoices-admin-audit-reader
+      KEYCLOAK_ADMIN_AUDIT_CLIENT_SECRET_FILE: /run/secrets/keycloak-admin-audit-client-secret
+      KEYCLOAK_ADMIN_AUDIT_WRITER_MODULE: /app/src/modules/audit/infrastructure/mongodb/audit-writer.ts
+    command: ["npm", "run", "keycloak:admin-audit:worker"]
+    volumes:
+      - ./backend:/app
+      - ./shared:/shared
+      - ${KEYCLOAK_SECRET_DIR:-./secrets}:/run/secrets:ro
+      - backend-modules:/app/node_modules
+    depends_on:
+      keycloak-admin-audit-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+    networks: [invoices]
   mongodb:
     image: mongo:8.0@sha256:b9924c330a8bbc5800fe9c69f04a84e221eca7b28fd049a0354147d9908fa142
     command: ["mongod", "--replSet", "invoices-rs", "--bind_ip_all"]
