@@ -34,8 +34,8 @@ describe('functional parameter catalog and contracts', () => {
   });
   it('enforces versioned updates and preserves no-op behavior', async () => {
     const useCases = createParameterUseCases(repository(), { now: () => new Date() }, { next: () => 'event-1' });
-    await expect(useCases.update({ key, expectedVersion: 2, value: 50000, actor: 'u' })).rejects.toMatchObject({ code: 'PARAMETER_VERSION_CONFLICT' });
-    await expect(useCases.update({ key, expectedVersion: 1, value: 0, actor: 'u' })).rejects.toBeInstanceOf(ParameterError);
-    expect((await useCases.update({ key, expectedVersion: 1, value: 43200, actor: 'u' })).version).toBe(1);
+    await expect(useCases.update({ key, expectedVersion: 2, value: 50000, actor: 'u', policyVersion: '1' })).rejects.toMatchObject({ code: 'PARAMETER_VERSION_CONFLICT' });
+    await expect(useCases.update({ key, expectedVersion: 1, value: 0, actor: 'u', policyVersion: '1' })).rejects.toBeInstanceOf(ParameterError);
+    expect((await useCases.update({ key, expectedVersion: 1, value: 43200, actor: 'u', policyVersion: '1' })).version).toBe(1);
   });
 });

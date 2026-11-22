@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
 import { createInvoices } from '@/modules/invoices/application/invoices';
 import { createInvoiceAuthorizationPort } from '@/modules/invoices/application/invoice-authorization';
@@ -23,7 +23,8 @@ const invoiceAuthorization = createInvoiceAuthorizationPort({ authorization, pol
 
 export const invoices = createInvoices({ repository, authorization: invoiceAuthorization, assignments: assignmentAuthority,
   editPolicy: { async read(input) { return parameterUseCases.readEffective(input.thirdPartyId); } }, imageNormalizer: { normalize: normalizeInvoiceImage }, clock: { now: () => new Date() },
-  ids: { next: () => new Types.ObjectId().toString() }, correlationId: { next: randomUUID } });
+  ids: { next: () => new Types.ObjectId().toString() }, correlationId: { next: randomUUID },
+  qrContentHasher: { sha256: content => createHash('sha256').update(content, 'utf8').digest('hex') } });
 
 export function invoicesEndpoint(operation: InvoiceOperation, id?: string) {
   return authenticatedEndpoint((actor, request) => invoiceResponse(invoices, operation, actor, request, id));

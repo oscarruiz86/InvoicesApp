@@ -9,7 +9,7 @@ export interface AuthenticationState extends SessionSnapshot {
   profileStatus: 'idle' | 'loading' | 'success' | 'error';
   profileError?: ErrorCode;
   initialize(): Promise<void>;
-  login(returnPath?: '/session' | '/invitations/accept' | '/invitations/received', options?: LoginOptions): Promise<void>;
+  login(returnPath?: string, options?: LoginOptions): Promise<void>;
   openAccountManagement(): Promise<void>;
   logout(): Promise<void>;
   loadUser(): Promise<void>;

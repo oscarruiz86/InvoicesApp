@@ -3,6 +3,7 @@ import type { ClientSession, Connection } from 'mongoose';
 import { isParameterKey, parameterCatalog, validateParameterValue, type ParameterKey } from '../../domain/parameters';
 import type { ParameterEvent, ParameterRepository, ParameterRow } from '../../application/parameters';
 import { ParameterError } from '../../application/parameters';
+import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
 
 const parameters = 'functional_parameters';
 const events = 'configuration_events';
@@ -21,6 +22,10 @@ function decodeEvent(row: Row): ParameterEvent {
     || !Number.isSafeInteger(row.previousVersion) || !Number.isSafeInteger(row.version)) throw new ParameterError('STORAGE_UNAVAILABLE');
   return { eventId: row.eventId, correlationId: row.correlationId, key: row.key, actor: row.actor, at: row.at,
     previousValue: Number(row.previousValue), value: Number(row.value), previousVersion: Number(row.previousVersion), version: Number(row.version) };
+}
+function isRetryableTransactionError(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('hasErrorLabel' in error) || typeof error.hasErrorLabel !== 'function') return false;
+  return error.hasErrorLabel('TransientTransactionError') || error.hasErrorLabel('UnknownTransactionCommitResult');
 }
 
 export async function inventoryParameters(connection: Connection) {
@@ -43,7 +48,8 @@ export async function inventoryParameters(connection: Connection) {
   return { ready: issues.length === 0, parameters: rows.length, events: eventRows.length, issues };
 }
 
-export function createMongoParameterRepository(connect: () => Promise<Connection>): ParameterRepository {
+export function createMongoParameterRepository(connect: () => Promise<Connection>, ids: { next(): string } = { next: randomUUID },
+  confirmPolicy?: (connection: Connection, session: ClientSession) => PolicyConfirmation): ParameterRepository {
   async function ready(connection: Connection) {
     const inventory = await inventoryParameters(connection);
     if (!inventory.ready) throw new ParameterError('STORAGE_UNAVAILABLE');
@@ -73,6 +79,11 @@ export function createMongoParameterRepository(connect: () => Promise<Connection
     },
     async update(input) {
       return transaction(async (connection, session) => {
+        if (confirmPolicy) {
+          if (!input.policyVersion || !/^[1-9]\d*$/.test(input.policyVersion)) throw new ParameterError('FORBIDDEN');
+          try { await confirmPolicy(connection, session).confirm(input.policyVersion); }
+          catch (error) { if (isRetryableTransactionError(error)) throw error; throw new ParameterError('FORBIDDEN'); }
+        }
         const now = new Date(); const current = await connection.collection(parameters).findOne({ key: input.key, scope: 'global' }, { session });
         if (!current) throw new ParameterError('PARAMETER_NOT_INITIALIZED');
         const previous = decode(current as Row);
@@ -82,7 +93,7 @@ export function createMongoParameterRepository(connect: () => Promise<Connection
         const changed = await connection.collection(parameters).updateOne({ key: input.key, scope: 'global', version: previous.version },
           { $set: { value: input.value, version, effectiveFrom: now, updatedAt: now, updatedBy: input.actor }, $inc: { mutationFence: 1 } }, { session });
         if (changed.modifiedCount !== 1) throw new ParameterError('PARAMETER_VERSION_CONFLICT');
-        await connection.collection(events).insertOne({ eventId: randomUUID(), correlationId: input.correlationId, key: input.key, actor: input.actor,
+        await connection.collection(events).insertOne({ eventId: ids.next(), correlationId: input.correlationId, key: input.key, actor: input.actor,
           at: now, previousValue: previous.value, value: input.value, previousVersion: previous.version, version }, { session });
         return decode({ ...current, value: input.value, version, effectiveFrom: now, updatedAt: now, updatedBy: input.actor });
       });
@@ -100,7 +111,7 @@ export function createMongoParameterRepository(connect: () => Promise<Connection
         if (await connection.collection(parameters).findOne({ key, scope: 'global' }, { session })) return false;
         const now = new Date(); const value = parameterCatalog[key].initialValue;
         await connection.collection(parameters).insertOne({ key, scope: 'global', value, version: 1, mutationFence: 0, effectiveFrom: now, createdAt: now, createdBy: actor, updatedAt: now, updatedBy: actor }, { session });
-        await connection.collection(events).insertOne({ eventId: randomUUID(), correlationId, key, actor, at: now, previousValue: value, value, previousVersion: 0, version: 1 }, { session });
+        await connection.collection(events).insertOne({ eventId: ids.next(), correlationId, key, actor, at: now, previousValue: value, value, previousVersion: 0, version: 1 }, { session });
         return true;
       });
     },

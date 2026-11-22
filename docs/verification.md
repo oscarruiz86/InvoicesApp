@@ -234,28 +234,46 @@ MONGODB_TEST_URI=mongodb://127.0.0.1:<puerto>/<base>_test?replicaSet=<nombre> np
 
 La suite de integración completa también requiere variables de fixture efímera de Keycloak. Las transacciones no funcionan sobre Mongo standalone.
 
-# Parameter management — 2026-11-21
+# Parameter management — cierre de implementación, 2026-11-21
 
-## Verificación ejecutada
+## Resultado
 
-| Comando | Resultado |
+Se completaron las 17 tareas de `implement-parameter-management`. El módulo de Configuration ofrece catálogo, inventario explícito, inicialización idempotente, historial y cambios transaccionales. La autorización administrativa se vuelve a confirmar por `policyVersion` dentro de la transacción. Invoices obtiene la política por contrato interno, confirma su revisión con fence Mongo y vuelve a comprobar el plazo con reloj de servidor. La factura QR se rechaza antes de consultar Configuration. La UI ahora tiene listado, detalle, historial, edición, estado vacío/error, control de permisos/contexto, cancelación de respuestas, diseño de tarjetas móvil y uso de componentes compartidos.
+
+## Verificaciones
+
+| Verificación | Resultado |
 | --- | --- |
-| `npm --prefix backend run typecheck` | Correcto. |
-| `npm --prefix backend test` | 49 archivos, 450 pruebas correctas. |
-| `npm --prefix backend run build` | Correcto; incluye las tres rutas de parámetros. |
-| `npm --prefix backend run openapi:lint` | Correcto; OpenAPI 3.1 válido. |
-| `npm --prefix frontend run lint` | Correcto, con 14 advertencias React Hooks en módulos existentes. |
-| `npm --prefix frontend run typecheck` | Correcto. |
-| `npm --prefix frontend test -- --maxWorkers=4` | 35 archivos, 205 pruebas correctas. |
-| `npm --prefix frontend run test:architecture` | Correcto; verificaciones negativas de frameworks, aliases/reexports y ciclos aprobadas. |
-| `npm --prefix frontend run build` | Correcto; Vite informa bundle mayor a 500 kB. |
-| `openspec validate implement-parameter-management --strict` | Correcto. |
+| `npm --prefix backend run check` | Aprobado: lint sin errores (advertencias existentes), typecheck, 459/459 pruebas unitarias en 50 archivos y arquitectura con verificaciones negativas. |
+| `npm --prefix backend run test:integration -- --pool=forks --maxWorkers=1 tests/integration/invoice-repository.test.ts tests/integration/configuration-parameters.test.ts` | Aprobado con replica set Mongo aislada: 13/13 pruebas. Incluye inventario de solo lectura, índices, inicialización/actualización, rollback de auditoría, permiso revocado, fence y carreras reales, cambio de duración en factura MANUAL y vencimiento a las 12 horas. |
+| `parameters:inventory` / `parameters:init` | Aprobados contra una base Mongo temporal `_test`: inventario vacío listo, instalación de 43.200 segundos, repetición sin cambios e inventario final con 1 parámetro/1 evento. La base temporal se eliminó; no se accedió a la base de `.env.local`. |
+| `npm --prefix backend run openapi:lint` | Aprobado; OpenAPI 3.1 válida. |
+| `npm --prefix backend run build` | Aprobado; Next genera las rutas `/api/parameters`, `/api/parameters/{key}` y `/api/parameters/{key}/history`. |
+| Frontend lint y typecheck | Aprobados; quedan 14 advertencias React Hooks de otros módulos, sin errores. |
+| `npm --prefix frontend test -- --pool=forks --isolate=false --maxWorkers=1 --reporter=verbose` | Aprobado: 215/215 pruebas en 36 archivos. En Windows usar un worker permitió registrar el progreso y terminar la suite completa. |
+| `npm --prefix frontend run test:architecture` | Aprobado, incluidas las verificaciones negativas. |
+| `npm --prefix frontend run build` | Aprobado; persiste la advertencia existente de bundle mayor a 500 kB. |
+| `npm --prefix frontend run test:e2e -- tests/e2e/parameter-management-responsive.spec.ts --workers=1` | Aprobado: 2/2 recorridos a 360 y 1280 px, teclado, foco y diálogos. |
+| `openspec validate implement-parameter-management --strict` | Aprobado; 17/17 tareas completas antes del archivo. |
 
-## Pendiente
+La corrida por defecto de Vitest frontend no emitió avance en Windows; la modalidad explícita de forks, sin aislamiento y un worker completó toda la suite en 114 segundos. Las capturas/trazas E2E son artefactos locales de Playwright, no datos de usuarios.
 
-- `npm --prefix backend run test:architecture` detecta una violación ajena a Configuration: `src/modules/invoices/domain/invoice-qr.ts` importa `crypto`, prohibido por `domain-is-pure`.
-- Las pruebas de integración Mongo están preparadas en `backend/tests/integration/configuration-parameters.test.ts`, pero no se ejecutaron: `MONGODB_TEST_URI` no está configurada y el daemon Docker no está disponible para iniciar el replica set aislado.
-- No se ejecutó `npm --prefix frontend run test:e2e`; falta un harness E2E específico del módulo.
-- `parameters:inventory` y `parameters:init` no se ejecutaron contra ninguna base. Son operaciones explícitas que deben ejercerse con una base aislada o en el despliegue autorizado.
+## Reproducción segura
 
-El cambio no se archiva mientras estas verificaciones y las tareas OpenSpec restantes estén pendientes. No se migraron datos ni se inicializó una base operativa.
+Mongo requiere replica set. Para las pruebas usa una URI `MONGODB_TEST_URI` que apunte a una base aislada terminada en `_test`. Los comandos operativos `parameters:inventory` y `parameters:init` leen `MONGODB_URI` o `MONGODB_URI_FILE`; para probarlos localmente, define `MONGODB_URI` explícitamente a una base temporal `_test` y `PARAMETERS_INIT_ACTOR` a un identificador técnico. No ejecutes el inicializador contra producción como parte de este test.
+
+```powershell
+npm --prefix backend run check
+$env:MONGODB_TEST_URI = 'mongodb://127.0.0.1:<puerto>/<base>_test?replicaSet=<nombre>&directConnection=true'
+npm --prefix backend run test:integration -- --pool=forks --maxWorkers=1 tests/integration/invoice-repository.test.ts tests/integration/configuration-parameters.test.ts
+npm --prefix backend run openapi:lint
+npm --prefix backend run build
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend test -- --pool=forks --isolate=false --maxWorkers=1
+npm --prefix frontend run test:architecture
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e -- tests/e2e/parameter-management-responsive.spec.ts --workers=1
+```
+
+La factura MANUAL conserva `createdAt` e historial cuando cambia el parámetro. Si Configuration no tiene un valor vigente, edición devuelve 503 sin fallback. La política nueva también se evalúa en facturas anteriores. La factura QR sigue inmutable y no se declara terminado el cambio separado de escaneo QR. No se modificaron datos persistentes ni configuración Keycloak.

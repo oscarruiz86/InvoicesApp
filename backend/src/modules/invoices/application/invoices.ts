@@ -59,7 +59,13 @@ export function createInvoices(deps: {
   readonly repository: InvoiceRepositoryPort; readonly authorization: InvoiceAuthorizationPort;
   readonly assignments: InvoiceAssignmentConfirmationPort; readonly editPolicy: InvoiceEditPolicyReader;
   readonly imageNormalizer: InvoiceImageNormalizer; readonly clock: InvoiceClock; readonly ids: InvoiceIds; readonly correlationId: InvoiceCorrelationId;
+  readonly qrContentHasher: { sha256(content: string): string };
 }) {
+  function parseQr(content: unknown) {
+    const parsed = parseInvoiceQr(content);
+    const { canonicalContent, ...result } = parsed;
+    return { ...result, metadata: { ...result.metadata, contentHash: deps.qrContentHasher.sha256(canonicalContent) } };
+  }
   async function authorize(actor: AuthenticatedActor, thirdPartyId: string, permission: 'invoices:create' | 'invoices:read' | 'invoices:update') {
     if (!id(thirdPartyId)) throw new InvoiceUseCaseError('INVALID_REQUEST');
     try { return await deps.authorization.authorize({ actor, thirdPartyId, permission }); }
@@ -87,11 +93,11 @@ export function createInvoices(deps: {
         try { await authorize(actor, input.thirdPartyId, 'invoices:update'); updateAllowed = true; }
         catch (error) { const mapped = mapError(error); if (mapped.code !== 'FORBIDDEN') throw mapped; }
         if (!updateAllowed) return { invoice, editability: { available: false, reason: 'PERMISSION_INSUFFICIENT' as const } } satisfies InvoiceDetailsView;
+        if (invoice.origin === 'QR') return { invoice, editability: { available: false, reason: 'QR_IMMUTABLE' as const } } satisfies InvoiceDetailsView;
         const policyEvidence = await deps.editPolicy.read({ thirdPartyId: input.thirdPartyId }).catch(() => ({ state: 'UNAVAILABLE' as const }));
         if (policyEvidence.state === 'UNAVAILABLE') return { invoice, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' as const } } satisfies InvoiceDetailsView;
         const window = evaluateInvoiceEditWindow({ createdAt: invoice.createdAt, now: deps.clock.now(), policy: policyEvidence.policy });
         if (window === 'POLICY_UNAVAILABLE') return { invoice, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' as const } } satisfies InvoiceDetailsView;
-        if (invoice.origin === 'QR') return { invoice, editability: { available: false, reason: 'QR_IMMUTABLE' as const } } satisfies InvoiceDetailsView;
         if (window === 'CLOSED') return { invoice, editability: { available: false, reason: 'EDIT_WINDOW_CLOSED' as const } } satisfies InvoiceDetailsView;
         return { invoice, editability: { available: true, reason: null } } satisfies InvoiceDetailsView;
       } catch (error) { throw mapError(error); }
@@ -126,7 +132,7 @@ export function createInvoices(deps: {
     async previewQr(actor: AuthenticatedActor, input: { readonly thirdPartyId: string; readonly qrContent: string }) {
       if (Object.keys(input).some(key => !['thirdPartyId', 'qrContent'].includes(key))) throw new InvoiceUseCaseError('INVALID_REQUEST');
       const receipt = await authorize(actor, input.thirdPartyId, 'invoices:create'); assertRole(receipt.roles, 'DRIVER');
-      try { return parseInvoiceQr(input.qrContent); } catch (error) { if (error instanceof InvoiceQrError) throw new InvoiceUseCaseError(error.code as InvoiceUseCaseErrorCode); throw error; }
+      try { return parseQr(input.qrContent); } catch (error) { if (error instanceof InvoiceQrError) throw new InvoiceUseCaseError(error.code as InvoiceUseCaseErrorCode); throw error; }
     },
     async createQr(actor: AuthenticatedActor, input: CreateQrInvoiceCommand & { readonly idempotencyKey: string }) {
       const { qrContent, idempotencyKey, image, ...refs } = input;
@@ -135,15 +141,15 @@ export function createInvoices(deps: {
         throw new InvoiceUseCaseError('INVALID_REQUEST');
       const receipt = await authorize(actor, refs.thirdPartyId, 'invoices:create'); assertRole(receipt.roles, 'DRIVER');
       try {
-        const parsed = parseInvoiceQr(qrContent);
+        const parsed = parseQr(qrContent);
         const assignment = await deps.assignments.readOwnActive({ actorSubject: actor.subject, thirdPartyId: refs.thirdPartyId,
           assignmentId: refs.assignmentId, vehicleId: refs.vehicleId });
         if (!assignment) throw new InvoiceUseCaseError('ASSIGNMENT_NOT_ELIGIBLE');
         const imagePayload = image ? { ...image, id: deps.ids.next() } : undefined;
-        const { metadata: _metadata, ...fields } = parsed;
+        const { metadata, ...fields } = parsed;
         const invoice = createQrInvoice({ ...fields, id: deps.ids.next(), ownerSubject: actor.subject, thirdPartyId: refs.thirdPartyId,
           assignmentId: refs.assignmentId, driverId: assignment.driverId, vehicleId: refs.vehicleId, vehiclePlate: assignment.vehiclePlate,
-          imageId: imagePayload?.id ?? null, now: deps.clock.now() }, parsed.metadata, parsed.invoiceAtUtc);
+          imageId: imagePayload?.id ?? null, now: deps.clock.now() }, metadata, parsed.invoiceAtUtc);
         const requestHash = JSON.stringify({ origin: 'QR', thirdPartyId: invoice.thirdPartyId, ownerSubject: invoice.ownerSubject,
           assignmentId: invoice.assignmentId, vehicleId: invoice.vehicleId, invoiceDate: invoice.invoiceDate, invoiceTime: invoice.invoiceTime,
           invoiceNumber: invoice.invoiceNumber, issuerNit: invoice.issuerNit, buyerDocument: invoice.buyerDocument, amounts: invoice.amounts,

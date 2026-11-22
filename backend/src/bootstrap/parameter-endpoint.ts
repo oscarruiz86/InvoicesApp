@@ -6,9 +6,10 @@ import { readServerEnvironment } from '@/shared/infrastructure/config/server-env
 import { authorization } from './authorization-endpoint';
 import { authenticatedEndpoint } from './authenticated-endpoint';
 import { parameterHandlers } from '@/modules/configuration/presentation/parameters';
+import { policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
 
 const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
-export const parameterUseCases = createParameterUseCases(createMongoParameterRepository(connect), { now: () => new Date() }, { next: randomUUID });
+export const parameterUseCases = createParameterUseCases(createMongoParameterRepository(connect, { next: randomUUID }, policyConfirmation), { now: () => new Date() }, { next: randomUUID });
 const handlers = parameterHandlers(parameterUseCases, authorization);
 export const parametersListEndpoint = authenticatedEndpoint(handlers.list);
 const routeKey = (request: Request) => decodeURIComponent(new URL(request.url).pathname.split('/').filter(Boolean).at(-1) === 'history'

@@ -1,11 +1,13 @@
 import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { createInvoice } from '@/modules/invoices/domain/invoice';
 import { createMongoInvoiceRepository, createMongoInvoiceAudit } from '@/modules/invoices/infrastructure/mongodb/invoice-repository';
 import { createMongoInvoiceAssignmentAuthority } from '@/modules/fleet/infrastructure/mongodb/invoice-assignment-authority';
 import { invoiceAuthorityConfirmation } from '@/modules/organizations/infrastructure/mongodb/invoice-authority';
 import { createPolicyRepository, policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
+import { createMongoParameterRepository } from '@/modules/configuration/infrastructure/mongodb/parameter-repository';
+import { createParameterUseCases } from '@/modules/configuration/application/parameters';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
@@ -13,20 +15,30 @@ const database = `invoice_management_${randomUUID().replaceAll('-', '')}_test`;
 const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 5000 });
 const connect = async () => connection;
 let policyVersion = '1', failAudit = false;
+let serverNow = new Date('2026-11-20T12:30:00.000Z');
+let onEditPolicyConfirm: (() => void | Promise<void>) | null = null;
+const parameters = createMongoParameterRepository(connect, undefined, policyConfirmation);
+const parameterUseCases = createParameterUseCases(parameters, { now: () => new Date(serverNow) }, { next: randomUUID });
 const assignments = createMongoInvoiceAssignmentAuthority(connect);
 const repository = createMongoInvoiceRepository(connect, (c, session) => ({ policy: policyConfirmation(c, session),
   authority: invoiceAuthorityConfirmation(c, session), assignments,
-  editPolicy: { async confirm() {} },
+  editPolicy: { async confirm() { onEditPolicyConfirm?.(); } },
   audit: { async record(event) { if (failAudit) throw new Error('simulated durable audit failure'); await createMongoInvoiceAudit(c, session).record(event); } },
-}));
+}), { now: () => new Date(serverNow) });
+const configuredRepository = createMongoInvoiceRepository(connect, (c, session) => ({ policy: policyConfirmation(c, session),
+  authority: invoiceAuthorityConfirmation(c, session), assignments,
+  editPolicy: { async confirm(input) { await parameterUseCases.confirm({ thirdPartyId: input.thirdPartyId, revision: input.revision, scope: input.scope, transactionContext: input.transactionContext }); await onEditPolicyConfirm?.(); } },
+  audit: createMongoInvoiceAudit(c, session),
+}), { now: () => new Date(serverNow) });
 
 beforeAll(async () => { await connection.asPromise(); policyVersion = (await createPolicyRepository(connect).initialize()).version; });
+beforeEach(() => { serverNow = new Date('2026-11-20T12:30:00.000Z'); onEditPolicyConfirm = null; });
 afterAll(async () => { if (connection.readyState === 1 && /^invoice_management_[a-f0-9]{32}_test$/.test(database)) await connection.dropDatabase(); await connection.close(); });
 
 async function seed() {
   const thirdPartyId = new mongoose.Types.ObjectId().toString(), vehicleId = new mongoose.Types.ObjectId().toString();
   const assignmentId = new mongoose.Types.ObjectId().toString(), driverId = new mongoose.Types.ObjectId().toString();
-  const subject = randomUUID(), membershipId = randomUUID(), now = new Date();
+  const subject = randomUUID(), membershipId = randomUUID(), now = new Date(serverNow);
   await connection.collection('organizations').insertOne({ id: thirdPartyId, type: 'THIRD_PARTY', active: true, revision: 1 });
   await connection.collection('third_parties').insertOne({ _id: new mongoose.Types.ObjectId(thirdPartyId), status: 'ACTIVE', revision: 1 });
   await connection.collection('organization_memberships').insertOne({ id: membershipId, subject, organizationId: thirdPartyId, status: 'ACTIVE', revision: 1 });
@@ -43,8 +55,8 @@ async function seed() {
 }
 
 let sequence = 1;
-function command(owner: Awaited<ReturnType<typeof seed>>, options: { number?: string; idempotencyKey?: string; image?: boolean } = {}) {
-  const number = options.number ?? `FAC-${sequence++}`, now = new Date('2026-11-20T12:00:00Z');
+function command(owner: Awaited<ReturnType<typeof seed>>, options: { number?: string; idempotencyKey?: string; image?: boolean; createdAt?: Date } = {}) {
+  const number = options.number ?? `FAC-${sequence++}`, now = options.createdAt ?? new Date('2026-11-20T12:00:00Z');
   const imageId = options.image ? new mongoose.Types.ObjectId().toString() : null;
   const invoice = createInvoice({ id: new mongoose.Types.ObjectId().toString(), ownerSubject: owner.subject, thirdPartyId: owner.thirdPartyId,
     assignmentId: owner.assignmentId, driverId: owner.driverId, vehicleId: owner.vehicleId, vehiclePlate: 'ABC123', invoiceDate: '2026-11-20',
@@ -55,6 +67,75 @@ function command(owner: Awaited<ReturnType<typeof seed>>, options: { number?: st
   return { invoice, ...(image ? { image } : {}), actorSubject: owner.subject, idempotencyKey: options.idempotencyKey ?? randomUUID(),
     requestHash: `${owner.thirdPartyId}:${number}:${image?.sha256 ?? 'no-image'}`, authority: owner.authority, assignment: owner.assignment,
     correlationId: randomUUID() };
+}
+
+it('runs initialization, administrative parameter change, MANUAL invoice edit, and history with Mongo adapters', async () => {
+  serverNow = new Date();
+  expect(await parameters.initialize('technical:test', randomUUID())).toBe(true);
+  const initial = await parameters.find('invoice.manual-edit-window-seconds');
+  expect(initial).toMatchObject({ value: 43200, version: 1 });
+  const effectiveFrom = new Date(serverNow.getTime() - 60_000);
+  await connection.collection('functional_parameters').updateOne({ key: initial!.key }, { $set: { effectiveFrom } });
+  expect(await parameterUseCases.readEffective('0123456789abcdef01234567')).toMatchObject({ state: 'AVAILABLE', policy: { durationSeconds: 43200 } });
+
+  const changed = await parameters.update({ key: initial!.key, expectedVersion: initial!.version, value: 1800, actor: 'admin:test', correlationId: randomUUID(), policyVersion });
+  serverNow = new Date(changed.effectiveFrom.getTime() + 1);
+  const history = await parameters.history(initial!.key, 1, 100);
+  expect(changed).toMatchObject({ value: 1800, version: 2 });
+  expect(history).toMatchObject({ total: 2, items: expect.arrayContaining([expect.objectContaining({ previousValue: 43200, value: 1800, actor: 'admin:test' })]) });
+
+  const owner = await seed();
+  const recentAt = new Date(serverNow.getTime() - 10 * 60_000);
+  const recent = await configuredRepository.create(command(owner, { number: 'FAC-NEW-WINDOW', createdAt: recentAt }));
+  const activePolicy = await parameterUseCases.readEffective(owner.thirdPartyId);
+  if (activePolicy.state !== 'AVAILABLE') throw new Error('Configuration not effective');
+  await expect(configuredRepository.edit({ ...editInput(owner, recent, 'FAC-NEW-WINDOW-EDIT'), editPolicy: activePolicy.policy }))
+    .resolves.toMatchObject({ invoiceNumber: 'FAC-NEW-WINDOW-EDIT', version: 2 });
+
+  const oldAt = new Date(serverNow.getTime() - 31 * 60_000);
+  const oldInvoice = await configuredRepository.create(command(owner, { number: 'FAC-OLD-WINDOW', createdAt: oldAt }));
+  const policy = await parameterUseCases.readEffective(owner.thirdPartyId);
+  if (policy.state !== 'AVAILABLE') throw new Error('Configuration not effective');
+  await expect(configuredRepository.edit({ ...editInput(owner, oldInvoice, 'FAC-OLD-WINDOW-EDIT'), editPolicy: { state: 'AVAILABLE', revision: policy.policy.revision,
+    scope: 'global', validFrom: policy.policy.validFrom, validUntil: policy.policy.validUntil, durationSeconds: policy.policy.durationSeconds } }))
+    .rejects.toMatchObject({ code: 'EDIT_WINDOW_CLOSED' });
+});
+
+it('serializes a live invoice edit against a concurrent parameter revision change', async () => {
+  serverNow = new Date();
+  const currentPolicy = await parameterUseCases.readEffective('0123456789abcdef01234567');
+  if (currentPolicy.state !== 'AVAILABLE') throw new Error('Configuration not effective');
+  const owner = await seed();
+  const current = await configuredRepository.create(command(owner, { number: 'FAC-POLICY-RACE', createdAt: new Date(serverNow.getTime() - 60_000) }));
+  const input = { ...editInput(owner, current, 'FAC-POLICY-RACE-EDIT'), editPolicy: currentPolicy.policy };
+  let release!: () => void; const barrier = new Promise<void>(resolve => { release = resolve; });
+  let entered!: () => void; const waiting = new Promise<void>(resolve => { entered = resolve; });
+  let pauseOnce = true;
+  onEditPolicyConfirm = async () => { if (pauseOnce) { pauseOnce = false; entered(); await barrier; } };
+  const edit = configuredRepository.edit(input);
+  await waiting;
+  const update = parameters.update({ key: 'invoice.manual-edit-window-seconds', expectedVersion: Number(currentPolicy.policy.revision),
+    value: currentPolicy.policy.durationSeconds === 3600 ? 7200 : 3600, actor: 'admin:race', correlationId: randomUUID(), policyVersion });
+  release();
+  const [editResult, updateResult] = await Promise.allSettled([edit, update]);
+  onEditPolicyConfirm = null;
+  expect(updateResult.status).toBe('fulfilled');
+  const invoice = await configuredRepository.find({ id: current.id, thirdPartyId: owner.thirdPartyId });
+  const events = await connection.collection('invoice_management_events').countDocuments({ invoiceId: current.id, action: 'INVOICE_UPDATED' });
+  if (editResult.status === 'fulfilled') {
+    expect(invoice).toMatchObject({ version: 2, invoiceNumber: 'FAC-POLICY-RACE-EDIT' });
+    expect(events).toBe(1);
+  } else {
+    expect(editResult.reason).toMatchObject({ code: 'EDIT_POLICY_UNAVAILABLE' });
+    expect(invoice).toMatchObject({ version: 1, invoiceNumber: 'FAC-POLICY-RACE' });
+    expect(events).toBe(0);
+  }
+});
+
+function editInput(owner: Awaited<ReturnType<typeof seed>>, current: Awaited<ReturnType<typeof repository.create>>, invoiceNumber: string) {
+  return { current, next: { ...current, invoiceNumber, version: current.version + 1, updatedAt: new Date(serverNow) },
+    editPolicy: { state: 'AVAILABLE' as const, revision: 'r1', scope: owner.thirdPartyId, validFrom: new Date(0), validUntil: null, durationSeconds: 43200 },
+    actorSubject: owner.subject, expectedVersion: current.version, authority: owner.authority, correlationId: randomUUID() };
 }
 
 it('deduplicates identical retries and rejects duplicate business keys and stale versions', async () => {
@@ -81,6 +162,21 @@ it('arbitrates concurrent commercial duplicates through the unique index', async
   expect(outcomes.filter(outcome => outcome.status === 'fulfilled')).toHaveLength(1);
   expect(outcomes.filter(outcome => outcome.status === 'rejected')).toHaveLength(1);
   expect(outcomes.find(outcome => outcome.status === 'rejected')).toMatchObject({ reason: { code: 'INVOICE_DUPLICATE' } });
+});
+
+it('checks the edit window with server time after policy confirmation, including the exclusive expiry boundary', async () => {
+  const owner = await seed();
+  serverNow = new Date('2026-11-20T23:59:59.999Z');
+  const openInvoice = await repository.create(command(owner, { number: 'FAC-OPEN-BOUNDARY' }));
+  await expect(repository.edit(editInput(owner, openInvoice, 'FAC-OPEN-EDIT'))).resolves.toMatchObject({ version: 2 });
+
+  const boundaryInvoice = await repository.create(command(owner, { number: 'FAC-CLOSED-BOUNDARY' }));
+  serverNow = new Date('2026-11-20T23:59:59.999Z');
+  onEditPolicyConfirm = () => { serverNow = new Date('2026-11-21T00:00:00.000Z'); };
+  try {
+    await expect(repository.edit(editInput(owner, boundaryInvoice, 'FAC-CLOSED-EDIT'))).rejects.toMatchObject({ code: 'EDIT_WINDOW_CLOSED' });
+  } finally { onEditPolicyConfirm = null; serverNow = new Date('2026-11-20T12:30:00.000Z'); }
+  expect(await repository.find({ id: boundaryInvoice.id, thirdPartyId: owner.thirdPartyId })).toMatchObject({ version: 1, invoiceNumber: 'FAC-CLOSED-BOUNDARY' });
 });
 
 it('rolls invoice and image back when audit fails and rejects edits after membership revocation', async () => {

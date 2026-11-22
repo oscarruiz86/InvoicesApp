@@ -8,8 +8,8 @@ describe('authentication application ports', () => {
     const port = session();
     const user = { id: 'subject-1', name: null, username: null, email: null, roles: [] };
     const auth = createAuthentication(port, { read: async () => user });
-    await auth.initialize(); await auth.login('https://untrusted.invalid');
-    expect(port.login).toHaveBeenCalledWith('/session', undefined);
+    await auth.initialize(); await auth.login('/parameters?page=2#history');
+    expect(port.login).toHaveBeenCalledWith('/parameters?page=2#history', undefined);
     await auth.login('/invitations/accept');
     expect(port.login).toHaveBeenLastCalledWith('/invitations/accept', undefined);
     expect(await auth.readUser()).toEqual(user);

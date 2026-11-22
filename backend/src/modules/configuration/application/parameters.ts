@@ -6,7 +6,7 @@ export interface ParameterRepository {
   list(input: { page: number; pageSize: number; q?: string }): Promise<{ items: readonly ParameterRow[]; total: number }>;
   find(key: ParameterKey): Promise<ParameterRow | null>;
   history(key: ParameterKey, page: number, pageSize: number): Promise<{ items: readonly ParameterEvent[]; total: number }>;
-  update(input: { key: ParameterKey; expectedVersion: number; value: number; actor: string; correlationId: string }): Promise<ParameterRow>;
+  update(input: { key: ParameterKey; expectedVersion: number; value: number; actor: string; correlationId: string; policyVersion?: string }): Promise<ParameterRow>;
   readEffective(key: ParameterKey): Promise<ParameterRow | null>;
   confirm(input: { key: ParameterKey; revision: string; session: unknown }): Promise<void>;
   initialize(actor: string, correlationId: string): Promise<boolean>;
@@ -32,13 +32,14 @@ export function createParameterUseCases(repository: ParameterRepository, clock: 
       if (!await repository.find(key)) throw new ParameterError('PARAMETER_NOT_INITIALIZED');
       return { ...(await repository.history(key, page, pageSize)), page, pageSize };
     },
-    async update(input: { key: string; expectedVersion: number; value: unknown; actor: string }) {
+    async update(input: { key: string; expectedVersion: number; value: unknown; actor: string; policyVersion: string }) {
       if (!isParameterKey(input.key) || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1 || !validateParameterValue(input.key, input.value)) throw new ParameterError('INVALID_REQUEST');
+      if (!/^[1-9]\d*$/.test(input.policyVersion)) throw new ParameterError('FORBIDDEN');
       const current = await repository.find(input.key);
       if (!current) throw new ParameterError('PARAMETER_NOT_INITIALIZED');
       if (current.version !== input.expectedVersion) throw new ParameterError('PARAMETER_VERSION_CONFLICT');
       if (current.value === input.value) return { ...parameterCatalog[input.key], ...current };
-      return { ...parameterCatalog[input.key], ...await repository.update({ key: input.key, expectedVersion: input.expectedVersion, value: input.value, actor: input.actor, correlationId: ids.next() }) };
+      return { ...parameterCatalog[input.key], ...await repository.update({ key: input.key, expectedVersion: input.expectedVersion, value: input.value, actor: input.actor, correlationId: ids.next(), policyVersion: input.policyVersion }) };
     },
     async readEffective(thirdPartyId: string): Promise<{ state: 'AVAILABLE'; policy: EffectiveParameterPolicy } | { state: 'UNAVAILABLE' }> {
       if (!thirdPartyId) return { state: 'UNAVAILABLE' };

@@ -22,7 +22,8 @@ else {
       connection.collection('configuration_events').createIndex({ eventId: 1 }, { unique: true, name: 'configuration_events_event_id_unique' }),
       connection.collection('configuration_events').createIndex({ key: 1, at: -1, eventId: -1 }, { name: 'configuration_events_timeline' }),
     ]);
-    const hello = await connection.db!.admin().command({ hello: 1 });
+    if (!connection.db) throw new Error('No se pudo abrir la base MongoDB.');
+    const hello = await connection.db.admin().command({ hello: 1 });
     if (!hello.setName && hello.msg !== 'isdbgrid') throw new Error('parameters:init requiere replica set o mongos para transacciones.');
     const session = await connection.startSession();
     let initialized = false;
