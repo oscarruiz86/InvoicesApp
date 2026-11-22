@@ -169,6 +169,28 @@ services:
       mongodb:
         condition: service_healthy
     networks: [invoices]
+  audit-outbox-worker:
+    profiles: [audit]
+    image: invoices-backend:dev
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongodb:27017/invoices_app?replicaSet=invoices-rs
+    command: ["npm", "run", "audit:worker"]
+    env_file:
+      - path: ./backend/.env.local
+        required: false
+    volumes:
+      - ./backend:/app
+      - ./shared:/shared
+      - backend-modules:/app/node_modules
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks: [invoices]
   frontend:
     image: invoices-frontend:dev
     build:

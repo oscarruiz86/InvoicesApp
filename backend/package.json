@@ -47,6 +47,7 @@
     "openapi:lint": "redocly lint openapi/openapi.json",
     "postbuild": "node scripts/prepare-standalone.mjs",
     "authorization:init": "node --env-file-if-exists=.env.local scripts/initialize-authorization.mjs",
+    "audit:worker": "node --experimental-loader ./scripts/typescript-loader.mjs src/bootstrap/run-audit-outbox-worker.ts",
     "memberships:migrate": "node --env-file-if-exists=.env.local scripts/migrate-legacy-memberships.mjs",
     "drivers:inventory": "node --env-file-if-exists=.env.local scripts/migrate-drivers.mjs",
     "drivers:migrate": "node --env-file-if-exists=.env.local scripts/migrate-drivers.mjs --apply",

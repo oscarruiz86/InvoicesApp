@@ -45,11 +45,11 @@ it('reads isolated associations, enforces indexes, revalidates and captures dura
   const first = await contexts.resolve(actor, selection, 'INITIAL');
   expect(first.roles).toEqual(['DRIVER', 'THIRD_PARTY_ADMIN']);
   expect((await authorization.getEffectivePermissions(actor, { kind: 'self', companyId: null, thirdPartyId: null })).roles).toEqual(['COMPANY_ADMIN', 'DRIVER', 'THIRD_PARTY_ADMIN']);
-  expect(await connection.collection('organization_context_events').countDocuments()).toBe(1);
+  expect(await connection.collection('audit_events').countDocuments({ source: 'organizations' })).toBe(1);
   await connection.collection('organization_memberships').updateOne({ id: 'mt' }, { $set: { status: 'INACTIVE' }, $inc: { revision: 1 } });
   expect((await authorization.getEffectivePermissions(actor, { kind: 'self', companyId: null, thirdPartyId: null })).roles).toEqual(['COMPANY_ADMIN']);
   await expect(contexts.resolve(actor, selection, 'RESTORE')).rejects.toThrow('FORBIDDEN');
-  const invalidation = await connection.collection('organization_context_events').findOne({ action: 'CONTEXT_INVALIDATED' });
+  const invalidation = await connection.collection('audit_events').findOne({ action: 'CONTEXT_INVALIDATED' });
   expect(invalidation).not.toHaveProperty('organizationId');
   expect((await reader.read('u', scope))?.revision).not.toBe(first.authorization.contextRevision);
   await connection.collection('organization_memberships').updateOne({ id: 'mt' }, { $set: { status: 'ACTIVE' }, $inc: { revision: 1 } });
@@ -69,6 +69,6 @@ it('uses event identity for idempotent durable capture and strips unverified IDs
   const event = { eventId: randomUUID(), correlationId: randomUUID(), at: new Date().toISOString(), subject: 'u', action: 'CONTEXT_DENIED', result: 'denied', suppressed: 0,
     selection: { kind: 'ORGANIZATION', organizationId: 'untrusted', organizationType: 'COMPANY' } } as const;
   await audit.record(event); await audit.record(event);
-  expect(await connection.collection('organization_context_events').countDocuments({ _id: event.eventId as never })).toBe(1);
-  expect(await connection.collection('organization_context_events').findOne({ _id: event.eventId as never })).not.toHaveProperty('organizationId');
+  expect(await connection.collection('audit_events').countDocuments({ _id: event.eventId as never })).toBe(1);
+  expect(await connection.collection('audit_events').findOne({ _id: event.eventId as never })).not.toHaveProperty('scope');
 });
