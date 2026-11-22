@@ -42,7 +42,7 @@ export function createQrInvoice(input: CreateInvoiceInput, metadata: InvoiceQrMe
     || !validSourceUrl || !Number.isFinite(Date.parse(invoiceAtUtc))) {
     throw new InvoiceDomainError('INVALID_INVOICE');
   }
-  const invoice = createInvoice(input);
+  const invoice = createInvoiceRecord(input, false);
   return { ...invoice, origin: 'QR', qrMetadata: Object.freeze({ ...metadata }), invoiceAtUtc: new Date(invoiceAtUtc).toISOString() };
 }
 
@@ -123,7 +123,7 @@ function bogotaInstant(invoiceDate: string, invoiceTime: string): string {
   return new Date(commercialAsUtc - (localAsUtc - commercialAsUtc)).toISOString();
 }
 
-export function createInvoice(input: CreateInvoiceInput): Invoice {
+function createInvoiceRecord(input: CreateInvoiceInput, enforceTotalMatch: boolean): Invoice {
   const allowed = ['id', 'ownerSubject', 'thirdPartyId', 'assignmentId', 'driverId', 'vehicleId', 'vehiclePlate',
     'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amount', 'vatAmount',
     'otherTaxesAmount', 'totalAmount', 'imageId', 'now'];
@@ -145,7 +145,7 @@ export function createInvoice(input: CreateInvoiceInput): Invoice {
   const vatMinor = decimalToMinor(input.vatAmount);
   const otherTaxesMinor = decimalToMinor(input.otherTaxesAmount);
   const totalMinor = decimalToMinor(input.totalAmount);
-  if (amountMinor + vatMinor + otherTaxesMinor !== totalMinor) throw new InvoiceDomainError('INVOICE_TOTAL_MISMATCH');
+  if (enforceTotalMatch && amountMinor + vatMinor + otherTaxesMinor !== totalMinor) throw new InvoiceDomainError('INVOICE_TOTAL_MISMATCH');
 
   return {
     id: input.id.toLowerCase(), origin: 'MANUAL', ownerSubject: input.ownerSubject,
@@ -159,6 +159,10 @@ export function createInvoice(input: CreateInvoiceInput): Invoice {
     imageId: input.imageId?.toLowerCase() ?? null, version: 1,
     createdAt: new Date(input.now), updatedAt: new Date(input.now),
   };
+}
+
+export function createInvoice(input: CreateInvoiceInput): Invoice {
+  return createInvoiceRecord(input, true);
 }
 
 export function normalizedInvoiceBusinessKey(issuerNit: string, invoiceNumber: string): string {

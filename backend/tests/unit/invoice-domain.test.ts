@@ -37,6 +37,9 @@ describe('invoice domain', () => {
     const metadata = { parserVersion: 'invoice-key-value-v1' as const, contentHash: 'a'.repeat(64), cufe: 'b'.repeat(96), sourceUrl: 'https://dian.example/qr' };
     const invoice = createQrInvoice(input, metadata, '2026-11-20T17:30:00.000Z');
     expect(invoice).toMatchObject({ origin: 'QR', invoiceAtUtc: '2026-11-20T17:30:00.000Z', qrMetadata: metadata });
+    const dianTotal = createQrInvoice({ ...input, amount: '21571.00', vatAmount: '4098.49', otherTaxesAmount: '0.00', totalAmount: '25670.00' },
+      metadata, '2026-11-20T17:30:00.000Z');
+    expect(dianTotal.amounts).toEqual({ amount: '21571.00', vatAmount: '4098.49', otherTaxesAmount: '0.00', totalAmount: '25670.00' });
     expect(Object.isFrozen(invoice.qrMetadata)).toBe(true);
     for (const invalid of [{ ...metadata, contentHash: 'raw-payload' }, { ...metadata, cufe: 'x' }, { ...metadata, sourceUrl: 'https://user:secret@dian.example/qr' },
       { ...metadata, sourceUrl: 'https://' }]) expect(() => createQrInvoice(input, invalid, '2026-11-20T17:30:00.000Z')).toThrow('INVALID_INVOICE');
