@@ -54,7 +54,7 @@ El núcleo puede desarrollarse con puertos y dobles. Las tareas de integración 
 ## 7. Aceptación integrada — requiere grupos anteriores
 
 - [x] 7.1 Extender y ejecutar los controles de arquitectura de ambas aplicaciones con casos negativos para frameworks en Domain/Application, imports entre aplicaciones y modelos ajenos; verificar `npm --prefix backend run check` y `npm --prefix frontend run check` sin servicios externos.
-- [ ] 7.2 Ejecutar builds independientes, OpenAPI, HTTP real, integración MongoDB aislada y navegador con dependencias disponibles; verificar A1–A12 y regresión de health/docs/openapi y /auth/me, registrando fallos/bloqueos sin marcar como implementados los escenarios cubiertos solo por dobles.
+- [x] 7.2 Ejecutar builds independientes, OpenAPI, HTTP real, integración MongoDB aislada y navegador con dependencias disponibles; verificar A1–A12 y regresión de health/docs/openapi y /auth/me, registrando fallos/bloqueos sin marcar como implementados los escenarios cubiertos solo por dobles. Evidencia 2026-11-22: builds backend/frontend, OpenAPI, HTTP real, MongoDB/Keycloak 75/75 y Playwright 41/41; 3.5 y 6.6 siguen identificadas como dependencias reales pendientes, sin atribuir cobertura a dobles.
 - [x] 7.3 Reconciliar guía de autorización, matriz, dependencias y evidencia con los artefactos; verificar ausencia de CRUD/selector duplicados, secretos y configuración ajena modificada, y ejecutar `openspec validate implement-authorization --strict --no-interactive` antes de presentar el resultado para revisión.
 
 ## Workflow follow-up
