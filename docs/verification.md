@@ -294,3 +294,7 @@ npm --prefix frontend run test:e2e -- tests/e2e/parameter-management-responsive.
 ```
 
 La factura MANUAL conserva `createdAt` e historial cuando cambia el parámetro. Si Configuration no tiene un valor vigente, edición devuelve 503 sin fallback. La política nueva también se evalúa en facturas anteriores. La factura QR sigue inmutable y no se declara terminado el cambio separado de escaneo QR. No se modificaron datos persistentes ni configuración Keycloak.
+
+## Cierre OpenSpec — 2026-11-22
+
+Las propuestas `capture-keycloak-admin-events`, `implement-audit-delivery` e `implement-authorization` quedaron traducidas al español y archivadas. Se sincronizaron sus deltas en `openspec/specs/keycloak-admin-audit/`, `openspec/specs/audit/`, `openspec/specs/identity-access/` y `openspec/specs/frontend-shell/`. Cada cambio tenía todas las tareas completadas antes del archivo; la evidencia de cierre y verificación está en `docs/authorization-progress.md` y `docs/initial-invoices-app-closure.md`.
