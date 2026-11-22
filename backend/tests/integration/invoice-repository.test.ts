@@ -241,6 +241,21 @@ it('arbitrates concurrent commercial duplicates through the unique index', async
   expect(outcomes.find(outcome => outcome.status === 'rejected')).toMatchObject({ reason: { code: 'INVOICE_DUPLICATE' } });
 });
 
+it('keeps invoice detail, list and count isolated to the selected third party and DRIVER subject', async () => {
+  const ownerA = await seed(), ownerB = await seed();
+  const created = await repository.create(command(ownerA, { number: 'FAC-SCOPE-A' }));
+
+  expect(await repository.find({ id: created.id, thirdPartyId: ownerB.thirdPartyId })).toBeNull();
+  expect(await repository.find({ id: created.id, thirdPartyId: ownerA.thirdPartyId, ownerSubject: ownerB.subject })).toBeNull();
+  await expect(repository.list({ thirdPartyId: ownerB.thirdPartyId, ownerSubject: ownerB.subject, page: 1, pageSize: 20,
+    sort: 'createdAt', direction: 'desc' })).resolves.toMatchObject({ items: [], total: 0 });
+  await expect(repository.list({ thirdPartyId: ownerA.thirdPartyId, ownerSubject: ownerB.subject, page: 1, pageSize: 20,
+    sort: 'createdAt', direction: 'desc' })).resolves.toMatchObject({ items: [], total: 0 });
+  await expect(repository.list({ thirdPartyId: ownerA.thirdPartyId, ownerSubject: ownerA.subject, page: 1, pageSize: 20,
+    sort: 'createdAt', direction: 'desc' })).resolves.toMatchObject({ total: 1, items: [expect.objectContaining({ id: created.id })] });
+  expect(await connection.collection('invoice_management_events').countDocuments({ invoiceId: created.id })).toBe(1);
+});
+
 it('checks the edit window with server time after policy confirmation, including the exclusive expiry boundary', async () => {
   const owner = await seed();
   serverNow = new Date('2026-11-20T23:59:59.999Z');

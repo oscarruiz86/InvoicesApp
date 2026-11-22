@@ -79,13 +79,13 @@ Implementación autorizada por el usuario mediante `$openspec-apply-change imple
 
 ## 13. Aceptación cruzada dependiente — solo con proveedores reales
 
-- [ ] 13.1 Verificar caso 19 y restricciones DRIVER sobre lecturas/listados/conteos/escrituras de recursos reales con sus filtros de pertenencia; dependencia: Fleet/Invoices/Organizations entregados por sus cambios. No completar con dobles ni implementar su CRUD aquí.
-- [ ] 13.2 Verificar revocación concurrente en el punto de confirmación real de una mutación conforme a AuthorizedMutation; dependencia: unidad de confirmación y escritor versionado de los propietarios. No habilitar mutaciones sin demostrar rechazo de revisión obsoleta.
+- [x] 13.1 Verificar caso 19 y restricciones DRIVER sobre lecturas/listados/conteos/escrituras de recursos reales con sus filtros de pertenencia; dependencia: Fleet/Invoices/Organizations entregados por sus cambios. Evidencia MongoDB real: detalle/listado/conteo de facturas por tercero y subject; creación Fleet con participantes de otro tercero rechazada sin escrituras; la evidencia completa está en `docs/organization-context-acceptance.md`.
+- [x] 13.2 Verificar revocación concurrente en el punto de confirmación real de una mutación conforme a AuthorizedMutation; dependencia: unidad de confirmación y escritor versionado de los propietarios. Evidencia MongoDB real: una revocación de membership después de leer la asignación y antes de confirmar QR rechaza la mutación sin factura ni evento; la evidencia completa está en `docs/organization-context-acceptance.md`.
 
-Las tareas 13.1–13.2 permanecen pendientes si faltan proveedores; no impiden revisar la propuesta ni desarrollar el incremento de selección, pero impiden afirmar aceptación operativa integral. Entrega a Audit, retención y auditoría de revocaciones del escritor permanecen en cambios propietarios, no se simulan como funcionalidad terminada aquí.
+Las tareas 13.1–13.2 se ejecutaron una vez disponibles los proveedores reales de Fleet, Invoices y Organizations. Entrega a Audit, retención y auditoría de revocaciones del escritor permanecen en cambios propietarios; esta aceptación verifica el rechazo seguro y no simula una entrega central a Audit.
 
 ## Workflow follow-up
 
-- La aprobación de implementación ya fue recibida; no autoriza despliegue, sincronización ni archivo.
-- Sincronizar/archivar únicamente mediante el flujo autorizado posterior; reconciliar autenticación, autorización y la referencia a selección de initial-invoices-app, conservando propiedad de Organizations.
+- La autorización explícita para implementar, sincronizar y archivar las propuestas fue recibida en la conversación.
+- Sincronizar/archivar mediante el flujo OpenSpec; reconciliar autenticación, autorización y la referencia a selección de initial-invoices-app, conservando propiedad de Organizations.
 - No archivar este cambio con tareas dependientes pendientes ni marcar tareas de otros cambios por equivalencia.

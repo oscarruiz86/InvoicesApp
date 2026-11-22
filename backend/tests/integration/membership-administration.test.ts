@@ -78,6 +78,12 @@ it('keeps one administrator through atomic replacement and emits no duplicate ev
   expect(result.replacement?.membership).toMatchObject({ subject: 'next-admin', status: 'ACTIVE', revision: 2 });
   const events = connection.collection('organization_membership_events');
   const eventCount = await events.countDocuments({ organizationId: 'company-replacement' });
+  const auditEvents = connection.collection('audit_events');
+  expect(await auditEvents.countDocuments({ source: 'organizations', action: 'MEMBERSHIP_UPDATED', 'scope.companyId': 'company-replacement' })).toBe(2);
+  const auditFact = await auditEvents.findOne({ source: 'organizations', action: 'MEMBERSHIP_UPDATED', 'resource.id': memberships[0].id });
+  expect(auditFact).toMatchObject({ actor: { kind: 'user', subject: 'app-admin' }, beforeVersion: '1', afterVersion: '2' });
+  expect(auditFact).not.toHaveProperty('beforeRoles');
+  expect(auditFact).not.toHaveProperty('afterRoles');
   const repeated = await repository.changeMembership({ membershipId: memberships[0].id, expectedRevision: 2, actorSubject: 'app-admin', now,
     status: 'INACTIVE', roles: ['COMPANY_ADMIN'] });
   expect(repeated.membership.revision).toBe(2);
@@ -122,12 +128,15 @@ it('creates and deactivates a driver with role changes, while repeated roles pro
   expect(activeDriver).toMatchObject({ subject: membership.subject, thirdPartyId: organizationId, status: 'ACTIVE', version: 1 });
   expect(await connection.collection('driver_management_events').countDocuments({ membershipId: membership.id, action: 'DRIVER_PROVISIONED' })).toBe(1);
   const events = connection.collection('organization_membership_events');
+  const auditEvents = connection.collection('audit_events');
   expect(await events.countDocuments({ membershipId: membership.id })).toBe(1);
+  expect(await auditEvents.countDocuments({ source: 'organizations', action: 'MEMBERSHIP_UPDATED', 'resource.id': membership.id })).toBe(1);
 
   const repeated = await repository.changeMembership({ membershipId: membership.id, expectedRevision: 2, actorSubject: 'app-admin', now,
     roles: ['DRIVER', 'THIRD_PARTY_ADMIN', 'DRIVER'], driverProvisioning });
   expect(repeated.membership.revision).toBe(2);
   expect(await events.countDocuments({ membershipId: membership.id })).toBe(1);
+  expect(await auditEvents.countDocuments({ source: 'organizations', action: 'MEMBERSHIP_UPDATED', 'resource.id': membership.id })).toBe(1);
   expect(await connection.collection('driver_management_events').countDocuments({ membershipId: membership.id })).toBe(1);
 
   const removed = await repository.changeMembership({ membershipId: membership.id, expectedRevision: 2, actorSubject: 'app-admin', now,
@@ -138,6 +147,7 @@ it('creates and deactivates a driver with role changes, while repeated roles pro
     { action: 'DRIVER_PROVISIONED', version: 1, source: 'MEMBERSHIP' }, { action: 'DRIVER_DEACTIVATED', version: 2, source: 'MEMBERSHIP_ROLE_REMOVED' },
   ]);
   expect(await events.countDocuments({ membershipId: membership.id })).toBe(2);
+  expect(await auditEvents.countDocuments({ source: 'organizations', action: 'MEMBERSHIP_UPDATED', 'resource.id': membership.id })).toBe(2);
   expect(await connection.collection('organization_associations').findOne({ membershipId: membership.id, capability: 'DRIVER' })).toMatchObject({ assigned: false, active: false });
 });
 
@@ -161,7 +171,7 @@ it('preserves a pre-existing inactive driver when DRIVER is added and rejects re
 });
 
 it('suspends driver membership evidence without rewriting the driver or Keycloak identity', async () => {
-  const { organizationId, memberships } = await addThirdParty('driver-suspension', [{ subject: 'suspended-driver', status: 'ACTIVE', roles: ['THIRD_PARTY_ADMIN', 'DRIVER'] }]);
+  const { memberships } = await addThirdParty('driver-suspension', [{ subject: 'suspended-driver', status: 'ACTIVE', roles: ['THIRD_PARTY_ADMIN', 'DRIVER'] }]);
   const membership = memberships[0];
   await provisionSeedDriver(membership);
 
