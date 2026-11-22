@@ -6,9 +6,12 @@ import type { AssignmentApi } from '@/modules/fleet/application/fleet-api';
 import type { InvoiceApi, InvoiceQrPreview } from '../application/invoice-api';
 import type { QrCameraSession, QrDecoderLoader } from '../application/qr-decoder';
 import { RequestError } from '@/shared/application/request-error';
+import { InvoiceQrError, parseInvoiceQr } from '@shared/invoice-qr';
 
 type Assignment = Awaited<ReturnType<AssignmentApi['listAssignments']>>['items'][number];
 function message(error: unknown): string {
+  if (error instanceof InvoiceQrError) return ({ QR_INCOMPLETE: 'El QR no incluye todos los campos obligatorios. Escanea otro código; no puedes completar campos manualmente. ',
+    QR_INVALID: 'El QR tiene datos inválidos. Comprueba la factura y vuelve a intentarlo.', QR_UNSUPPORTED: 'Este formato QR no está soportado. Puedes intentar otra lectura o registrar la factura manualmente.' } as const)[error.code];
   if (error instanceof RequestError) return ({ QR_INCOMPLETE: 'El QR no incluye todos los campos obligatorios. Escanea otro código; no puedes completar campos manualmente. ',
     QR_INVALID: 'El QR tiene datos inválidos. Comprueba la factura y vuelve a intentarlo.', QR_UNSUPPORTED: 'Este formato QR no está soportado. Puedes intentar otra lectura o registrar la factura manualmente.',
     INVOICE_DUPLICATE: 'Ya existe una factura con ese NIT y número.', IDEMPOTENCY_CONFLICT: 'La solicitud cambió durante el reintento. Revisa el contexto antes de continuar.',
@@ -48,19 +51,16 @@ export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context,
 
   const reviewContent = useCallback(async (content: string) => {
     ++serial.current; const request = serial.current; operation.current?.abort();
-    const controller = new AbortController(); operation.current = controller;
-    let capture: ReturnType<ContextStore['capture']>;
-    try { capture = context.capture(); } catch { setError('El contexto ya no está disponible. Vuelve a seleccionarlo.'); return; }
     setError(null); setPreview(null); setQrContent(''); setBusy(true);
     try {
-      const result = await api.previewQr(capture.scope, content, AbortSignal.any([capture.signal, controller.signal]));
-      if (request === serial.current && capture.isCurrent() && !controller.signal.aborted) { setQrContent(content); setPreview(result); idempotency.current = null; }
+      const { canonicalContent: _canonicalContent, ...result } = parseInvoiceQr(content);
+      if (request === serial.current) { setQrContent(content); setPreview(result); idempotency.current = null; }
     } catch (cause) {
-      if (request === serial.current && capture.isCurrent() && !controller.signal.aborted) setError(message(cause));
+      if (request === serial.current) setError(message(cause));
     } finally {
-      capture.release(); if (request === serial.current) setBusy(false);
+      if (request === serial.current) setBusy(false);
     }
-  }, [api, context]);
+  }, []);
 
   useEffect(() => {
     if (!open || !cameraRequested || !video.current) return;

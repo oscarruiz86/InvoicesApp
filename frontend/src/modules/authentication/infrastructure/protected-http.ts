@@ -110,14 +110,13 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
-    invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: FormData | { readonly qrContent: string },
+    invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: FormData,
       options: { readonly signal?: AbortSignal; readonly idempotencyKey?: string; readonly binary?: boolean } = {}): Promise<unknown> {
       const list = path === 'invoices', detail = /^invoices\/[a-f0-9]{24}$/.test(path), image = /^invoices\/[a-f0-9]{24}\/image$/.test(path);
-      const qrPreview = path === 'invoices/qr/preview', qrCreate = path === 'invoices/qr';
+      const qrCreate = path === 'invoices/qr';
       const valid = method === 'GET' ? body === undefined && (list || detail || image)
         : method === 'POST' ? (list && body instanceof FormData && Boolean(options.idempotencyKey))
           || (qrCreate && body instanceof FormData && Boolean(options.idempotencyKey))
-          || (qrPreview && body !== undefined && !(body instanceof FormData))
           : method === 'PATCH' && detail && body instanceof FormData;
       const params = new URLSearchParams(query);
       const allowed = method === 'GET' && list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'q', 'vehicleId', 'dateFrom', 'dateTo', 'sort', 'direction'] : ['scope', 'thirdPartyId'];

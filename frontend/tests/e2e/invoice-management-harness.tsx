@@ -28,8 +28,6 @@ const qrContent = 'NumFac=QR-E2E-1\nFecFac=2026-11-20\nHorFac=12:30:00\nNitFac=9
 const qrInvoice: InvoiceDto = { ...record, origin: 'QR', invoiceNumber: 'QR-E2E-1', qrMetadata: { parserVersion: 'invoice-key-value-v1', contentHash: 'a'.repeat(64) } };
 const api: InvoiceApi = { list: async (_scope, query) => ({ items: query.page === 1 ? [record] : [], total: 1, page: query.page, pageSize: query.pageSize }),
   detail: async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' } }), create: async () => record, update: async () => record, image: async () => new Blob(),
-  previewQr: async () => ({ invoiceDate: qrInvoice.invoiceDate, invoiceTime: qrInvoice.invoiceTime, invoiceAtUtc: qrInvoice.invoiceAtUtc, invoiceNumber: qrInvoice.invoiceNumber,
-    issuerNit: qrInvoice.issuerNit, buyerDocument: qrInvoice.buyerDocument, amount: '100.00', vatAmount: '19.00', otherTaxesAmount: '0.00', totalAmount: '119.00', metadata: qrInvoice.qrMetadata! }),
   createQr: async () => qrInvoice };
 const qrDecoder: QrDecoder = { openCamera: async (_video, onResult) => { queueMicrotask(() => onResult(qrContent)); return { stop: () => {}, destroy: () => {} }; }, decodeImage: async () => qrContent };
 const assignment = { id: record.assignmentId, thirdPartyId: record.thirdPartyId, vehicleId: record.vehicleId, vehiclePlate: record.vehiclePlate!,

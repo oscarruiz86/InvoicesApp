@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { ApplicationError } from '@/shared/application/application-error';
 import type { PermissionScope } from '@/modules/authentication/domain/permissions';
-import type { InvoiceApi, InvoiceDetailsDto, InvoiceDto, InvoiceFields, InvoicePage, InvoiceQuery, InvoiceUpdateFields, InvoiceQrPreview } from '../application/invoice-api';
+import type { InvoiceApi, InvoiceDetailsDto, InvoiceDto, InvoiceFields, InvoicePage, InvoiceQuery, InvoiceUpdateFields } from '../application/invoice-api';
 
 export interface InvoiceTransport {
-  invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query: string, body?: FormData | { readonly qrContent: string },
+  invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query: string, body?: FormData,
     options?: { readonly signal?: AbortSignal; readonly idempotencyKey?: string; readonly binary?: boolean }): Promise<unknown>;
 }
 const id = z.string().regex(/^[a-f0-9]{24}$/);
@@ -18,8 +18,6 @@ const invoice = z.object({ id, origin: z.enum(['MANUAL', 'QR']), qrMetadata: qrM
   imageUrl: z.string().startsWith('/api/invoices/').nullable() }).strict();
 const page = z.object({ items: z.array(invoice), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive().max(100) }).strict();
 const details = z.object({ invoice, editability: z.object({ available: z.boolean(), reason: z.enum(['PERMISSION_INSUFFICIENT', 'EDIT_POLICY_UNAVAILABLE', 'EDIT_WINDOW_CLOSED', 'QR_IMMUTABLE']).nullable() }).strict() }).strict();
-const qrPreview = z.object({ invoiceDate: z.string(), invoiceTime: z.string(), invoiceAtUtc: z.string(), invoiceNumber: z.string(), issuerNit: z.string(), buyerDocument: z.string(),
-  amount: z.string(), vatAmount: z.string(), otherTaxesAmount: z.string(), totalAmount: z.string(), metadata: qrMetadata }).strict();
 function parse<T>(schema: z.ZodType<T>, value: unknown): T { const parsed = schema.safeParse(value); if (!parsed.success) throw new ApplicationError('INVALID_RESPONSE'); return parsed.data; }
 function queryParams(scope: PermissionScope, query?: InvoiceQuery) {
   if (scope.kind !== 'organization' || scope.companyId !== null || !id.safeParse(scope.thirdPartyId).success) throw new ApplicationError('FORBIDDEN');
@@ -66,10 +64,6 @@ export function createInvoiceApi(http: InvoiceTransport): InvoiceApi {
       if (!(raw instanceof Blob) || !['image/jpeg', 'image/png'].includes(raw.type) || raw.size > 5 * 1024 * 1024) throw new ApplicationError('INVALID_RESPONSE');
       return raw;
     },
-    async previewQr(scope, qrContent, signal) {
-      if (typeof qrContent !== 'string' || !qrContent || new TextEncoder().encode(qrContent).length > 16 * 1024) throw new ApplicationError('CONFIGURATION');
-      return parse(qrPreview, await http.invoice('POST', 'invoices/qr/preview', queryParams(scope), JSONBody({ qrContent }), { signal })) as InvoiceQrPreview;
-    },
     async createQr(scope, input, idempotencyKey, signal) {
       if (!id.safeParse(input.assignmentId).success || !id.safeParse(input.vehicleId).success || !idempotencyKey) throw new ApplicationError('CONFIGURATION');
       const { image, ...payload } = input;
@@ -77,4 +71,3 @@ export function createInvoiceApi(http: InvoiceTransport): InvoiceApi {
     },
   };
 }
-function JSONBody(value: { readonly qrContent: string }) { return value; }
