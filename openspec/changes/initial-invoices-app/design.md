@@ -2,9 +2,9 @@
 
 ## Context
 
-Ver `proposal.md` para la motivación. La inspección encontró la configuración OpenSpec y habilidades del flujo, sin código de aplicación, pruebas ni especificaciones base. Este diseño establece una arquitectura objetivo; no afirma que exista una implementación ni que haya sido validada en ejecución.
+Ver `proposal.md` para la motivación. El diagnóstico inicial de esta propuesta era solo documental; la aplicación y sus especificaciones evolucionaron después mediante cambios independientes. El estado implementado, las decisiones funcionales y las evidencias se reconcilian en `docs/initial-invoices-app-closure.md` y en las especificaciones vigentes.
 
-Los principios SOLID, DDD y Clean Architecture son obligatorios en frontend y backend y deben revisarse en cada tarea futura. La entrega actual es exclusivamente documental. Los valores y matrices funcionales no suministrados no se consideran aprobados por aparecer en este diseño.
+Los principios SOLID, DDD y Clean Architecture son obligatorios en frontend y backend y deben revisarse en cada tarea futura. Las decisiones enumeradas al final de este diseño ya fueron contrastadas con las especificaciones, documentación y capacidades implementadas citadas en el registro de cierre.
 
 ## Goals / Non-Goals
 
@@ -39,13 +39,13 @@ No se aceptan dependencias circulares, componentes con reglas complejas ni clase
 | Contexto | Responsabilidad y propiedad | Límites y evaluación inicial |
 | --- | --- | --- |
 | Identity & Access | Identidad de usuario, roles y permisos generales; traducción de identidad autenticada desde Keycloak. | Contexto de soporte: no posee asociaciones organizacionales ni decide por sí solo acceso a una factura. Keycloak es infraestructura, no modelo de dominio compartido. |
-| Organizations | Empresas, terceros, relaciones entre ellos, asociaciones de usuarios y validez del contexto seleccionado. | Es dueño de las relaciones organizacionales. Una empresa y un tercero no se asumen jerárquicos ni intercambiables; su cardinalidad queda por confirmar. |
+| Organizations | Empresas, terceros, relaciones entre ellos, asociaciones de usuarios y validez del contexto seleccionado. | Es dueño de las relaciones organizacionales. Empresa y tercero tienen ámbitos separados; el acceso requiere una relación explícita activa, no una herencia jerárquica o tránsito implícito. |
 | Fleet Management | Vehículos, conductores y asignaciones con períodos de vigencia e historial. | Un único contexto inicialmente porque comparten el ciclo de asignación. No incluye facturación ni modifica organizaciones. |
 | Invoice Management | Facturas, origen MANUAL/QR y políticas de creación y edición. | Contexto central; consume hechos de asignación, permisos y parámetros mediante contratos, sin acceder a colecciones ajenas. |
 | Configuration | Parámetros funcionales tipados, vigencia y ámbito de aplicación. | Contexto de soporte sencillo; no se convierte en motor genérico de reglas ni almacena secretos técnicos. |
-| Audit | Registro y consulta autorizada de trazabilidad. | Contexto transversal de soporte; registra hechos y no autoriza operaciones ni modifica los agregados que observa. |
+| Audit | Registro y entrega durable de hechos de trazabilidad. | Contexto transversal de soporte; registra hechos y no autoriza operaciones ni modifica los agregados que observa. El historial no se consulta desde la aplicación hasta aprobar una política de acceso. |
 
-Estos seis límites son la propuesta inicial a evaluar en la revisión arquitectónica. No obligan a que cada contexto tenga UI propia, el mismo número de capas pobladas ni todos los patrones DDD.
+Estos seis límites se revisaron y adoptaron para la arquitectura modular. No obligan a que cada contexto tenga UI propia, el mismo número de capas pobladas ni todos los patrones DDD.
 
 **Mapa de colaboración:** Identity & Access aporta un actor autenticado a Application. Organizations aporta asociaciones y contexto autorizado; Fleet aporta hechos de asignación; Configuration aporta parámetros efectivos a Invoice Management. Los contextos productores entregan hechos de operaciones a Audit. Son relaciones entre contratos públicos, no imports entre modelos internos ni relaciones bidireccionales de agregados. Las dependencias deben mantenerse acíclicas.
 
@@ -100,7 +100,7 @@ frontend/
       theme/                     # Material UI, solo presentación
 ```
 
-La estructura es documental; no se crean estos directorios en esta entrega. Configuration y Audit tendrán módulos de frontend con las mismas capas solo si una capacidad aprobada requiere sus pantallas. `vehicles` es el nombre de interfaz para flota; no constituye un séptimo bounded context. Las pantallas de conductores y asignaciones permanecerán en ese módulo mientras compartan el mismo límite.
+La estructura define los límites de frontend implementados en los módulos actuales. Configuration ofrece solo las pantallas funcionales aprobadas; Audit no expone historial en la UI mientras no exista política de lectura aprobada. `vehicles` es el nombre de interfaz para Fleet; no constituye un séptimo bounded context. Las pantallas de conductores y asignaciones permanecen dentro de ese límite compartido.
 
 Los componentes invocan acciones de presentación conectadas a casos de uso. Los casos de uso dependen de puertos de API; los adaptadores HTTP implementan esos puertos y traducen DTO y errores. Los componentes no realizan HTTP ni persistencia directamente. Los stores Zustand quedan en Presentation y conservan selección, carga, errores y datos de aplicación; no definen reglas autoritativas ni contienen implementaciones de repositorios. Una necesidad de almacenamiento local se resuelve mediante un puerto y su adaptador.
 
@@ -175,11 +175,11 @@ Los Domain Services solo reúnen reglas que no pertenecen naturalmente a una ent
 
 **Invoice:** el origen MANUAL o QR se establece al crear y no cambia para eludir controles. Application obtiene una asignación verificada de Fleet, un contexto organizacional autorizado de Organizations y la política temporal efectiva de Configuration. Invoice evalúa sus invariantes con esos hechos y un instante proporcionado por un puerto de reloj; no consulta servicios externos por sí misma.
 
-La creación valida el vehículo asignado; la edición manual exige permisos y estar dentro de la ventana configurada. El origen QR activa una restricción específica independiente de la ventana manual. La lista exacta de campos protegidos y las excepciones, si existen, necesitan aprobación previa a su implementación; no se presume que un rol privilegiado las pueda omitir. Cada modificación aceptada debe quedar vinculada a auditoría. El backend toma la decisión final incluso si la UI permite la acción.
+La creación valida el vehículo asignado; la edición manual exige permisos y estar dentro de la ventana configurada. El origen QR activa una restricción específica independiente de la ventana manual y permanece inmutable; no existe excepción privilegiada para editarlo. Cada modificación aceptada queda vinculada a auditoría. El backend toma la decisión final incluso si la UI permite la acción.
 
-**Vehicle:** la activación/desactivación y el cambio de tercero son transiciones explícitas. Al sustituir una asignación se finaliza la anterior y se conserva su intervalo histórico; no se sobrescribe para aparentar que nunca existió. El reemplazo no deja asignaciones incompatibles simultáneamente. La semántica de desactivación respecto a asignaciones abiertas debe resolverse antes de implementarla. Las facturas históricas no se reasignan por cambiar el tercero actual del vehículo.
+**Vehicle:** la activación/desactivación y el cambio de tercero son transiciones explícitas. Al sustituir una asignación se finaliza la anterior y se conserva su intervalo histórico; no se sobrescribe para aparentar que nunca existió. El reemplazo no deja asignaciones incompatibles simultáneamente. Desactivar un vehículo con una asignación activa se rechaza hasta cerrarla. Las facturas históricas no se reasignan por cambiar el tercero actual del vehículo.
 
-**Organization:** las asociaciones de usuarios son hechos administrados por Organizations. Una selección enviada por el cliente es una solicitud de contexto, no prueba de autorización. Cada caso de uso verifica actor, rol/permiso, asociación vigente y ámbito del recurso. El contexto autorizado se pasa explícitamente a consultas y escrituras. No hay acceso global implícito por omitir un identificador; las excepciones administrativas requerirán una regla aprobada.
+**Organization:** las asociaciones de usuarios son hechos administrados por Organizations. Una selección enviada por el cliente es una solicitud de contexto, no prueba de autorización. Cada caso de uso verifica actor, rol/permiso, asociación vigente y ámbito del recurso. El contexto autorizado se pasa explícitamente a consultas y escrituras. No hay acceso global implícito por omitir un identificador ni excepciones administrativas transitivas.
 
 ### 9. Estrategia de repositorios y persistencia MongoDB
 
@@ -189,17 +189,17 @@ Infrastructure implementa repositorios con Mongoose y mapeadores explícitos ent
 
 Cada actualización debe preservar la consistencia de su agregado frente a concurrencia. Para el cambio de tercero se evaluará un documento con actualización atómica o una transacción si las asignaciones se persisten por separado; nunca se cerrará una asignación dejando fallida la nueva. El caso de uso define la frontera requerida mediante una abstracción, sin importar sesiones MongoDB. Un conflicto concurrente no puede pasar silenciosamente como éxito.
 
-La escritura de negocio y su auditoría no pueden perderse silenciosamente por un fallo parcial. Antes de implementar se elegirá entre persistencia atómica del registro y la modificación, o captura duradera en la misma frontera de confirmación y entrega posterior reintentable. Si se elige la segunda, se definirá deduplicación y recuperación; un outbox solo se justifica si hace falta. No se introduce infraestructura de mensajería por anticipado. Las pruebas de repositorio/adaptador verificarán la garantía elegida.
+La escritura de negocio y su auditoría no pueden perderse silenciosamente por un fallo parcial. Los cambios de política con entrega diferida capturan eventos en su outbox durable en la misma escritura atómica; el worker reintenta y deduplica por ID. Las operaciones de Organizations y otros cambios con auditoría local confirman registro y modificación dentro de su transacción MongoDB. No se introduce un broker. Las pruebas de repositorio/adaptador verifican estas garantías.
 
 ### 10. Integración con Keycloak y contexto organizacional
 
-El adaptador de infraestructura valida la identidad con el emisor, audiencia, firma y expiración esperados, y transforma claims a un actor interno mediante un puerto de Application. El dominio no conoce tokens, clientes, SDK, roles de realm ni modelos de Keycloak. Los detalles de realm, cliente, permisos y flujo de sesión deben acordarse antes de implementar autenticación.
+El adaptador de infraestructura valida identidad con emisor, audiencia, firma y expiración esperados y transforma claims a un actor interno mediante un puerto de Application. El dominio no conoce tokens, clientes, SDK, roles de realm ni modelos de Keycloak. El realm, cliente, permisos y flujo de sesión vigentes se documentan en P1 y P6.
 
 Identity & Access entrega identidad y permisos generales; Organizations verifica asociaciones y contexto; cada caso de uso verifica el permiso sobre la acción y el recurso. No se aceptan roles, organización o identidad suministrados libremente en el cuerpo de una petición como evidencia. La UI nunca tiene acceso directo a MongoDB ni credenciales de servicio. Si hay indisponibilidad de identidad o de contexto, no se autoriza por defecto.
 
 ### 11. Contratos REST y Swagger/OpenAPI
 
-Presentation define DTO de solicitudes y respuestas separados de entidades y persistencia. Los contratos OpenAPI incluirán operaciones, esquemas, campos obligatorios, origen de factura, selección explícita del contexto organizacional, seguridad, respuestas de validación, ausencia de autenticación, acceso denegado, recurso no disponible y conflictos de dominio/concurrencia. El mapeo de códigos HTTP se fijará de forma consistente antes de implementar endpoints; no se inventan rutas, campos fiscales o roles en esta propuesta.
+Presentation define DTO de solicitudes y respuestas separados de entidades y persistencia. OpenAPI publica operaciones, esquemas, campos obligatorios, origen de factura, selección explícita de contexto, seguridad y errores de validación, autenticación, autorización, recurso ausente, indisponibilidad y conflictos de dominio/concurrencia. El mapeo vigente está en el contrato publicado; no se exponen modelos Mongoose ni detalles de Keycloak.
 
 Swagger expondrá documentación del contrato y las pruebas de endpoints contrastarán entradas, salidas y errores con él. El contrato no filtra modelos Mongoose ni detalles de Keycloak. Los clientes HTTP del frontend implementan puertos específicos de cada módulo y convierten errores del transporte en resultados útiles para la aplicación/presentación.
 
@@ -217,7 +217,7 @@ Swagger expondrá documentación del contrato y las pruebas de endpoints contras
 | Transversal | Matriz de autorización por rol, asociación, contexto y acción; acceso por identificador/listado/escritura; modificaciones confirmadas con trazabilidad recuperable. |
 | Arquitectura | Grafo de imports sin ciclos, límites entre módulos/capas, prohibición de frameworks en capas internas y pruebas de sustitución de puertos. |
 
-La validación futura será automatizable con las herramientas que se acuerden al aprobar la arquitectura. No se instalan ni seleccionan librerías de pruebas en esta entrega. Cada tarea de implementación deberá citar los requisitos aplicables y aportar evidencia proporcional de conformidad SOLID/DDD/Clean Architecture; no bastará con crear carpetas con esos nombres.
+La validación automatizada usa Vitest, Dependency Cruiser, OpenAPI lint, builds independientes y pruebas de integración y navegador. Las cantidades y resultados registrados se encuentran en `docs/initial-invoices-app-closure.md` y en los cambios OpenSpec de auditoría. Cada capacidad aporta evidencia de conformidad SOLID/DDD/Clean Architecture; crear carpetas por sí solo no se acepta como evidencia.
 
 ## Risks / Trade-offs
 
@@ -226,24 +226,22 @@ La validación futura será automatizable con las herramientas que se acuerden a
 - [Fuga entre organizaciones] → Contexto validado por operación, puertos con ámbito explícito y pruebas negativas de consultas y escrituras.
 - [Historial inconsistente o pérdida de auditoría] → Definir frontera atómica/durable y verificar fallos parciales y concurrencia antes de aceptar esos módulos.
 - [Dependencias ocultas por carpetas compartidas] → Núcleo compartido mínimo, contratos públicos y revisión del grafo de imports.
-- [Parámetros o reglas funcionales no definidos] → Decisiones pendientes como condición previa de los módulos afectados; sin valores o privilegios asumidos.
+- [Reglas funcionales requieren decisión de producto] → P1–P7 quedan documentadas y ligadas a sus especificaciones; las extensiones futuras deberán seguir el mismo proceso de aprobación.
 
 ## Migration Plan
 
-No hay código ni datos de aplicación disponibles que migrar. Esta entrega crea únicamente la base documental del cambio, sin despliegue ni alteración de datos. No se sincronizan las deltas a especificaciones base ni se archiva el cambio durante esta revisión. Si aparece una propuesta o implementación anterior, deberá reconciliarse antes de aplicar tareas; este diseño no acredita compatibilidad con material no inspeccionado.
+En la inspección inicial no había código ni datos disponibles que migrar. Las capacidades se implementaron después en cambios separados y se integraron en `development`, sin que esta revisión altere datos o despliegue servicios. Las deltas de esta propuesta permanecen activas para revisión y no se archivan con este cierre.
 
-## Decisiones pendientes para aprobación
+## Decisiones acordadas y trazabilidad
 
-Estas decisiones se presentan expresamente para revisión, como solicita el alcance documental. Condicionan la especificación detallada y las tareas de los módulos afectados; no se consideran detalles que puedan decidirse durante la implementación sin revisión. Tras acordarlas se actualizarán conjuntamente diseño, escenarios y tareas antes de ejecutar esos módulos.
-
-| ID | Decisión requerida | Alcance que condiciona |
+| ID | Decisión vigente | Evidencia principal |
 | --- | --- | --- |
-| P1 | Matriz concreta de roles, permisos y excepciones administrativas; cardinalidad empresa/tercero/usuario y reglas de asociación. | Identity & Access, Organizations y todos los escenarios de autorización. |
-| P2 | Instante de referencia, duración, unidad, borde inclusivo/exclusivo y ámbito de la ventana de edición; efecto de cambiar el parámetro sobre facturas existentes. | Configuration y política/pruebas temporales de Invoice Management. |
-| P3 | Campos protegidos de facturas QR y posibles excepciones autorizadas; origen/formato QR y tratamiento de datos inválidos. | Captura QR, contrato de edición y pruebas de restricciones; no se presupone un formato fiscal. |
-| P4 | Momento contra el que se valida la asignación del vehículo, cardinalidades por vehículo/conductor/tercero y efecto de desactivar sobre asignaciones abiertas. | Invariantes de Fleet e Invoice y pruebas de historial/concurrencia. |
-| P5 | Garantía de confirmación de modificación y auditoría, datos auditables, retención y acceso a historial. | Persistencia, auditoría y escenarios de recuperación ante fallos. |
-| P6 | Realm/cliente, mapeo de claims y roles, y flujo de sesión de Keycloak para el frontend independiente. | Adaptadores de identidad y pruebas de autenticación; sin elegir versiones ni instalar dependencias aún. |
-| P7 | Esquemas REST detallados, mapeo de errores, estrategia de concurrencia y distribución de documentos MongoDB para agregados e historial. | Contratos OpenAPI, repositorios y pruebas de integración. |
+| P1 | `APP_ADMIN`, `COMPANY_ADMIN`, `THIRD_PARTY_ADMIN` y `DRIVER` tienen grants y ámbitos explícitos, sin herencia implícita. La autorización combina permiso, asociación activa y propietario del recurso. | `docs/authorization.md`, `docs/assignment-management.md`, `openspec/specs/identity-access/spec.md`, `openspec/specs/organization-context/spec.md`. |
+| P2 | `invoice.manual-edit-window-seconds` es entero global de 1 a 31.536.000 segundos (inicial 43.200); el borde es exclusivo desde `createdAt`, usa reloj del servidor y afecta facturas existentes. Si falta política válida, falla cerrado. | `openspec/specs/configuration/spec.md`, `docs/parameter-management.md`, `backend/src/modules/invoices`. |
+| P3 | QR v1 requiere los campos DIAN documentados; CUFE y URL HTTPS son opcionales. La lectura y validación son locales. Facturas QR son inmutables y la captura no certifica autenticidad fiscal. | `docs/invoice-qr-scanning.md`, `docs/invoice-management.md`, `openspec/specs/invoice-qr-scanning/spec.md`. |
+| P4 | La asignación propia y activa se confirma en el punto de escritura; Fleet conserva historial y referencias sin reescritura retroactiva. Desactivar con asignación activa se rechaza; las mutaciones verifican revisiones dentro de transacción. | `docs/assignment-management.md`, `docs/vehicle-management.md`, `docs/invoice-management.md`, `openspec/specs/driver-vehicle-assignment/spec.md`. |
+| P5 | Audit almacena eventos normalizados append-only, idempotentes, sin credenciales ni payloads libres. La retención aprobada es de dos años desde `occurredAt`; la expiración TTL puede retrasarse, nunca adelantarse. El outbox captura antes de responder y reintenta hasta entregar. No existe endpoint de historial y `audit:read` permanece denegado hasta aprobar acceso de consulta. | `docs/audit.md`, `openspec/changes/implement-audit-delivery/design.md`, `openspec/changes/implement-audit-delivery/specs/audit/spec.md`, `openspec/changes/capture-keycloak-admin-events/design.md`. |
+| P6 | Keycloak usa realm `invoices`, cliente público `invoices-web`, Authorization Code con PKCE S256 y audiencia `invoices-api`; el backend valida issuer, firma, audiencia y vigencia. No hay asignaciones de rol por defecto ni passwords gestionados por la aplicación. | `docs/authentication.md`, `keycloak/invoices-realm.json`, `openspec/specs/identity-access/spec.md`. |
+| P7 | OpenAPI 3.1 publica DTO cerrados, Bearer, contexto y errores. Escrituras sensibles comprueban propiedad/revisiones dentro de transacciones; fallos y conflictos no producen éxito parcial. La auditoría diferida usa outbox durable y deduplicación por ID. | `backend/openapi/openapi.json`, `docs/authorization.md`, `docs/assignment-management.md`, `docs/audit.md`. |
 
-La aprobación de esta arquitectura y el cierre de las decisiones aplicables son condiciones explícitas para avanzar. El estado de archivos completos en OpenSpec no autoriza implementar.
+La solicitud del usuario del 22 de noviembre de 2026 autoriza completar esta propuesta, implementar las tareas restantes y crear un commit en `openspec/initial-invoices-app`. Se validarán los artefactos OpenSpec antes de cerrar las tareas. La ausencia de una política de lectura de Audit es una decisión explícita de privacidad y alcance, no una tarea de endpoint pendiente.

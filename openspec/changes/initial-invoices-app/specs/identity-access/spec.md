@@ -4,38 +4,24 @@
 
 Establecer una identidad autenticada y permisos generales mediante un proveedor externo, manteniendo independientes las reglas de aplicación y la autorización organizacional.
 
-## ADDED Requirements
+## MODIFIED Requirements
 
-### Requirement: Identidad validada mediante un contrato sustituible
-El backend MUST obtener el actor autenticado mediante un contrato independiente del proveedor de identidad. La integración externa MUST traducir credenciales y errores sin introducir dependencias del proveedor en Domain o Application.
-
-#### Scenario: Identidad válida
-- **WHEN** el proveedor confirma una credencial válida para el emisor y la audiencia esperados
-- **THEN** la aplicación recibe un actor interno con identidad y permisos generales verificados
-- **AND** sus reglas no necesitan interpretar estructuras específicas del proveedor
-
-#### Scenario: Credencial inválida o expirada
-- **WHEN** se presenta una credencial inválida, expirada o de un emisor o audiencia no permitidos
-- **THEN** la operación protegida no se ejecuta y se devuelve el error de autenticación documentado
-
-#### Scenario: Proveedor indisponible
-- **WHEN** no puede verificarse la identidad conforme al contrato de autenticación
-- **THEN** no se concede acceso por defecto
-
-### Requirement: Roles y organización son verificaciones complementarias
-Los permisos generales MUST evaluarse junto con las asociaciones, el contexto organizacional y el recurso en el backend. Un rol o contexto declarado por el cliente MUST NOT sustituir esa verificación.
+### Requirement: Roles generales sin autorización organizacional implícita
+El realm MUST definir `APP_ADMIN`, `COMPANY_ADMIN`, `THIRD_PARTY_ADMIN` y `DRIVER`. El backend MUST obtener los roles solo de identidad verificada y evaluar cada operación protegida junto con el permiso requerido, una asociación organizacional activa, el contexto autorizado y el propietario del recurso. Un rol, permiso o contexto declarado por el cliente MUST NOT sustituir esas comprobaciones ni conceder acceso transitivo entre empresa y tercero.
 
 #### Scenario: Rol suficiente sin asociación válida
-- **WHEN** un actor tiene el permiso general solicitado pero no una asociación válida con la organización del recurso
-- **THEN** el backend rechaza la operación y no modifica el recurso
+- **WHEN** un actor presenta el rol general requerido, pero no tiene asociación activa con la organización propietaria del recurso
+- **THEN** el backend deniega la operación sin leer ni modificar el recurso
 
-#### Scenario: Permiso declarado libremente en la solicitud
-- **WHEN** el cliente envía un rol o permiso que la identidad verificada no acredita
-- **THEN** ese dato no concede autorización
+#### Scenario: Contexto o permiso manipulado
+- **WHEN** el cliente declara un permiso o selecciona un contexto sin asociación válida
+- **THEN** el backend vuelve a resolver actor, asociación y ámbito desde fuentes confiables y deniega la operación
 
-### Requirement: Autenticación verificable sin proveedor real
-Los casos de uso que dependen de identidad MUST poder probarse con implementaciones compatibles del contrato de autenticación, sin ejecutar el proveedor externo.
+#### Scenario: Roles manipulados o desconocidos
+- **WHEN** el cliente envía roles en headers, query o cuerpo, o la identidad contiene roles no reconocidos
+- **THEN** esos valores no conceden permisos ni acceso organizacional
 
-#### Scenario: Sustitución en pruebas
-- **WHEN** se inyecta una identidad de prueba con los mismos resultados y errores del contrato
-- **THEN** pueden verificarse decisiones de acceso sin cambiar reglas de negocio ni levantar servicios externos
+#### Scenario: Política de roles preparada
+- **WHEN** una operación protegida de prueba exige un rol que no tiene el actor verificado
+- **THEN** la política deniega con una categoría de autorización traducible a 403, sin crear endpoints de negocio
+- **AND** `/api/auth/me` continúa disponible para cualquier actor autenticado

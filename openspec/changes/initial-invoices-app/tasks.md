@@ -1,8 +1,8 @@
 # Tasks
 
-Esta lista describe trabajo futuro; ninguna casilla acredita trabajo implementado. La entrega actual solo crea planificación. No ejecutar tareas de código, scaffolding, instalación o integración hasta recibir aprobación explícita posterior a la revisión. Los grupos se ejecutan en orden de dependencia; todos los módulos funcionales requieren la definición y validación de ambas arquitecturas de los grupos 1 y 3.
+Esta lista registra el cierre de la propuesta. Las capacidades se implementaron mediante cambios OpenSpec independientes e integrados en `development`; la evidencia consolidada y las decisiones P1–P7 constan en `docs/initial-invoices-app-closure.md`. La solicitud del usuario del 22 de noviembre de 2026 aprueba expresamente completar las tareas restantes y crear un commit en esta rama. Las tareas conservan su secuencia original como trazabilidad.
 
-Cada tarea futura debe respetar SOLID, DDD y Clean Architecture, citar los requisitos aplicables y verificar los límites de capas. No se cierra una tarea solo por tener la estructura de carpetas.
+Las tareas implementadas respetan SOLID, DDD y Clean Architecture, citan los requisitos aplicables y verifican los límites de capas. No se cierra una tarea solo por tener la estructura de carpetas.
 
 ## 1. Definición y revisión documental de arquitectura
 
@@ -13,13 +13,13 @@ Cada tarea futura debe respetar SOLID, DDD y Clean Architecture, citar los requi
 
 ## 2. Decisiones funcionales y aprobación previa
 
-Los puntos P1–P7 remiten a la tabla de decisiones de `design.md`. Su resolución puede requerir ajustar escenarios y tareas; no se implementa una política basada en una suposición no aprobada.
+Los puntos P1–P7 remiten a la tabla de decisiones acordadas de `design.md`; escenarios y tareas se reconciliaron con esas decisiones antes de cerrar la implementación.
 
 - [x] 2.1 Acordar P1 (roles, permisos, excepciones y asociaciones) y P6 (realm, cliente, claims y sesión); verificar una matriz de acceso y un contrato de identidad aprobados y reflejados en diseño/especificaciones (`identity-access`, `organizations`).
 - [x] 2.2 Acordar P2 (ventana, borde, ámbito y efecto temporal) y P3 (restricciones y formato QR); verificar ejemplos concretos de aceptación y rechazo en los escenarios revisados (`configuration`, `invoice-management`).
 - [x] 2.3 Acordar P4 (referencia temporal de asignación, cardinalidades y desactivación); verificar escenarios revisados de transición, incompatibilidad e historial (`fleet-management`, `invoice-management`).
-- [ ] 2.4 Acordar P5 (confirmación/auditoría, datos, retención y acceso) y P7 (DTO, errores, concurrencia y persistencia); verificar decisiones documentadas y escenarios de fallos parciales consistentes (`audit`, `project-foundation` y capacidades afectadas).
-- [ ] 2.5 Reconciliar propuesta, diseño, siete deltas y tareas con los acuerdos y obtener aprobación explícita para implementar; verificar constancia de aprobación y ejecutar `openspec validate initial-invoices-app --strict --no-interactive`. Un resultado válido por sí solo no satisface la aprobación.
+- [x] 2.4 Acordar P5 (eventos normalizados, append-only, dos años de retención, entrega durable y sin lectura no aprobada) y P7 (DTO, errores, concurrencia y persistencia); verificar decisiones documentadas y escenarios de fallos parciales consistentes (`docs/audit.md`, OpenAPI y evidencias enlazadas en el registro de cierre).
+- [x] 2.5 Reconciliar propuesta, diseño, siete deltas y tareas con los acuerdos; registrar la aprobación explícita del usuario del 22 de noviembre de 2026 y ejecutar `openspec validate initial-invoices-app --strict --no-interactive`.
 
 ## 3. Bases técnicas y validación de ambas aplicaciones — solo tras 2.5
 
@@ -39,8 +39,8 @@ Los puntos P1–P7 remiten a la tabla de decisiones de `design.md`. Su resoluci�
 ## 5. Configuration y Audit — requiere 4
 
 - [x] 5.1 Desarrollar parámetros tipados y política efectiva conforme a P2; verificar valores inválidos, ausencia de configuración y efecto sobre facturas previas con reloj controlado y documentar la política (`configuration`).
-- [ ] 5.2 Desarrollar el contrato y persistencia de trazabilidad conforme a P5, incluidos los mecanismos de confirmación/recuperación elegidos; verificar fallos parciales, registros distinguibles y deduplicación si existe entrega diferida, y documentar la garantía (`audit`).
-- [ ] 5.3 Desarrollar los casos de uso y endpoints aprobados de configuración/auditoría; verificar permisos y acceso organizacional con pruebas de aplicación/REST y actualizar sus contratos OpenAPI (`configuration`, `audit`).
+- [x] 5.2 Desarrollar el contrato y persistencia de trazabilidad conforme a P5, incluidos los mecanismos de confirmación/recuperación elegidos; verificar fallos parciales, registros distinguibles y deduplicación en entrega diferida, y documentar la garantía (`docs/audit.md`, `implement-audit-delivery`, `capture-keycloak-admin-events`).
+- [x] 5.3 Desarrollar los casos de uso y endpoints aprobados de configuración/auditoría; verificar permisos y acceso organizacional con pruebas de aplicación/REST y actualizar contratos OpenAPI. La política aprobada no incluye endpoint de historial ni concede `audit:read` (`configuration`, `docs/audit.md`).
 
 ## 6. Fleet Management — requiere 4 y 5
 

@@ -19,19 +19,20 @@ Invoices App necesita límites arquitectónicos explícitos antes de desarrollar
 ### New Capabilities
 
 - `project-foundation`: estándares SOLID/DDD/Clean Architecture, aplicaciones independientes, límites de módulos, contratos REST y estrategia de pruebas.
-- `identity-access`: autenticación mediante adaptadores Keycloak y separación de identidad, roles y autorización de recursos.
 - `organizations`: empresas, terceros, asociaciones de usuarios, selección de contexto y aislamiento organizacional.
 - `fleet-management`: vehículos, conductores, activación, desactivación, cambio de tercero e historial de asignaciones.
 - `invoice-management`: captura manual/QR, validación de asignación, edición controlada y auditoría de modificaciones.
 - `configuration`: parámetros funcionales tipados y acceso mediante contratos, incluida la política temporal de edición.
-- `audit`: trazabilidad de operaciones y acceso autorizado al historial.
+- `audit`: registro durable, sanitizado y recuperable de operaciones; la consulta queda deshabilitada hasta aprobar una política de acceso.
 
 ### Modified Capabilities
 
-Ninguna. En el directorio inspeccionado existe la configuración OpenSpec, pero no hay especificaciones base, cambios previos ni código de la aplicación. Estos artefactos constituyen la base documental del cambio solicitado; no sustituyen una propuesta anterior no disponible.
+- `identity-access`: ampliar el requisito existente de roles generales para exigir verificación complementaria de permiso, asociación organizacional, contexto autorizado y propietario del recurso en cada operación.
+
+Al crear la propuesta, la inspección disponible era solo documental y no encontraba especificaciones base, cambios previos ni código de aplicación. La implementación evolucionó después en cambios independientes; la clasificación actual refleja la especificación base existente de `identity-access` y la reconciliación registrada en `docs/initial-invoices-app-closure.md`.
 
 ## Impact
 
-El alcance de esta entrega se limita a los artefactos de planificación de `initial-invoices-app`. No se genera código, no se instalan dependencias, no se crean implementaciones ni se modifican funcionalidades existentes. Las estructuras descritas son propuestas documentales; las integraciones, contratos ejecutables, persistencia y pruebas se realizarán únicamente tras aprobación.
+La propuesta se creó inicialmente como planificación documental. Posteriormente, las capacidades se implementaron en cambios OpenSpec independientes y se integraron en `development`; `docs/initial-invoices-app-closure.md` registra la evidencia y las decisiones P1–P7. La solicitud del usuario del 22 de noviembre de 2026 autoriza completar las tareas restantes y crear el commit de esta rama.
 
-Las decisiones funcionales pendientes y sus consecuencias se registran en `design.md`. Completar los artefactos OpenSpec no constituye aprobación de implementación ni resolución automática de esas decisiones.
+La arquitectura y las siete capacidades se reconciliaron con las decisiones vigentes. Audit conserva trazabilidad normalizada, entrega recuperable y retención de dos años; el historial permanece privado y no se publica una consulta hasta aprobar una política de acceso específica. El cambio no se archiva en este cierre.

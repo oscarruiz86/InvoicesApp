@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Conservar trazabilidad consultable de las operaciones de negocio, con acceso organizacional autorizado y garantías explícitas ante fallos de registro o entrega.
+Conservar trazabilidad durable y privada de las operaciones de negocio con garantías explícitas ante fallos de registro o entrega. No se ofrece consulta de historial hasta aprobar una política de acceso específica.
 
 ## ADDED Requirements
 
@@ -25,16 +25,16 @@ La confirmación de operaciones auditables MUST cumplir una garantía acordada d
 - **WHEN** un hecho capturado de forma duradera se entrega de nuevo tras un fallo
 - **THEN** la recuperación preserva su identidad sin duplicar la operación de negocio ni presentar dos hechos distintos para la misma modificación
 
-### Requirement: Historial protegido y acceso autorizado
-La consulta de auditoría MUST verificar permisos y ámbito organizacional. Las operaciones ordinarias MUST NOT sobrescribir registros previos para ocultar modificaciones; conservación y acceso MUST seguir la política aprobada.
+### Requirement: Historial privado hasta aprobar una política de consulta
+Audit MUST NOT exponer un endpoint de historial ni conceder el permiso `audit:read` hasta que exista una política aprobada de consulta, autorización, ámbito y retención. Los registros MUST ser append-only y conservar hechos distinguibles conforme a la política de retención vigente.
 
-#### Scenario: Consulta de auditoría ajena
-- **WHEN** un actor solicita trazabilidad fuera de su ámbito autorizado
-- **THEN** no recibe los registros ni datos del otro ámbito
+#### Scenario: Consulta sin política aprobada
+- **WHEN** un actor intenta consultar historial antes de aprobarse la política de acceso
+- **THEN** la aplicación no expone el endpoint ni devuelve registros de auditoría
 
 #### Scenario: Nueva modificación del mismo recurso
 - **WHEN** una nueva modificación de factura genera trazabilidad
-- **THEN** el historial permite distinguirla de la modificación anterior sin sobrescribirla
+- **THEN** Audit conserva un hecho distinguible sin sobrescribir el anterior
 
 ### Requirement: Auditoría separada de decisión de negocio
 Audit MUST registrar hechos sin modificar los agregados productores ni decidir permisos o elegibilidad de edición. Su contrato MUST poder sustituirse para probar la coordinación y los fallos de los casos de uso.
