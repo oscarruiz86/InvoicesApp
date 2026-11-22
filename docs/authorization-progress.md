@@ -4,6 +4,8 @@ El usuario autorizó implementar `implement-authorization` mediante `$openspec-a
 
 Estado de la revisión anterior (2026-11-10): **24/32 tareas completadas**. La actualización del 2026-11-22 está registrada al final; el cambio permanece en progreso por las tareas de Audit y aceptación completa.
 
+Estado final tras completar los cambios separados Audit y Keycloak (2026-11-22): **32/32 tareas completadas**. La evidencia de cierre más reciente está en la sección final; los estados anteriores de este registro son históricos.
+
 ## Evidencia de aceptación — 2026-11-10
 
 | Criterios | Evidencia ejecutada y límite |
@@ -62,6 +64,19 @@ El progreso actual antes de la verificación final era **29/32 tareas**; 7.2 se 
 
 Los builds, OpenAPI, HTTP, MongoDB y navegador terminaron correctamente. 7.2 queda cerrada como tarea de verificación integrada; su registro conserva 3.5 y 6.6 como bloqueos reales de auditoría y no atribuye esas garantías a pruebas con dobles.
 
-## Dependencias externas aún pendientes
+## Dependencias externas pendientes en la revisión anterior
 
 El repositorio conserva auditorías locales para políticas y cambios de Organizations, pero no contiene un módulo/puerto Audit transversal ni una entrega duradera común. Tampoco existe recolección de eventos administrativos de Keycloak. No se añadieron adaptadores simulados ni se atribuyeron cambios de roles a partir de tokens. Por ello 3.5 y 6.6 siguen abiertas conforme a sus dependencias.
+
+Este estado fue reemplazado el 2026-11-22 por los cambios `implement-audit-delivery` y `capture-keycloak-admin-events`, detallados en la evidencia final.
+
+## Cierre final — 2026-11-22
+
+| Entrega | Evidencia |
+| --- | --- |
+| Audit transversal | Journal Mongo inmutable/idempotente con TTL de dos años, worker de outbox recuperable, registro transaccional de asociaciones y denegaciones sanitizadas. `npm --prefix backend run check` pasa (483 pruebas unitarias y arquitectura); integración preparada completa: 21 suites/80 pruebas. |
+| Eventos administrativos Keycloak | Realm local con captura activada y detalles desactivados; servicio técnico separado con solo `view-events`; colector paginado con cursor Mongo solapado; entrega al writer Audit real. La integración desechable confirma actor, evento saneado, denegación de escritura administrativa y reintento sin duplicar. |
+| Retención | Audit almacena `expiresAt` a dos años calendario y Mongo TTL elimina de forma asíncrona; consulta de auditoría no añadida y `audit:read` sigue denegado. |
+| Verificaciones finales | `npm --prefix backend run check` (483 pruebas unitarias), `npm --prefix backend run build -- --webpack`, `npm --prefix backend run openapi:lint`, `docker compose config --quiet`, `openspec validate implement-authorization --strict --no-interactive`, y validación estricta de ambas propuestas separadas. Se conserva la evidencia de frontend build/check (221 pruebas) y Playwright 41/41 ya ejecutada el 2026-11-22; esos archivos no cambiaron en el cierre de Audit/Keycloak. En esta repetición final, `frontend run check` pasó lint/TypeScript pero Vitest quedó sin salida por más de dos minutos y se interrumpió; no se usó ese intento como evidencia.
+
+Las tareas 3.5 y 6.6 se cerraron con adaptadores Mongo/Audit y Keycloak reales, no con dobles. Los cambios viven en ramas OpenSpec dedicadas y se integraron en `openspec/implement-authorization` para aceptación conjunta. No se habilitó captura en producción ni se desplegaron cambios.

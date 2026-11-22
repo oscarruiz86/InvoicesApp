@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createKeycloakAdminEventCollector } from '@/modules/identity/infrastructure/keycloak/admin-event-collector';
 import { createKeycloakAdminEventApi } from '@/modules/identity/infrastructure/keycloak/admin-event-api';
 import { createMongoKeycloakAdminCursor } from '@/modules/identity/infrastructure/mongodb/keycloak-admin-cursor';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const uri = process.env.MONGODB_TEST_URI;
 const baseUrl = process.env.KEYCLOAK_ADMIN_AUDIT_BASE_URL;
@@ -20,24 +21,23 @@ afterAll(async () => {
   await connection.close();
 });
 
-it('reads the real disposable Keycloak feed and replays overlap using stable IDs', async () => {
-  const seen = new Map<string, string>();
+it('writes real disposable Keycloak events to Audit and replays overlap idempotently', async () => {
   const api = createKeycloakAdminEventApi({ baseUrl, realm, clientId, clientSecret });
   const cursor = createMongoKeycloakAdminCursor(connection, realm);
-  const collector = createKeycloakAdminEventCollector({ realm, source: api, cursor, now: Date.now,
-    audit: { async record(event) {
-      expect(event.source).toBe('keycloak-admin');
-      const canonical = JSON.stringify(event);
-      const previous = seen.get(event.eventId);
-      if (previous !== undefined) expect(previous).toBe(canonical);
-      seen.set(event.eventId, canonical);
-    } },
-  });
+  const collector = createKeycloakAdminEventCollector({ realm, source: api, cursor, now: Date.now, audit: createMongoAuditWriter(connection) });
 
   expect(await collector.pollOnce()).toBeGreaterThan(0);
   const firstCursor = await cursor.load();
   expect(firstCursor).toBeTypeOf('number');
-  expect(seen.size).toBeGreaterThan(0);
+  const stored = await connection.collection('audit_events').find({ source: 'keycloak-admin' }).toArray();
+  expect(stored.length).toBeGreaterThan(0);
+  expect(stored.every(event => typeof event._id === 'string' && event.occurredAt instanceof Date)).toBe(true);
+  for (const event of stored) {
+    expect(event).not.toHaveProperty('representation');
+    expect(event).not.toHaveProperty('details');
+    expect(event).not.toHaveProperty('ipAddress');
+  }
   expect(await collector.pollOnce()).toBeGreaterThan(0);
   expect(await cursor.load()).toBeGreaterThanOrEqual(firstCursor!);
+  expect(await connection.collection('audit_events').countDocuments({ source: 'keycloak-admin' })).toBe(stored.length);
 });

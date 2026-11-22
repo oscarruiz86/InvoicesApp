@@ -13,7 +13,7 @@ try {
   const adminAudit = await identity.verifyAdminAuditCapture();
   const directory = await identity.companyDirectoryFixture();
   console.log('Running full integration with disposable MongoDB and Keycloak fixtures.');
-  console.log(await command(process.execPath, [npm, 'run', 'test:integration'], {
+  console.log(await command(process.execPath, [npm, 'run', 'test:integration', '--', ...process.argv.slice(2)], {
     cwd: fileURLToPath(new URL('../backend/', import.meta.url)), env: { ...process.env,
       MONGODB_TEST_URI: mongo.uri, NOTIFICATIONS_RETENTION_TEST_URI: mongo.uri,
       KEYCLOAK_DIRECTORY_TEST_ISSUER: identity.issuer, KEYCLOAK_DIRECTORY_TEST_CLIENT_ID: directory.clientId,
