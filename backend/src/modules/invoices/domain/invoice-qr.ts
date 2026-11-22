@@ -60,8 +60,7 @@ export function parseInvoiceQr(content: unknown): ParsedInvoiceQr {
     || !/^\d{1,20}$/.test(get('NitFac')) || !get('NumFac') || get('NumFac').length > 64 || !get('DocAdq') || get('DocAdq').length > 40)
     throw new InvoiceQrError('QR_INVALID');
   const amounts = (['ValFac', 'ValIva', 'ValOtroIm', 'ValTolFac'] as const).map(get);
-  if (amounts.some(value => !decimal.test(value)) || minor(amounts[0]!) + minor(amounts[1]!) + minor(amounts[2]!) !== minor(amounts[3]!))
-    throw new InvoiceQrError('QR_INVALID');
+  if (amounts.some(value => !decimal.test(value))) throw new InvoiceQrError('QR_INVALID');
   const cufe = values.get('CUFE'); if (cufe !== undefined && !/^[a-f\d]{96}$/i.test(cufe)) throw new InvoiceQrError('QR_INVALID', ['CUFE']);
   const sourceUrl = values.get('QRCode') ?? standaloneSourceUrl;
   if (values.has('QRCode') && standaloneSourceUrl) throw new InvoiceQrError('QR_INVALID', ['QRCode']);

@@ -24,6 +24,8 @@ El parser MUST exigir NumFac, FecFac, HorFac, NitFac, DocAdq, ValFac, ValIva, Va
 
 Los campos MUST aceptar el formato DIAN `clave: valor`; la sintaxis `clave=valor` también se admite por compatibilidad. Una URL HTTPS en línea independiente podrá ser metadato opcional únicamente si acompaña los campos completos. No se abrirá ni consultará.
 
+Cada importe MUST validarse individualmente con precisión decimal. El parser MUST NOT exigir que ValFac + ValIva + ValOtroIm sea igual a ValTolFac, ya que ValTolFac representa el importe pagadero y puede reflejar cargos o descuentos no presentes en esos campos.
+
 #### Scenario: Campo requerido ausente
 - **WHEN** falta algún campo comercial obligatorio o está vacío
 - **THEN** informa los nombres de campos faltantes, impide registrar y permite otra lectura sin habilitar entrada manual

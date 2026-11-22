@@ -42,13 +42,13 @@ Parser backend puro independiente de la librería visual, con versión invoice-k
 | ValFac | amount | Decimal exacto |
 | ValIva | vatAmount | Decimal exacto, 0 explícito obligatorio |
 | ValOtroIm | otherTaxesAmount | Decimal exacto, 0 explícito obligatorio |
-| ValTolFac | totalAmount | Suma exacta vigente |
+| ValTolFac | totalAmount | Decimal exacto; conserva el valor pagadero leído |
 | CUFE | qrMetadata.cufe | Opcional, hexadecimal 96 caracteres; normalizado minúsculas |
 | QRCode | qrMetadata.sourceUrl | Opcional HTTPS absoluta, máximo 2048 caracteres, sin credenciales |
 
-Los nueve campos comerciales son obligatorios. HorFac sin offset se interpreta en America/Bogota; si trae offset se admite -05:00 en v1 y se conserva el instante consistente con el modelo actual. Otro offset se rechaza como no soportado: no se cambia fecha/hora silenciosamente ni se elimina el offset. El ejemplo aportado es compatible; no implica cobertura de todos los formatos externos.
+Los nueve campos comerciales son obligatorios. Cada importe se valida individualmente como decimal exacto, pero no se exige que ValFac + ValIva + ValOtroIm sea igual a ValTolFac: DIAN define ValFac como LineExtensionAmount y ValTolFac como PayableAmount, que puede incorporar cargos o descuentos no representados por esos campos QR. Se conserva el total leído; el sistema no lo recalcula ni afirma validación fiscal. HorFac sin offset se interpreta en America/Bogota; si trae offset se admite -05:00 en v1 y se conserva el instante consistente con el modelo actual. Otro offset se rechaza como no soportado: no se cambia fecha/hora silenciosamente ni se elimina el offset.
 
-Los campos ausentes/vacíos se informan sin permitir edición; valores malformados, negativos, total incoherente, duplicados o formato URL-only bloquean confirmación. Escanear una imagen con texto del QR no equivale a OCR y no se ofrece como entrada textual pública.
+Los campos ausentes/vacíos se informan sin permitir edición; valores malformados, negativos, duplicados o formato URL-only bloquean confirmación. No se infiere ni corrige una diferencia entre valores parciales y total pagadero. Escanear una imagen con texto del QR no equivale a OCR y no se ofrece como entrada textual pública.
 
 ### Flujo y API
 
