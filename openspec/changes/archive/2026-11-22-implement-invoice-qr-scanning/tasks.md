@@ -2,7 +2,7 @@
 
 ## 1. Parser y dominio
 
-- [x] 1.1 Implementar parser puro v1, mapeo y errores sin depender de HTTP/decoder; verificar fixtures completos, ausentes/vacíos, duplicados, desconocidos, CRLF, texto partido, límites, URL-only y valores inválidos; documentar formato soportado.
+- [x] 1.1 Implementar parser puro v1, mapeo y errores sin depender de HTTP/decoder; verificar fixtures completos, ausentes/vacíos, duplicados, desconocidos, CRLF, texto partido, límites, URL-only y valores inválidos. Seguimiento: aceptar delimitador DIAN `:` y URL HTTPS independiente con campos completos; conservar compatibilidad `=`.
 - [x] 1.2 Extender Invoice a MANUAL|QR con procedencia mínima y factory QR; verificar importes exactos, hora con/sin offset, offset no soportado, CUFE/URL opcionales y conservación del origen en pruebas de dominio.
 - [x] 1.3 Añadir QR_IMMUTABLE y evaluación de edición antes de Configuration tras autorización; verificar todos los roles, cambio de imagen y regresión de edición MANUAL; actualizar documentación de permisos.
 

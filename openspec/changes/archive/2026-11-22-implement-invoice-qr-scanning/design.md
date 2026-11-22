@@ -30,7 +30,7 @@ La cámara requiere contexto seguro compatible (HTTPS o localhost de desarrollo)
 
 ### Formato soportado v1 y mapeo
 
-Parser backend puro independiente de la librería visual, con versión invoice-key-value-v1. Texto UTF-8 máximo 16 KiB; LF/CRLF normalizados, líneas vacías ignoradas, trim exterior; cada línea no vacía debe contener clave=valor separando por el primer igual. Nunca concatenar líneas partidas visualmente del ejemplo ni ejecutar URL. Claves sensibles a mayúsculas; rechazar duplicados aun idénticos y claves desconocidas para evitar pérdidas silenciosas. No es un parser fiscal universal.
+Parser backend puro independiente de la librería visual, con versión invoice-key-value-v1. Texto UTF-8 máximo 16 KiB; LF/CRLF normalizados, líneas vacías ignoradas, trim exterior; admite campos `clave: valor` conforme al formato publicado por DIAN y conserva compatibilidad con `clave=valor`, separando por el primer delimitador. Una URL HTTPS independiente se acepta como metadato solo junto con los campos completos; un QR de URL únicamente sigue siendo no soportado. Nunca concatenar líneas partidas visualmente ni ejecutar URL. Claves sensibles a mayúsculas; rechazar duplicados aun idénticos y claves desconocidas para evitar pérdidas silenciosas. No es un parser fiscal universal.
 
 | Clave | Campo Invoice | Regla |
 | --- | --- | --- |

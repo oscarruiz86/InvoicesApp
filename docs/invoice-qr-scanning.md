@@ -2,7 +2,7 @@
 
 ## Formato aceptado
 
-La versión `invoice-key-value-v1` acepta texto UTF-8 de hasta 16 KiB con una pareja `clave=valor` por línea. Se permiten finales LF/CRLF, líneas vacías y espacios exteriores. Las claves distinguen mayúsculas y minúsculas; no se concatenan líneas partidas ni se consultan URL.
+La versión `invoice-key-value-v1` acepta texto UTF-8 de hasta 16 KiB con una pareja `clave: valor` por línea, como publica el [Anexo Técnico de Factura Electrónica de Venta de DIAN, versión 1.9](https://www.dian.gov.co/impuestos/factura-electronica/Documents/Anexo-Tecnico-Factura-Electronica-de-Venta-vr-1-9.pdf), y conserva compatibilidad con `clave=valor`. Se permiten finales LF/CRLF, líneas vacías y espacios exteriores. La URL HTTPS puede venir como campo `QRCode: URL`/`QRCode=URL` o como una línea independiente después de los campos completos. Las claves distinguen mayúsculas y minúsculas; no se concatenan líneas partidas ni se consultan URL. Un QR que contenga solo una URL sigue sin ser suficiente para registrar.
 
 Son obligatorios `NumFac`, `FecFac`, `HorFac`, `NitFac`, `DocAdq`, `ValFac`, `ValIva`, `ValOtroIm` y `ValTolFac`. `CUFE` (96 caracteres hexadecimales) y `QRCode` (URL HTTPS sin credenciales, hasta 2048 caracteres) son opcionales. Los importes se validan como decimales exactos y el total debe coincidir. Una hora sin offset se interpreta en `America/Bogota`; v1 acepta `-05:00` y rechaza otros offsets. Un QR incompleto no habilita completar datos a mano: hay que leer otro código o salir y usar el registro MANUAL independiente.
 

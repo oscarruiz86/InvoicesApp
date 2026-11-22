@@ -28,20 +28,29 @@ function instant(date: string, time: string, offset?: string): string {
 }
 function canonical(value: string) { const n = minor(value); return `${n / 100n}.${(n % 100n).toString().padStart(2, '0')}`; }
 
-/** Parses the strict invoice-key-value-v1 QR text format. */
+/** Parses invoice-key-value-v1 and the published DIAN colon-delimited representation. */
 export function parseInvoiceQr(content: unknown): ParsedInvoiceQr {
   if (typeof content !== 'string' || !content.trim() || new TextEncoder().encode(content).byteLength > 16 * 1024) throw new InvoiceQrError('QR_INVALID');
   const normalized = content.replace(/\r\n/g, '\n');
   if (/^https?:\/\/\S+$/i.test(normalized.trim())) throw new InvoiceQrError('QR_UNSUPPORTED');
   const values = new Map<string, string>();
+  let standaloneSourceUrl: string | undefined;
   for (const raw of normalized.split('\n')) {
     const line = raw.trim(); if (!line) continue;
-    const at = line.indexOf('='); if (at < 1) throw new InvoiceQrError('QR_INVALID');
+    if (/^https?:\/\//i.test(line)) {
+      if (standaloneSourceUrl) throw new InvoiceQrError('QR_INVALID', ['QRCode']);
+      standaloneSourceUrl = line;
+      continue;
+    }
+    const equalsAt = line.indexOf('='), colonAt = line.indexOf(':');
+    const at = equalsAt < 0 ? colonAt : colonAt < 0 ? equalsAt : Math.min(equalsAt, colonAt);
+    if (at < 1) throw new InvoiceQrError('QR_INVALID');
     const key = line.slice(0, at).trim(), value = line.slice(at + 1).trim();
     if (!keys.has(key)) throw new InvoiceQrError('QR_UNSUPPORTED', [key]);
     if (values.has(key)) throw new InvoiceQrError('QR_INVALID', [key]);
     values.set(key, value);
   }
+  if (!values.size && standaloneSourceUrl) throw new InvoiceQrError('QR_UNSUPPORTED');
   if (values.size === 1 && /^https?:\/\//i.test([...values.values()][0]!)) throw new InvoiceQrError('QR_UNSUPPORTED');
   const missing = required.filter(key => !values.get(key)); if (missing.length) throw new InvoiceQrError('QR_INCOMPLETE', missing);
   const get = (key: typeof required[number]) => values.get(key)!;
@@ -54,7 +63,8 @@ export function parseInvoiceQr(content: unknown): ParsedInvoiceQr {
   if (amounts.some(value => !decimal.test(value)) || minor(amounts[0]!) + minor(amounts[1]!) + minor(amounts[2]!) !== minor(amounts[3]!))
     throw new InvoiceQrError('QR_INVALID');
   const cufe = values.get('CUFE'); if (cufe !== undefined && !/^[a-f\d]{96}$/i.test(cufe)) throw new InvoiceQrError('QR_INVALID', ['CUFE']);
-  const sourceUrl = values.get('QRCode');
+  const sourceUrl = values.get('QRCode') ?? standaloneSourceUrl;
+  if (values.has('QRCode') && standaloneSourceUrl) throw new InvoiceQrError('QR_INVALID', ['QRCode']);
   if (sourceUrl !== undefined) { try { const url = new URL(sourceUrl); if (url.protocol !== 'https:' || url.username || url.password || sourceUrl.length > 2048) throw new Error(); } catch { throw new InvoiceQrError('QR_INVALID', ['QRCode']); } }
   const invoiceTime = timeMatch[1]!;
   const canonicalContent = normalized.split('\n').map(line => line.trim()).filter(Boolean).join('\n');

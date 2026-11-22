@@ -22,6 +22,8 @@ La interfaz MUST ofrecer cámara e imagen local como entradas de captura. MUST s
 
 El parser MUST exigir NumFac, FecFac, HorFac, NitFac, DocAdq, ValFac, ValIva, ValOtroIm y ValTolFac con valores válidos. CUFE y QRCode serán opcionales y validados cuando aparezcan. MUST rechazar campos obligatorios ausentes, claves duplicadas, valores ambiguos, formato incompatible y contenido que solo contenga una URL.
 
+Los campos MUST aceptar el formato DIAN `clave: valor`; la sintaxis `clave=valor` también se admite por compatibilidad. Una URL HTTPS en línea independiente podrá ser metadato opcional únicamente si acompaña los campos completos. No se abrirá ni consultará.
+
 #### Scenario: Campo requerido ausente
 - **WHEN** falta algún campo comercial obligatorio o está vacío
 - **THEN** informa los nombres de campos faltantes, impide registrar y permite otra lectura sin habilitar entrada manual
@@ -29,6 +31,10 @@ El parser MUST exigir NumFac, FecFac, HorFac, NitFac, DocAdq, ValFac, ValIva, Va
 #### Scenario: URL como único contenido
 - **WHEN** se decodifica una URL sin el contenido estructurado requerido
 - **THEN** informa formato no soportado y no navega ni consulta esa dirección
+
+#### Scenario: QR DIAN completo
+- **WHEN** se decodifican campos completos con separador `:` y una URL HTTPS independiente al final
+- **THEN** presenta los campos para revisión, conserva la URL como metadato y no la abre
 
 ### Requirement: Revisión protegida antes del registro
 
