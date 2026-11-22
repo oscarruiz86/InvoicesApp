@@ -25,13 +25,12 @@ export interface InvoiceFields {
 export interface InvoiceUpdateFields extends Partial<Omit<InvoiceFields, 'assignmentId' | 'vehicleId'>> { readonly expectedVersion: number }
 export interface InvoiceQrPreview { readonly invoiceDate: string; readonly invoiceTime: string; readonly invoiceAtUtc: string; readonly invoiceNumber: string;
   readonly issuerNit: string; readonly buyerDocument: string; readonly amount: string; readonly vatAmount: string; readonly otherTaxesAmount: string;
-  readonly totalAmount: string; readonly metadata: NonNullable<InvoiceDto['qrMetadata']> }
+  readonly totalAmount: string; readonly metadata: Pick<NonNullable<InvoiceDto['qrMetadata']>, 'parserVersion' | 'cufe' | 'sourceUrl'> }
 export interface InvoiceApi {
   list(scope: PermissionScope, query: InvoiceQuery, signal: AbortSignal): Promise<InvoicePage>;
   detail(scope: PermissionScope, id: string, signal: AbortSignal): Promise<InvoiceDetailsDto>;
   create(scope: PermissionScope, fields: InvoiceFields, idempotencyKey: string, signal: AbortSignal): Promise<InvoiceDto>;
   update(scope: PermissionScope, id: string, fields: InvoiceUpdateFields, signal: AbortSignal): Promise<InvoiceDto>;
   image(scope: PermissionScope, id: string, signal: AbortSignal): Promise<Blob>;
-  previewQr(scope: PermissionScope, qrContent: string, signal: AbortSignal): Promise<InvoiceQrPreview>;
   createQr(scope: PermissionScope, input: { readonly qrContent: string; readonly assignmentId: string; readonly vehicleId: string; readonly image?: File }, idempotencyKey: string, signal: AbortSignal): Promise<InvoiceDto>;
 }

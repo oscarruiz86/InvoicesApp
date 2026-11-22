@@ -6,7 +6,7 @@ import type { PermissionScope } from '@/modules/authentication/domain/permission
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import type { AssignmentApi } from '@/modules/fleet/application/fleet-api';
-import type { InvoiceApi, InvoiceDto, InvoiceQuery, InvoiceQrPreview } from '@/modules/invoices/application/invoice-api';
+import type { InvoiceApi, InvoiceDto, InvoiceQuery } from '@/modules/invoices/application/invoice-api';
 import type { QrDecoder } from '@/modules/invoices/application/qr-decoder';
 import { RequestError } from '@/shared/application/request-error';
 import { InvoicesPage } from '@/modules/invoices/presentation/invoices-page';
@@ -31,18 +31,17 @@ function setup(permissions: readonly string[] = ['invoices:read']) {
   const list = vi.fn(async (_scope: PermissionScope, query: InvoiceQuery) => ({ items: query.page === 1 ? [record] : [], total: 1, page: query.page, pageSize: query.pageSize }));
   const detail = vi.fn(async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' as const } }));
   const create = vi.fn<InvoiceApi['create']>(async () => record), createQr = vi.fn<InvoiceApi['createQr']>(async () => ({ ...record, origin: 'QR' })),
-    previewQr = vi.fn<InvoiceApi['previewQr']>(async () => qrPreview), update = vi.fn<InvoiceApi['update']>(async () => record), image = vi.fn(async () => new Blob());
-  const api = { list, detail, create, createQr, previewQr, update, image } as unknown as InvoiceApi;
+    update = vi.fn<InvoiceApi['update']>(async () => record), image = vi.fn(async () => new Blob());
+  const api = { list, detail, create, createQr, update, image } as unknown as InvoiceApi;
   const listAssignments = vi.fn(async () => ({ items: [assignment], total: 1, page: 1, pageSize: 100 }));
   const assignments = { listAssignments } as unknown as AssignmentApi;
   const openCamera = vi.fn<QrDecoder['openCamera']>(async () => ({ stop: vi.fn(), destroy: vi.fn() }));
   const decodeImage = vi.fn<QrDecoder['decodeImage']>(async () => qrContent);
   const decoder: QrDecoder = { openCamera, decodeImage };
-  return { context, authorization, api, assignments, list, detail, create, createQr, previewQr, update, listAssignments,
+  return { context, authorization, api, assignments, list, detail, create, createQr, update, listAssignments,
     loadQrDecoder: async () => decoder, openCamera, decodeImage, switchContext() { generation++; rawContext.setState({ generation }); } };
 }
 const qrContent = 'NumFac=QR-1\nFecFac=2026-11-20\nHorFac=12:30:00\nNitFac=0001\nDocAdq=0123\nValFac=10\nValIva=0\nValOtroIm=0\nValTolFac=10';
-const qrPreview: InvoiceQrPreview = { invoiceDate: '2026-11-20', invoiceTime: '12:30:00', invoiceAtUtc: '2026-11-20T17:30:00.000Z', invoiceNumber: 'QR-1', issuerNit: '0001', buyerDocument: '0123', amount: '10.00', vatAmount: '0.00', otherTaxesAmount: '0.00', totalAmount: '10.00', metadata: { parserVersion: 'invoice-key-value-v1', contentHash: 'a'.repeat(64) } };
 const renderPage = (deps: ReturnType<typeof setup>) => render(<InvoicesPage api={deps.api} assignments={deps.assignments} context={deps.context} authorization={deps.authorization} loadQrDecoder={deps.loadQrDecoder} />);
 
 describe('invoices page', () => {
@@ -95,7 +94,6 @@ describe('invoices page', () => {
     expect(await within(dialog).findByDisplayValue('QR-1')).toHaveAttribute('readonly');
     expect(within(dialog).getByDisplayValue('0001')).toHaveAttribute('readonly');
     expect(within(dialog).getByRole('textbox', { name: 'Total' })).toHaveAttribute('readonly');
-    expect(deps.previewQr).toHaveBeenCalledWith(scope, qrContent, expect.any(AbortSignal));
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Vehículo y asignación propia' }));
     await userEvent.click(await screen.findByRole('option', { name: /ABC123/ }));
     const attachment = new File(['attachment'], 'receipt.png', { type: 'image/png' });
@@ -117,28 +115,10 @@ describe('invoices page', () => {
     await waitFor(() => expect(deps.openCamera).toHaveBeenCalledOnce());
     await act(async () => { onResult(qrContent); onResult('second code must be ignored'); });
     expect(await within(dialog).findByDisplayValue('QR-1')).toBeInTheDocument();
-    expect(deps.previewQr).toHaveBeenCalledOnce();
-    expect(deps.previewQr).toHaveBeenCalledWith(scope, qrContent, expect.any(AbortSignal));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
     await waitFor(() => expect(session.destroy).toHaveBeenCalledOnce());
   });
-  it('ignores an obsolete QR preview after the organization context changes', async () => {
-    const deps = setup(['invoices:read', 'invoices:create']); let onResult!: (value: string) => void;
-    let resolvePreview!: (value: InvoiceQrPreview) => void;
-    deps.openCamera.mockImplementation(async (_video, callback) => { onResult = callback; return { stop: vi.fn(), destroy: vi.fn() }; });
-    deps.previewQr.mockImplementationOnce(() => new Promise(resolve => { resolvePreview = resolve; }));
-    renderPage(deps);
-    await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));
-    await waitFor(() => expect(deps.openCamera).toHaveBeenCalledOnce());
-    await act(async () => onResult(qrContent));
-    deps.switchContext();
-    await act(async () => resolvePreview(qrPreview));
-    expect(within(dialog).queryByDisplayValue('QR-1')).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Confirmar registro' })).not.toBeInTheDocument();
-  });
-  it('allows cancelling an in-flight preview and retries create with the same idempotency key', async () => {
+  it('retries create with the same idempotency key and allows cancelling before save', async () => {
     let deps = setup(['invoices:read', 'invoices:create']); let onResult!: (value: string) => void;
     deps.openCamera.mockImplementation(async (_video, callback) => { onResult = callback; return { stop: vi.fn(), destroy: vi.fn() }; });
     deps.createQr.mockRejectedValueOnce(new RequestError('TEMPORARY_UNAVAILABLE'));
@@ -160,9 +140,7 @@ describe('invoices page', () => {
     expect(await screen.findByText('Factura registrada desde QR.')).toBeInTheDocument();
 
     deps = setup(['invoices:read', 'invoices:create']);
-    let resolvePreview!: (value: InvoiceQrPreview) => void;
     deps.openCamera.mockImplementation(async (_video, callback) => { onResult = callback; return { stop: vi.fn(), destroy: vi.fn() }; });
-    deps.previewQr.mockImplementationOnce(() => new Promise(resolve => { resolvePreview = resolve; }));
     const view = renderPage(deps);
     await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
     dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
@@ -171,7 +149,6 @@ describe('invoices page', () => {
     await act(async () => onResult(qrContent));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
     view.unmount();
-    await act(async () => resolvePreview(qrPreview));
     expect(deps.createQr).not.toHaveBeenCalled();
   });
   it('shows permission, missing-camera and invalid-image guidance without opening manual fields', async () => {
@@ -199,8 +176,8 @@ describe('invoices page', () => {
     expect(await within(dialog).findByText(/archivo seleccionado no es una imagen válida/i)).toBeInTheDocument();
     expect(within(dialog).queryByRole('textbox', { name: 'Número de factura' })).not.toBeInTheDocument();
 
-    const incomplete = setup(['invoices:read', 'invoices:create']); incomplete.previewQr.mockRejectedValueOnce(new RequestError('QR_INCOMPLETE'));
-    incomplete.openCamera.mockImplementation(async (_video, onResult) => { queueMicrotask(() => onResult('incomplete')); return { stop: vi.fn(), destroy: vi.fn() }; });
+    const incomplete = setup(['invoices:read', 'invoices:create']);
+    incomplete.openCamera.mockImplementation(async (_video, onResult) => { queueMicrotask(() => onResult('NumFac=QR-1')); return { stop: vi.fn(), destroy: vi.fn() }; });
     renderPage(incomplete); await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
     dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));

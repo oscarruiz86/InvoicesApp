@@ -12,7 +12,7 @@ La cámara solo se solicita después de pulsar **Abrir cámara**. El navegador n
 
 Al cancelar, cerrar o cambiar de contexto se detiene el escáner y se descartan resultados pendientes. Las URL se presentan como texto y nunca se abren. No se envía contenido a servicios externos. El backend guarda la versión del parser, el hash SHA-256 del texto normalizado, CUFE y URL opcionales; no guarda el texto QR completo en factura, logs o auditoría. Estos datos no acreditan autenticidad fiscal.
 
-Las facturas QR se guardan en la colección existente, conservan su origen y referencias históricas, y no admiten cambios posteriores de campos, asignación o imagen. El índice CUFE es único por tercero solo cuando CUFE es una cadena; la clave comercial NIT/número aplica a ambos orígenes. Los endpoints son `POST /api/invoices/qr/preview` (sin escritura) y `POST /api/invoices/qr` (alta idempotente). El alta siempre vuelve a parsear el contenido.
+Las facturas QR se guardan en la colección existente, conservan su origen y referencias históricas, y no admiten cambios posteriores de campos, asignación o imagen. El índice CUFE es único por tercero solo cuando CUFE es una cadena; la clave comercial NIT/número aplica a ambos orígenes. La interfaz analiza el texto localmente con el parser compartido y muestra la revisión sin llamar al backend. Al confirmar, `POST /api/invoices/qr` vuelve a analizar el contenido en el servidor antes de registrar; `POST /api/invoices/qr/preview` se conserva para clientes que aún lo utilicen, pero no forma parte del flujo de captura de la interfaz.
 
 ## Dependencia de lectura
 

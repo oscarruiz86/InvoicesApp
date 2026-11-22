@@ -112,6 +112,7 @@ export function InvoicesPage({ api, assignments, context, authorization, loadQrD
   }
   function clearFilters() { const clean = { q: '', vehicleId: '', dateFrom: '', dateTo: '' }; setFilterDraft(clean); setDraft(clean); setQuery(value => ({ ...value, ...clean, page: 1 })); setFiltersOpen(false); }
   function createDraft() { if (!has('invoices:create')) return; setError(null); setForm({ generation: current.generation, value: { ...emptyForm }, mode: 'create' }); idempotency.current = null; }
+  function openQrCapture() { if (!has('invoices:create')) return; setForm(null); setQrOpen(true); }
   function editDraft(value: InvoiceDto) {
     setForm({ generation: current.generation, mode: 'edit', invoice: value, value: { ...emptyForm, invoiceDate: value.invoiceDate, invoiceTime: value.invoiceTime,
       invoiceNumber: value.invoiceNumber, issuerNit: value.issuerNit, buyerDocument: value.buyerDocument, amount: value.amounts.amount,
@@ -172,7 +173,7 @@ export function InvoicesPage({ api, assignments, context, authorization, loadQrD
     <Typography component="h1" variant="h4">Facturas</Typography>
     {notice && <SuccessNotice onClose={() => setNotice(null)}>{notice}</SuccessNotice>}
     {message && <Alert severity="error" onClose={() => setError(null)}>{message}</Alert>}
-    <DataTable toolbar={<><Button variant="outlined" onClick={openFilters}>Filtros</Button>{has('invoices:create') && <><Button variant="outlined" onClick={() => setQrOpen(true)}>Registrar desde QR</Button><Button variant="contained" onClick={createDraft}>Registrar factura</Button></>}</>} loading={loading}>
+    <DataTable toolbar={<><Button variant="outlined" onClick={openFilters}>Filtros</Button>{has('invoices:create') && <Button variant="contained" onClick={createDraft}>Registrar factura</Button>}</>} loading={loading}>
       {(draft.q || draft.vehicleId || draft.dateFrom || draft.dateTo) && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
         {draft.q && <Chip label={`Búsqueda: ${draft.q}`} onDelete={() => { setDraft(value => ({ ...value, q: '' })); setQuery(value => ({ ...value, q: undefined, page: 1 })); }} />}
         {draft.dateFrom && <Chip label={`Desde ${draft.dateFrom}`} onDelete={() => { setDraft(value => ({ ...value, dateFrom: '' })); setQuery(value => ({ ...value, dateFrom: undefined, page: 1 })); }} />}
@@ -207,7 +208,7 @@ export function InvoicesPage({ api, assignments, context, authorization, loadQrD
     <Dialog open={Boolean(safeForm)} onClose={() => !busy && setForm(null)} fullWidth maxWidth="md" aria-labelledby="invoice-form-title"><DialogTitle id="invoice-form-title">{safeForm?.mode === 'create' ? 'Registrar factura manual' : 'Editar factura'}</DialogTitle><DialogContent>
       {!safeForm?.value.assignmentId && safeForm?.mode === 'create' && <Alert severity="info" sx={{ mb: 1 }}>Selecciona una asignación activa propia. La fecha comercial no habilita asignaciones históricas.</Alert>}{formNode}
       {optionsLoading && <CircularProgress size={20} />}{message && <Alert severity="error" sx={{ mt: 1 }}>{message}</Alert>}
-    </DialogContent><DialogActions><Button disabled={busy} onClick={() => setForm(null)}>Cancelar</Button><Button variant="contained" disabled={busy || (safeForm?.mode === 'create' && !safeForm.value.assignmentId)} onClick={submit}>{busy ? 'Guardando…' : 'Guardar factura'}</Button></DialogActions></Dialog>
+    </DialogContent><DialogActions>{safeForm?.mode === 'create' && has('invoices:create') && <Button variant="outlined" disabled={busy} onClick={openQrCapture}>Registrar desde QR</Button>}<Button disabled={busy} onClick={() => setForm(null)}>Cancelar</Button><Button variant="contained" disabled={busy || (safeForm?.mode === 'create' && !safeForm.value.assignmentId)} onClick={submit}>{busy ? 'Guardando…' : 'Guardar factura'}</Button></DialogActions></Dialog>
     <Dialog open={Boolean(safeDetail)} onClose={() => setDetail(null)} fullWidth maxWidth="md"><DialogTitle>Detalle de factura</DialogTitle><DialogContent><Stack spacing={1.25} sx={{ pt: 1 }}>
       {safeDetail && <><Typography>Número: {safeDetail.invoice.invoiceNumber}</Typography><Typography>Fecha y hora: {safeDetail.invoice.invoiceDate} {safeDetail.invoice.invoiceTime}</Typography>
         <Typography>NIT emisor: {safeDetail.invoice.issuerNit}</Typography><Typography>Documento adquiriente: {safeDetail.invoice.buyerDocument}</Typography>
