@@ -56,6 +56,7 @@ El núcleo puede desarrollarse con puertos y dobles. Las tareas de integración 
 - [x] 7.1 Extender y ejecutar los controles de arquitectura de ambas aplicaciones con casos negativos para frameworks en Domain/Application, imports entre aplicaciones y modelos ajenos; verificar `npm --prefix backend run check` y `npm --prefix frontend run check` sin servicios externos.
 - [x] 7.2 Ejecutar builds independientes, OpenAPI, HTTP real, integración MongoDB aislada y navegador con dependencias disponibles; verificar A1–A12 y regresión de health/docs/openapi y /auth/me, registrando fallos/bloqueos sin marcar como implementados los escenarios cubiertos solo por dobles. Evidencia 2026-11-22: builds backend/frontend, OpenAPI, HTTP real, MongoDB/Keycloak 21 suites/80 pruebas y Playwright 41/41; 3.5 y 6.6 verificadas con adaptadores y proveedores reales.
 - [x] 7.3 Reconciliar guía de autorización, matriz, dependencias y evidencia con los artefactos; verificar ausencia de CRUD/selector duplicados, secretos y configuración ajena modificada, y ejecutar `openspec validate implement-authorization --strict --no-interactive` antes de presentar el resultado para revisión.
+- [x] 7.4 Inicializar la política de autorización idempotentemente en el arranque Compose local antes del backend; verificar que los reinicios preservan revisiones existentes con `authorization-policy.test.ts`, validar Compose y documentar el inicializador manual para arranques directos.
 
 ## Workflow follow-up
 

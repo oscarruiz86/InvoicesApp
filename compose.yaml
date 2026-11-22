@@ -124,6 +124,24 @@ services:
       timeout: 5s
       retries: 20
     networks: [invoices]
+  authorization-init:
+    image: invoices-backend:dev
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongodb:27017/invoices_app?replicaSet=invoices-rs
+    command: ["npm", "run", "authorization:init"]
+    volumes:
+      - ./backend:/app
+      - ./shared:/shared
+      - backend-modules:/app/node_modules
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks: [invoices]
   backend:
     image: invoices-backend:dev
     build:
@@ -167,6 +185,8 @@ services:
       - backend-modules:/app/node_modules
       - backend-next:/app/.next
     depends_on:
+      authorization-init:
+        condition: service_completed_successfully
       keycloak-profile-init:
         condition: service_completed_successfully
       mongodb:
@@ -232,6 +252,8 @@ services:
       - ./shared:/shared
       - backend-modules:/app/node_modules
     depends_on:
+      authorization-init:
+        condition: service_completed_successfully
       mongodb:
         condition: service_healthy
     networks: [invoices]
