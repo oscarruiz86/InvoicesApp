@@ -6,7 +6,9 @@ import type { PermissionScope } from '@/modules/authentication/domain/permission
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import type { AssignmentApi } from '@/modules/fleet/application/fleet-api';
-import type { InvoiceApi, InvoiceDto, InvoiceQuery } from '@/modules/invoices/application/invoice-api';
+import type { InvoiceApi, InvoiceDto, InvoiceQuery, InvoiceQrPreview } from '@/modules/invoices/application/invoice-api';
+import type { QrDecoder } from '@/modules/invoices/application/qr-decoder';
+import { RequestError } from '@/shared/application/request-error';
 import { InvoicesPage } from '@/modules/invoices/presentation/invoices-page';
 
 const scope: PermissionScope = { kind: 'organization', companyId: null, thirdPartyId: 'a'.repeat(24) };
@@ -28,14 +30,20 @@ function setup(permissions: readonly string[] = ['invoices:read']) {
     has: (permission: string) => permissions.includes(permission) })) as unknown as AuthorizationStore;
   const list = vi.fn(async (_scope: PermissionScope, query: InvoiceQuery) => ({ items: query.page === 1 ? [record] : [], total: 1, page: query.page, pageSize: query.pageSize }));
   const detail = vi.fn(async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' as const } }));
-  const create = vi.fn<InvoiceApi['create']>(async () => record),
-    update = vi.fn<InvoiceApi['update']>(async () => record), image = vi.fn(async () => new Blob());
-  const api = { list, detail, create, update, image } as unknown as InvoiceApi;
+  const create = vi.fn<InvoiceApi['create']>(async () => record), createQr = vi.fn<InvoiceApi['createQr']>(async () => ({ ...record, origin: 'QR' })),
+    previewQr = vi.fn<InvoiceApi['previewQr']>(async () => qrPreview), update = vi.fn<InvoiceApi['update']>(async () => record), image = vi.fn(async () => new Blob());
+  const api = { list, detail, create, createQr, previewQr, update, image } as unknown as InvoiceApi;
   const listAssignments = vi.fn(async () => ({ items: [assignment], total: 1, page: 1, pageSize: 100 }));
   const assignments = { listAssignments } as unknown as AssignmentApi;
-  return { context, authorization, api, assignments, list, detail, create, update, listAssignments, switchContext() { generation++; rawContext.setState({ generation }); } };
+  const openCamera = vi.fn<QrDecoder['openCamera']>(async () => ({ stop: vi.fn(), destroy: vi.fn() }));
+  const decodeImage = vi.fn<QrDecoder['decodeImage']>(async () => qrContent);
+  const decoder: QrDecoder = { openCamera, decodeImage };
+  return { context, authorization, api, assignments, list, detail, create, createQr, previewQr, update, listAssignments,
+    loadQrDecoder: async () => decoder, openCamera, decodeImage, switchContext() { generation++; rawContext.setState({ generation }); } };
 }
-const renderPage = (deps: ReturnType<typeof setup>) => render(<InvoicesPage api={deps.api} assignments={deps.assignments} context={deps.context} authorization={deps.authorization} />);
+const qrContent = 'NumFac=QR-1\nFecFac=2026-11-20\nHorFac=12:30:00\nNitFac=0001\nDocAdq=0123\nValFac=10\nValIva=0\nValOtroIm=0\nValTolFac=10';
+const qrPreview: InvoiceQrPreview = { invoiceDate: '2026-11-20', invoiceTime: '12:30:00', invoiceAtUtc: '2026-11-20T17:30:00.000Z', invoiceNumber: 'QR-1', issuerNit: '0001', buyerDocument: '0123', amount: '10.00', vatAmount: '0.00', otherTaxesAmount: '0.00', totalAmount: '10.00', metadata: { parserVersion: 'invoice-key-value-v1', contentHash: 'a'.repeat(64) } };
+const renderPage = (deps: ReturnType<typeof setup>) => render(<InvoicesPage api={deps.api} assignments={deps.assignments} context={deps.context} authorization={deps.authorization} loadQrDecoder={deps.loadQrDecoder} />);
 
 describe('invoices page', () => {
   it('shows empty and recoverable error states', async () => {
@@ -75,6 +83,129 @@ describe('invoices page', () => {
     await waitFor(() => expect(deps.create).toHaveBeenCalledOnce());
     expect(deps.create.mock.calls[0][1]).toMatchObject({ assignmentId: record.assignmentId, vehicleId: record.vehicleId, image: file });
     expect(deps.create.mock.calls[0][2]).toBeTruthy();
+  });
+  it('reads QR through the camera, keeps extracted fields read-only, and requires an explicit assignment and confirmation', async () => {
+    const deps = setup(['invoices:read', 'invoices:create']);
+    deps.openCamera.mockImplementation(async (_video, onResult) => { queueMicrotask(() => onResult(qrContent)); return { stop: vi.fn(), destroy: vi.fn() }; });
+    renderPage(deps);
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await waitFor(() => expect(deps.listAssignments).toHaveBeenCalled());
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));
+    expect(await within(dialog).findByDisplayValue('QR-1')).toHaveAttribute('readonly');
+    expect(within(dialog).getByDisplayValue('0001')).toHaveAttribute('readonly');
+    expect(within(dialog).getByRole('textbox', { name: 'Total' })).toHaveAttribute('readonly');
+    expect(deps.previewQr).toHaveBeenCalledWith(scope, qrContent, expect.any(AbortSignal));
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Vehículo y asignación propia' }));
+    await userEvent.click(await screen.findByRole('option', { name: /ABC123/ }));
+    const attachment = new File(['attachment'], 'receipt.png', { type: 'image/png' });
+    await userEvent.upload(within(dialog).getByLabelText('Adjunto opcional de la factura'), attachment);
+    await userEvent.dblClick(within(dialog).getByRole('button', { name: 'Confirmar registro' }));
+    await waitFor(() => expect(deps.createQr).toHaveBeenCalledOnce());
+    expect(deps.createQr.mock.calls[0][1]).toMatchObject({ qrContent, assignmentId: record.assignmentId, vehicleId: record.vehicleId, image: attachment });
+    expect(deps.createQr.mock.calls[0][2]).toBeTruthy();
+    expect(await screen.findByText('Factura registrada desde QR.')).toBeInTheDocument();
+  });
+  it('uses the first camera result once and releases the scanner when the dialog closes', async () => {
+    const deps = setup(['invoices:read', 'invoices:create']); let onResult!: (value: string) => void;
+    const session = { stop: vi.fn(), destroy: vi.fn() };
+    deps.openCamera.mockImplementation(async (_video, callback) => { onResult = callback; return session; });
+    renderPage(deps);
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));
+    await waitFor(() => expect(deps.openCamera).toHaveBeenCalledOnce());
+    await act(async () => { onResult(qrContent); onResult('second code must be ignored'); });
+    expect(await within(dialog).findByDisplayValue('QR-1')).toBeInTheDocument();
+    expect(deps.previewQr).toHaveBeenCalledOnce();
+    expect(deps.previewQr).toHaveBeenCalledWith(scope, qrContent, expect.any(AbortSignal));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(session.destroy).toHaveBeenCalledOnce());
+  });
+  it('ignores an obsolete QR preview after the organization context changes', async () => {
+    const deps = setup(['invoices:read', 'invoices:create']); let onResult!: (value: string) => void;
+    let resolvePreview!: (value: InvoiceQrPreview) => void;
+    deps.openCamera.mockImplementation(async (_video, callback) => { onResult = callback; return { stop: vi.fn(), destroy: vi.fn() }; });
+    deps.previewQr.mockImplementationOnce(() => new Promise(resolve => { resolvePreview = resolve; }));
+    renderPage(deps);
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));
+    await waitFor(() => expect(deps.openCamera).toHaveBeenCalledOnce());
+    await act(async () => onResult(qrContent));
+    deps.switchContext();
+    await act(async () => resolvePreview(qrPreview));
+    expect(within(dialog).queryByDisplayValue('QR-1')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Confirmar registro' })).not.toBeInTheDocument();
+  });
+  it('allows cancelling an in-flight preview and retries create with the same idempotency key', async () => {
+    let deps = setup(['invoices:read', 'invoices:create']); let onResult!: (value: string) => void;
+    deps.openCamera.mockImplementation(async (_video, callback) => { onResult = callback; return { stop: vi.fn(), destroy: vi.fn() }; });
+    deps.createQr.mockRejectedValueOnce(new RequestError('TEMPORARY_UNAVAILABLE'));
+    renderPage(deps);
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));
+    await waitFor(() => expect(deps.openCamera).toHaveBeenCalledOnce());
+    await act(async () => onResult(qrContent));
+    await within(dialog).findByDisplayValue('QR-1');
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Vehículo y asignación propia' }));
+    await userEvent.click(await screen.findByRole('option', { name: /ABC123/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Confirmar registro' }));
+    expect(await within(dialog).findByText('No se pudo completar la operación. Inténtalo de nuevo.')).toBeInTheDocument();
+    const firstKey = deps.createQr.mock.calls[0][2];
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Confirmar registro' }));
+    await waitFor(() => expect(deps.createQr).toHaveBeenCalledTimes(2));
+    expect(deps.createQr.mock.calls[1][2]).toBe(firstKey);
+    expect(await screen.findByText('Factura registrada desde QR.')).toBeInTheDocument();
+
+    deps = setup(['invoices:read', 'invoices:create']);
+    let resolvePreview!: (value: InvoiceQrPreview) => void;
+    deps.openCamera.mockImplementation(async (_video, callback) => { onResult = callback; return { stop: vi.fn(), destroy: vi.fn() }; });
+    deps.previewQr.mockImplementationOnce(() => new Promise(resolve => { resolvePreview = resolve; }));
+    const view = renderPage(deps);
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));
+    await waitFor(() => expect(deps.openCamera).toHaveBeenCalledOnce());
+    await act(async () => onResult(qrContent));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    view.unmount();
+    await act(async () => resolvePreview(qrPreview));
+    expect(deps.createQr).not.toHaveBeenCalled();
+  });
+  it('shows permission, missing-camera and invalid-image guidance without opening manual fields', async () => {
+    const denied = setup(['invoices:read', 'invoices:create']); denied.openCamera.mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'));
+    const view = renderPage(denied);
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));
+    expect(await within(dialog).findByText(/el navegador no concedió acceso a la cámara/i)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    view.unmount();
+
+    const noCamera = setup(['invoices:read', 'invoices:create']); noCamera.openCamera.mockRejectedValueOnce(new DOMException('no camera', 'NotFoundError'));
+    const noCameraView = renderPage(noCamera);
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    const noCameraDialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await userEvent.click(within(noCameraDialog).getByRole('button', { name: 'Abrir cámara' }));
+    expect(await within(noCameraDialog).findByText(/este dispositivo no tiene una cámara disponible/i)).toBeInTheDocument();
+    noCameraView.unmount();
+
+    const image = setup(['invoices:read', 'invoices:create']); image.decodeImage.mockRejectedValueOnce(new Error('QR_IMAGE_INVALID'));
+    renderPage(image); await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await userEvent.upload(within(dialog).getByLabelText('Imagen con código QR'), new File(['bad'], 'bad.png', { type: 'image/png' }));
+    expect(await within(dialog).findByText(/archivo seleccionado no es una imagen válida/i)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('textbox', { name: 'Número de factura' })).not.toBeInTheDocument();
+
+    const incomplete = setup(['invoices:read', 'invoices:create']); incomplete.previewQr.mockRejectedValueOnce(new RequestError('QR_INCOMPLETE'));
+    incomplete.openCamera.mockImplementation(async (_video, onResult) => { queueMicrotask(() => onResult('incomplete')); return { stop: vi.fn(), destroy: vi.fn() }; });
+    renderPage(incomplete); await userEvent.click(await screen.findByRole('button', { name: 'Registrar desde QR' }));
+    dialog = await screen.findByRole('dialog', { name: 'Registrar factura desde QR' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Abrir cámara' }));
+    expect(await within(dialog).findByText(/no incluye todos los campos obligatorios/i)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('textbox', { name: 'Número de factura' })).not.toBeInTheDocument();
   });
   it('discards stale list responses after the organization context changes', async () => {
     const deps = setup(); let resolve!: (value: { items: InvoiceDto[]; total: number; page: number; pageSize: number }) => void;

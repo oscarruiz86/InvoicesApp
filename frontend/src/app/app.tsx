@@ -124,7 +124,8 @@ export function App({ store, authentication, authorization, organizationContext,
             {module.key === 'drivers' && fleet ? <FleetResourcePage resource="drivers" api={fleet} invitationApi={invitations} context={organizationContext} authorization={authorization} />
               : module.key === 'vehicles' && vehicles ? <VehiclesPage api={vehicles} context={organizationContext} authorization={authorization} />
                 : module.key === 'assignments' && assignmentApi && fleet && vehicles ? <AssignmentsPage api={assignmentApi} drivers={fleet} vehicles={vehicles} context={organizationContext} authorization={authorization} />
-                  : module.key === 'invoices' && invoices && assignmentApi ? <InvoicesPage api={invoices} assignments={assignmentApi} context={organizationContext} authorization={authorization} />
+                  : module.key === 'invoices' && invoices && assignmentApi ? <InvoicesPage api={invoices} assignments={assignmentApi} context={organizationContext} authorization={authorization}
+                    loadQrDecoder={() => import('@/modules/invoices/infrastructure/qr-scanner-adapter').then(adapter => adapter.createQrScannerAdapter())} />
                 : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} />
                 : module.key === 'parameters' && parameters && authorization ? <ParametersPage api={parameters} authorization={authorization} context={organizationContext} />
                 : <MarkerModulePage module={module} />}

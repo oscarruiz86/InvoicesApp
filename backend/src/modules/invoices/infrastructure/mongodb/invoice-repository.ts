@@ -47,7 +47,13 @@ function decode(row: Row): Invoice {
   const imageId = row.imageId === undefined || row.imageId === null ? null : String(row.imageId);
   const qrMetadata = row.qrMetadata as Row | undefined;
   if (row.origin === 'QR' && (!qrMetadata || qrMetadata.parserVersion !== 'invoice-key-value-v1'
-    || typeof qrMetadata.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(qrMetadata.contentHash))) throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
+    || typeof qrMetadata.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(qrMetadata.contentHash)
+    || (qrMetadata.cufe !== undefined && (typeof qrMetadata.cufe !== 'string' || !/^[a-f0-9]{96}$/.test(qrMetadata.cufe)))))
+    throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
+  if (row.origin === 'QR' && qrMetadata?.sourceUrl !== undefined) {
+    try { const url = new URL(String(qrMetadata.sourceUrl)); if (url.protocol !== 'https:' || url.username || url.password || String(qrMetadata.sourceUrl).length > 2048) throw new Error(); }
+    catch { throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE'); }
+  }
   return { id: row._id.toString(), origin: row.origin as Invoice['origin'], ...(row.origin === 'QR' ? { qrMetadata: qrMetadata as unknown as NonNullable<Invoice['qrMetadata']> } : {}), ownerSubject: row.ownerSubject, thirdPartyId: String(row.thirdPartyId),
     assignmentId: String(row.assignmentId), driverId: String(row.driverId), vehicleId: String(row.vehicleId),
     vehiclePlate: typeof row.vehiclePlate === 'string' ? row.vehiclePlate : null, invoiceDate: row.invoiceDate, invoiceTime: row.invoiceTime, invoiceAtUtc: row.invoiceAtUtc,
@@ -192,8 +198,6 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
           await ports.policy.confirm(input.authority.policyVersion);
           await ports.authority.confirm({ ...input.authority, actorSubject: input.actorSubject, thirdPartyId: input.invoice.thirdPartyId,
             requiredRole: 'DRIVER', transactionContext: { connection, session } });
-          await ports.assignments.confirmInTransaction({ ...input.assignment, actorSubject: input.actorSubject,
-            policyVersion: input.authority.policyVersion, contextRevision: input.authority.contextRevision, transactionContext: { connection, session } });
           const idempotent = await connection.collection(idempotencyCollectionName).findOne({ thirdPartyId: input.invoice.thirdPartyId,
             actorSubject: input.actorSubject, key: input.idempotencyKey }, { session });
           if (idempotent) {
@@ -204,6 +208,8 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
             if (!existing) throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
             return decode(existing as Row);
           }
+          await ports.assignments.confirmInTransaction({ ...input.assignment, actorSubject: input.actorSubject,
+            policyVersion: input.authority.policyVersion, contextRevision: input.authority.contextRevision, transactionContext: { connection, session } });
           const businessKey = normalizedInvoiceBusinessKey(input.invoice.issuerNit, input.invoice.invoiceNumber);
           const candidate = await connection.collection(collectionName).findOne({ thirdPartyId: input.invoice.thirdPartyId,
             issuerNit: input.invoice.issuerNit, invoiceNumber: input.invoice.invoiceNumber }, { session });
@@ -216,7 +222,8 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
             createdAt: input.invoice.createdAt }, { session });
           try { await ports.audit.record({ eventId: randomUUID(), correlationId: input.correlationId, action: 'INVOICE_CREATED',
             actorSubject: input.actorSubject, invoiceId: input.invoice.id, thirdPartyId: input.invoice.thirdPartyId,
-            at: input.invoice.createdAt.toISOString(), changedFields: ['assignmentId', 'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amounts', 'imageId'] }); }
+            at: input.invoice.createdAt.toISOString(), changedFields: ['origin', ...(input.invoice.origin === 'QR' ? ['qrMetadata'] : []),
+              'assignmentId', 'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amounts', 'imageId'] }); }
           catch { throw new InvoiceRepositoryError('INVOICE_AUDIT_UNAVAILABLE'); }
           return input.invoice;
         });

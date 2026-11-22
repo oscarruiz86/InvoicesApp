@@ -32,9 +32,14 @@ export interface Invoice {
 }
 
 export function createQrInvoice(input: CreateInvoiceInput, metadata: InvoiceQrMetadata, invoiceAtUtc: string): Invoice {
+  let validSourceUrl = true;
+  if (metadata?.sourceUrl !== undefined) {
+    try { const url = new URL(metadata.sourceUrl); validSourceUrl = url.protocol === 'https:' && !url.username && !url.password && metadata.sourceUrl.length <= 2048; }
+    catch { validSourceUrl = false; }
+  }
   if (!metadata || metadata.parserVersion !== 'invoice-key-value-v1' || !/^[a-f0-9]{64}$/.test(metadata.contentHash)
     || (metadata.cufe !== undefined && !/^[a-f0-9]{96}$/.test(metadata.cufe))
-    || (metadata.sourceUrl !== undefined && !metadata.sourceUrl.startsWith('https://') ) || !Number.isFinite(Date.parse(invoiceAtUtc))) {
+    || !validSourceUrl || !Number.isFinite(Date.parse(invoiceAtUtc))) {
     throw new InvoiceDomainError('INVALID_INVOICE');
   }
   const invoice = createInvoice(input);

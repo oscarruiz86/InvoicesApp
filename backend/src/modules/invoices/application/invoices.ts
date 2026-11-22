@@ -146,10 +146,10 @@ export function createInvoices(deps: {
           assignmentId: refs.assignmentId, vehicleId: refs.vehicleId });
         if (!assignment) throw new InvoiceUseCaseError('ASSIGNMENT_NOT_ELIGIBLE');
         const imagePayload = image ? { ...image, id: deps.ids.next() } : undefined;
-        const { metadata, ...fields } = parsed;
+        const { metadata, invoiceAtUtc, ...fields } = parsed;
         const invoice = createQrInvoice({ ...fields, id: deps.ids.next(), ownerSubject: actor.subject, thirdPartyId: refs.thirdPartyId,
           assignmentId: refs.assignmentId, driverId: assignment.driverId, vehicleId: refs.vehicleId, vehiclePlate: assignment.vehiclePlate,
-          imageId: imagePayload?.id ?? null, now: deps.clock.now() }, metadata, parsed.invoiceAtUtc);
+          imageId: imagePayload?.id ?? null, now: deps.clock.now() }, metadata, invoiceAtUtc);
         const requestHash = JSON.stringify({ origin: 'QR', thirdPartyId: invoice.thirdPartyId, ownerSubject: invoice.ownerSubject,
           assignmentId: invoice.assignmentId, vehicleId: invoice.vehicleId, invoiceDate: invoice.invoiceDate, invoiceTime: invoice.invoiceTime,
           invoiceNumber: invoice.invoiceNumber, issuerNit: invoice.issuerNit, buyerDocument: invoice.buyerDocument, amounts: invoice.amounts,

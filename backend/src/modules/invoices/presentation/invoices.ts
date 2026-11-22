@@ -37,9 +37,30 @@ function failure(error: unknown) {
 }
 
 async function parseMultipart(request: Request, service: InvoiceUseCases): Promise<{ payload: unknown; image?: Awaited<ReturnType<InvoiceUseCases['normalizeImage']>> }> {
-  const length = Number(request.headers.get('content-length') ?? 0);
+  const lengthHeader = request.headers.get('content-length');
+  const length = lengthHeader === null ? 0 : Number(lengthHeader);
   if (length > 6 * 1024 * 1024) throw new InvoiceImageError('IMAGE_TOO_LARGE');
-  const form = await request.formData();
+  if (!Number.isSafeInteger(length) || length < 0) throw new InvoiceUseCaseError('INVALID_REQUEST');
+  const reader = request.body?.getReader();
+  if (!reader) throw new InvoiceUseCaseError('INVALID_REQUEST');
+  const chunks: Uint8Array[] = []; let consumed = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      consumed += next.value.byteLength;
+      if (consumed > 6 * 1024 * 1024) { void reader.cancel().catch(() => undefined); throw new InvoiceImageError('IMAGE_TOO_LARGE'); }
+      chunks.push(next.value);
+    }
+  } catch (error) {
+    if (error instanceof InvoiceImageError || error instanceof InvoiceUseCaseError) throw error;
+    throw new InvoiceUseCaseError('INVALID_REQUEST');
+  }
+  const contentType = request.headers.get('content-type');
+  if (!contentType?.toLowerCase().startsWith('multipart/form-data;')) throw new InvoiceUseCaseError('INVALID_REQUEST');
+  const body = new Uint8Array(consumed); let offset = 0;
+  for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+  const form = await new Response(body.buffer, { headers: { 'content-type': contentType } }).formData();
   for (const key of form.keys()) if (!['payload', 'image'].includes(key)) throw new InvoiceUseCaseError('INVALID_REQUEST');
   const payloads = form.getAll('payload'), images = form.getAll('image');
   if (payloads.length !== 1 || typeof payloads[0] !== 'string' || images.length > 1) throw new InvoiceUseCaseError('INVALID_REQUEST');

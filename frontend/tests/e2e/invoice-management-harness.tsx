@@ -7,6 +7,7 @@ import type { PermissionScope } from '@/modules/authentication/domain/permission
 import type { SessionPort, SessionSnapshot } from '@/modules/authentication/application/session-ports';
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
 import type { InvoiceApi, InvoiceDto } from '@/modules/invoices/application/invoice-api';
+import type { QrDecoder } from '@/modules/invoices/application/qr-decoder';
 import type { AssignmentApi } from '@/modules/fleet/application/fleet-api';
 import { InvoicesPage } from '@/modules/invoices/presentation/invoices-page';
 
@@ -23,9 +24,14 @@ const record: InvoiceDto = { id: 'abcdef0123456789abcdef01', origin: 'MANUAL', t
   invoiceAtUtc: '2026-11-20T17:30:00.000Z', invoiceNumber: 'FAC-E2E-1', issuerNit: '900123456', buyerDocument: '900654321',
   amounts: { amount: '100.00', vatAmount: '19.00', otherTaxesAmount: '0.00', totalAmount: '119.00' }, version: 1,
   createdAt: '2026-11-20T12:00:00.000Z', updatedAt: '2026-11-20T12:00:00.000Z', imageUrl: null };
+const qrContent = 'NumFac=QR-E2E-1\nFecFac=2026-11-20\nHorFac=12:30:00\nNitFac=900123456\nDocAdq=900654321\nValFac=100\nValIva=19\nValOtroIm=0\nValTolFac=119';
+const qrInvoice: InvoiceDto = { ...record, origin: 'QR', invoiceNumber: 'QR-E2E-1', qrMetadata: { parserVersion: 'invoice-key-value-v1', contentHash: 'a'.repeat(64) } };
 const api: InvoiceApi = { list: async (_scope, query) => ({ items: query.page === 1 ? [record] : [], total: 1, page: query.page, pageSize: query.pageSize }),
   detail: async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' } }), create: async () => record, update: async () => record, image: async () => new Blob(),
-  previewQr: async () => { throw new Error('Not implemented in this harness'); }, createQr: async () => record };
+  previewQr: async () => ({ invoiceDate: qrInvoice.invoiceDate, invoiceTime: qrInvoice.invoiceTime, invoiceAtUtc: qrInvoice.invoiceAtUtc, invoiceNumber: qrInvoice.invoiceNumber,
+    issuerNit: qrInvoice.issuerNit, buyerDocument: qrInvoice.buyerDocument, amount: '100.00', vatAmount: '19.00', otherTaxesAmount: '0.00', totalAmount: '119.00', metadata: qrInvoice.qrMetadata! }),
+  createQr: async () => qrInvoice };
+const qrDecoder: QrDecoder = { openCamera: async (_video, onResult) => { queueMicrotask(() => onResult(qrContent)); return { stop: () => {}, destroy: () => {} }; }, decodeImage: async () => qrContent };
 const assignment = { id: record.assignmentId, thirdPartyId: record.thirdPartyId, vehicleId: record.vehicleId, vehiclePlate: record.vehiclePlate!,
   driver: { id: record.driverId, name: 'Conductor de prueba' }, status: 'ACTIVE' as const, startedAt: record.createdAt, endedAt: null, version: 1 };
 const assignments: AssignmentApi = { listAssignments: async () => ({ items: [assignment], total: 1, page: 1, pageSize: 100 }),
@@ -34,4 +40,4 @@ const context = Object.assign(createStore(() => ({ status: 'ready' as const, gen
   register: () => () => {}, capture: () => ({ scope, signal: new AbortController().signal, isCurrent: () => true, release: () => {} })
 }) as unknown as ContextStore;
 
-createRoot(document.getElementById('root')!).render(<ThemeProvider theme={theme}><CssBaseline /><InvoicesPage api={api} assignments={assignments} context={context} authorization={authorization} /></ThemeProvider>);
+createRoot(document.getElementById('root')!).render(<ThemeProvider theme={theme}><CssBaseline /><InvoicesPage api={api} assignments={assignments} context={context} authorization={authorization} loadQrDecoder={async () => qrDecoder} /></ThemeProvider>);

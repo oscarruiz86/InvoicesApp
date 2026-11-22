@@ -74,6 +74,46 @@ describe('invoice application', () => {
     expect(deps.editPolicy.read).not.toHaveBeenCalled();
   });
 
+  it.each([['DRIVER'], ['THIRD_PARTY_ADMIN']] as const)('returns QR_IMMUTABLE to an authorized %s before reading edit policy or changing its image', async role => {
+    const qr = { ...createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24),
+      driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20', invoiceTime: '11:59:00', invoiceNumber: 'QR-1', issuerNit: '0001',
+      buyerDocument: '123', amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10', now: new Date('2026-11-20T11:59:00Z') }),
+      origin: 'QR' as const, qrMetadata: { parserVersion: 'invoice-key-value-v1' as const, contentHash: 'a'.repeat(64) } };
+    repo.find.mockResolvedValueOnce(qr as never);
+    const deps = dependencies([role]); const invoices = createInvoices(deps);
+    await expect(invoices.edit(actor, { id: qr.id, thirdPartyId: query.thirdPartyId, expectedVersion: qr.version, changes: { image: { data: Buffer.from([1]),
+      contentType: 'image/jpeg', size: 1, width: 1, height: 1, sha256: 'a'.repeat(64) } } })).rejects.toMatchObject({ code: 'QR_IMMUTABLE' });
+    expect(deps.editPolicy.read).not.toHaveBeenCalled(); expect(repo.edit).not.toHaveBeenCalled();
+  });
+
+  it('previews without writing and reparses QR content at creation instead of trusting client fields', async () => {
+    repo.create.mockClear();
+    const deps = dependencies(['DRIVER']); deps.assignments.readOwnActive = vi.fn(async () => ({ assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24),
+      driverId: 'd'.repeat(24), vehiclePlate: 'ABC123', thirdPartyId: query.thirdPartyId, status: 'ACTIVE' }));
+    const invoices = createInvoices(deps);
+    const content = 'NumFac=QR-1\nFecFac=2026-11-20\nHorFac=12:30:00\nNitFac=000123\nDocAdq=001234\nValFac=100.00\nValIva=19\nValOtroIm=0\nValTolFac=119.00';
+    const preview = await invoices.previewQr(actor, { thirdPartyId: query.thirdPartyId, qrContent: content });
+    expect(preview).toMatchObject({ invoiceNumber: 'QR-1', metadata: { parserVersion: 'invoice-key-value-v1' } });
+    expect(repo.create).not.toHaveBeenCalled();
+    const manipulated = { thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), qrContent: content,
+      idempotencyKey: 'qr-1', amount: '0', origin: 'MANUAL' } as unknown as Parameters<typeof invoices.createQr>[1];
+    await expect(invoices.createQr(actor, manipulated)).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+    await invoices.createQr(actor, { thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), qrContent: content, idempotencyKey: 'qr-1' });
+    expect(deps.assignments.readOwnActive).toHaveBeenCalledWith({ actorSubject: actor.subject, thirdPartyId: query.thirdPartyId,
+      assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24) });
+    expect(repo.create).toHaveBeenCalledWith(expect.objectContaining({ invoice: expect.objectContaining({ origin: 'QR', invoiceNumber: 'QR-1',
+      qrMetadata: expect.objectContaining({ contentHash: 'a'.repeat(64) }) }), idempotencyKey: 'qr-1' }));
+    const originalHash = repo.create.mock.calls[0][0].requestHash;
+    await invoices.createQr(actor, { thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24),
+      qrContent: content.replace('QR-1', 'QR-2'), idempotencyKey: 'qr-1' });
+    const attachment = { data: Buffer.from([1]), contentType: 'image/png' as const, size: 1, width: 1, height: 1, sha256: 'f'.repeat(64) };
+    await invoices.createQr(actor, { thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24),
+      qrContent: content, idempotencyKey: 'qr-1', image: attachment });
+    expect(repo.create.mock.calls[1][0].requestHash).not.toBe(originalHash);
+    expect(repo.create.mock.calls[2][0].requestHash).not.toBe(originalHash);
+    expect(repo.create.mock.calls[2][0].image).toMatchObject({ sha256: attachment.sha256, contentType: attachment.contentType });
+  });
+
   it('computes a normalized SHA-256 fingerprint outside the pure QR parser', async () => {
     const deps = dependencies(['DRIVER']);
     const invoices = createInvoices(deps);
