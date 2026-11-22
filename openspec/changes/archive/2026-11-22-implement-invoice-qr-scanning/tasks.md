@@ -27,7 +27,8 @@
 ## 5. Verificación integral
 
 - [x] 5.1 Ejecutar checks/builds backend y frontend, OpenAPI y pruebas de integración Mongo; registrar evidencia de captura válida a factura QR, duplicidad entre orígenes, rechazo de edición y regresión MANUAL.
-- [ ] 5.2 Ejecutar E2E con cámara simulada/fixtures y comprobar dispositivos reales en HTTPS con permiso concedido/denegado; registrar navegador/dispositivo y límites sin atribuir a simulación evidencia de cámara real.
+- [x] 5.2 Ejecutar E2E con cámara simulada/fixtures; registrar navegador/dispositivo y límites sin atribuir a simulación evidencia de cámara real. Evidencia previa: 4/4 pruebas Playwright en `docs/verification.md`.
+- [ ] 5.3 Comprobar dispositivos reales en HTTPS con permiso concedido/denegado; registrar navegador/dispositivo y límites. Requiere acceso físico a los dispositivos.
 
 ## Comandos previstos
 

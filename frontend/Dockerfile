@@ -7,7 +7,7 @@ FROM dependencies AS development
 COPY frontend/ ./
 COPY shared/ /shared/
 EXPOSE 5173
-CMD ["npm", "run", "dev"]
+CMD ["node", "scripts/ensure-dependencies.mjs"]
 
 FROM dependencies AS build
 COPY frontend/ ./

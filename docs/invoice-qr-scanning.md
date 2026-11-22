@@ -20,6 +20,8 @@ Se fija [`qr-scanner@1.4.2`](https://www.npmjs.com/package/qr-scanner) detrás d
 
 El build Vite de esta revisión generó un adaptador diferido de 16.78 kB (5.94 kB gzip) y el worker local de 43.95 kB (10.37 kB gzip). El chunk principal fue de 1,035.24 kB (297.78 kB gzip), por encima del aviso predeterminado de 500 kB; la compilación terminó correctamente. La auditoría npm de esta revisión no reportó vulnerabilidades para `qr-scanner`; sí reportó nueve moderadas en herramientas de desarrollo preexistentes de ESLint, minimatch y TypeScript-ESLint. No se aplicaron actualizaciones ajenas al alcance.
 
+En desarrollo con Compose, `frontend-modules` es un volumen persistente y puede conservar dependencias de una versión anterior del lockfile incluso después de reconstruir la imagen. El entrypoint de desarrollo compara el SHA-256 de `package-lock.json` con la instalación montada y ejecuta `npm ci` cuando difieren; esto evita que Vite falle al resolver una dependencia recién incorporada como `qr-scanner`.
+
 ## Despliegue y reversión
 
 Antes de habilitar la captura, despliegue juntos los lectores de facturas que aceptan `MANUAL|QR`, el índice parcial CUFE y los DTO/OpenAPI actualizados. Ejecute `npm --prefix backend run invoices:inventory` y resuelva cualquier registro incompatible antes de crear índices. El comando no modifica datos. Puede desactivar la captura para revertir la interfaz, pero mantenga el lector compatible con facturas QR ya guardadas; no las elimine ni despliegue código que las trate como MANUAL.

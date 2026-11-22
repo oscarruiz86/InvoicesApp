@@ -126,10 +126,12 @@ La política conserva `APP_ADMIN / roles:read / global` y `APP_ADMIN / roles:man
 | Build frontend | Vite aprobado. Adaptador diferido: 16.78 kB (5.94 kB gzip); worker local: 43.95 kB (10.37 kB gzip); chunk principal: 1,035.25 kB (297.77 kB gzip), con aviso del umbral de 500 kB. |
 | OpenAPI | `npm --prefix backend run openapi:lint` válido; endpoints de preview y alta QR incluidos en el build backend. |
 | MongoDB | 10 pruebas de `invoice-repository.test.ts` aprobadas contra replica set local y URI aislada `_test`: idempotencia, CUFE y duplicidad entre orígenes, cierre/revocación concurrentes y rollback de auditoría. |
-| Navegador | 4/4 pruebas Playwright aprobadas con cámara simulada: registro QR en 360/1280 px y flujo de Facturas/teclado. La prueba UI confirma permisos/errores, lectura única, preview bloqueado, asignación, adjunto separado, cancelación, contexto obsoleto y reintento idempotente. |
+| Navegador | Evidencia previa: 4/4 pruebas Playwright aprobadas con cámara simulada: registro QR en 360/1280 px y flujo de Facturas/teclado. La prueba UI confirma permisos/errores, lectura única, preview bloqueado, asignación, adjunto separado, cancelación, contexto obsoleto y reintento idempotente. |
+| Build/import | Reejecutado en el workspace: `npm --prefix frontend run build` aprobado. Vite resolvió `qr-scanner` y empaquetó el adaptador y worker local. La causa más probable de la captura es un `node_modules` de desarrollo desactualizado: Compose conserva ese directorio en el volumen nombrado `frontend-modules`, que no se refresca al reconstruir la imagen. El arranque de desarrollo ahora compara el hash de `package-lock.json` y ejecuta `npm ci` cuando el volumen quedó obsoleto. |
+| Playwright en este entorno | No reproducible en esta sesión: el puerto 5173 ya estaba ocupado y el Chromium requerido por Playwright no está instalado en la caché configurada (`chromium_headless_shell-1254`). No se atribuye esta ejecución fallida como evidencia de pruebas aprobadas; se conserva la evidencia previa indicada arriba. |
 | OpenSpec | `openspec validate implement-invoice-qr-scanning --strict` válido. |
 
-Las pruebas del navegador no acreditan acceso a una cámara física. La tarea 5.2 queda pendiente hasta comprobar un dispositivo real en HTTPS con permiso de cámara concedido y denegado, registrando navegador y dispositivo. No se atribuye a la simulación evidencia de cámara real. No se desplegó el cambio.
+Las pruebas del navegador no acreditan acceso a una cámara física. La tarea 5.3 queda pendiente hasta comprobar un dispositivo real en HTTPS con permiso de cámara concedido y denegado, registrando navegador y dispositivo. No se atribuye a la simulación evidencia de cámara real. No se desplegó el cambio.
 
 ## improve-role-management-save-feedback — 2026-11-19
 
