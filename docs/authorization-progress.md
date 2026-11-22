@@ -2,7 +2,7 @@
 
 El usuario autorizó implementar `implement-authorization` mediante `$openspec-apply-change implement-authorization` el 2026-11-09. La autorización comprende el núcleo, contratos, política, consulta REST y controles frontend de ese cambio. Los permisos pendientes permanecen denegados. No incluye CRUD de negocio, selector organizacional, despliegue, archivo ni sincronización de otros cambios.
 
-Estado verificado al cierre del 2026-11-10: **24/32 tareas completadas**. Quedan abiertas 3.5, 6.1–6.6 y 7.2 por las dependencias reales descritas al final. El cambio permanece en progreso.
+Estado de la revisión anterior (2026-11-10): **24/32 tareas completadas**. La actualización del 2026-11-22 está registrada al final; el cambio permanece en progreso por las tareas de Audit y aceptación completa.
 
 ## Evidencia de aceptación — 2026-11-10
 
@@ -29,8 +29,22 @@ Estado verificado al cierre del 2026-11-10: **24/32 tareas completadas**. Quedan
 
 Las variables anteriores se establecen en el entorno de la ejecución; no son archivos de configuración nuevos. Al retomar la sesión, MongoDB y backend estaban apagados y provocaron ECONNREFUSED. Se inició el Docker Desktop existente y se arrancaron los contenedores locales sin recrear ni borrar volúmenes; la integración y HTTP se repitieron satisfactoriamente.
 
-## Dependencias pendientes
+## Actualización de aceptación — 2026-11-22
 
-Audit no tiene adaptador real; Organizations, Fleet, Invoices y Configuration aún no proporcionan los recursos funcionales. Las tareas 3.5 y 6.1–6.6 no se pueden completar con dobles. Su ausencia no amplía el alcance y no impide avanzar con tareas independientes. No declarar aceptación integrada completa mientras falten estas dependencias.
+Las integraciones reales de Organizations, Fleet, Invoices y Configuration ya están disponibles. Las tareas 6.1–6.5 se completaron con fixtures MongoDB, filtros reales, evidencia de asignación y revocación previa a la confirmación. Para 6.2, Playwright ejecuta el `createContextStore` y los componentes reales del selector.
 
-La tarea 7.2 permanece abierta porque exige A1–A12 integrados, aunque las verificaciones disponibles hayan pasado. Primero deben entregarse asociaciones/contexto y selector en `implement-organization-context`, recursos y confirmación concurrente en sus módulos, y entrega/recolección real en Audit. No se añadieron CRUD, selector provisional, configuración administrativa de Keycloak, secretos ni dependencias instaladas; tampoco se sincronizaron o archivaron otros cambios.
+| Verificación | Resultado |
+| --- | --- |
+| `npm --prefix backend run test:integration:prepared` | 17 suites, 75/75 pruebas; MongoDB y Keycloak desechables. Incluye asociaciones/contexto, recursos por tercero, rechazo de asignación cruzada, factura/QR y membresía revocada antes de confirmar. |
+| `npm --prefix backend run test:http:prepared` | HTTP Next real, JWT, OpenAPI/Swagger, autorización y vehículos aprobados; `Cache-Control: no-store`, errores y filtros comprobados. El harness ya valida seguridad/DTO de `/api/invoices` implementado en vez de esperar 404. |
+| `npm --prefix frontend run test:e2e:prepared` | 41/41 Playwright. Los 3 escenarios nuevos verifican A→B con borrado de datos, resolución tardía B frente a C y rechazo de contexto. |
+| Builds backend/frontend y OpenAPI | Next.js build, Vite build y `openapi:lint` pasan. Vite informa el bundle principal de 1.035,25 kB sobre el aviso predeterminado de 500 kB. |
+| `openspec validate implement-authorization --strict --no-interactive` | Válido después de la actualización de tareas. |
+
+## Dependencias aún pendientes
+
+Audit transversal aún no tiene adaptador real de entrega/consulta ni política de retención aprobada. Por ello permanecen abiertas 3.5 (entrega/reintento idempotente a Audit), 6.6 (recolección de eventos administrativos reales de Keycloak y auditoría propietaria) y 7.2 (aceptación A1–A12 completa con toda la integración). No se afirma completitud usando dobles para esas garantías. El permiso `audit:read` sigue denegado y no se habilitó una política de borrado.
+
+Las verificaciones adicionales de cierre de dominio fueron: backend unitario 50 archivos/467 pruebas; frontend unitario 36 archivos/221 pruebas; lint 0 errores (9 advertencias backend, 13 frontend); controles de arquitectura aprobados en ambas aplicaciones; builds Next.js/Vite aprobados. La nueva prueba de aislamiento de factura está en `backend/tests/integration/invoice-repository.test.ts`; los escenarios de selector están en `frontend/tests/e2e/organization-context.spec.ts`.
+
+El progreso actual es **29/32 tareas**. No archivar hasta resolver 3.5, 6.6 y 7.2.
