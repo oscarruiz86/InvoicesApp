@@ -1,6 +1,13 @@
-## ADDED Requirements
+# application-ui-design Specification
+
+## Purpose
+
+El sistema documentará de forma trazable el diseño de pantallas, navegación, permisos y estados adaptables para guiar la implementación de interfaces coherentes y accesibles.
+
+## Requirements
 
 ### Requirement: Incorporación consentida y perfil propio
+
 El diseño SHALL sustituir creación administrativa de identidad y asociación por subject por Invitaciones, Usuarios vinculados y Mi perfil conforme a `implement-user-invitations`. SHALL mostrar entrega al log, estados terminales sin acciones, aceptación/rechazo sin contexto previo y retorno OIDC.
 
 #### Scenario: Invitación desde navegador nuevo
