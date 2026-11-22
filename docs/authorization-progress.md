@@ -48,3 +48,20 @@ Audit transversal aún no tiene adaptador real de entrega/consulta ni política 
 Las verificaciones adicionales de cierre de dominio fueron: backend unitario 50 archivos/467 pruebas; frontend unitario 36 archivos/221 pruebas; lint 0 errores (9 advertencias backend, 13 frontend); controles de arquitectura aprobados en ambas aplicaciones; builds Next.js/Vite aprobados. La nueva prueba de aislamiento de factura está en `backend/tests/integration/invoice-repository.test.ts`; los escenarios de selector están en `frontend/tests/e2e/organization-context.spec.ts`.
 
 El progreso actual es **29/32 tareas**. No archivar hasta resolver 3.5, 6.6 y 7.2.
+
+## Verificación de cierre — 2026-11-22
+
+| Comando | Resultado en esta sesión |
+| --- | --- |
+| `npm --prefix backend run build -- --webpack` | Correcto. El build Turbopack inicial no pudo crear un junction en Windows; se limpió únicamente `backend/.next` generado y el build webpack terminó correctamente. |
+| `npm --prefix frontend run build` | Correcto. Vite informa un chunk principal de 1.035,25 kB, superior al umbral de aviso de 500 kB. |
+| `npm --prefix backend run openapi:lint` | Correcto; OpenAPI válido. |
+| `npm --prefix backend run test:integration:prepared` | 17 suites y 75/75 pruebas correctas con MongoDB y Keycloak desechables. |
+| `npm --prefix backend run test:http:prepared` | Correcto tras reconstruir el backend: HTTP Next real, JWT, validación, errores, health/docs/OpenAPI y vehículos. |
+| `npm --prefix frontend run test:e2e:prepared` | Bloqueado antes de ejecutar casos: Playwright no encontró `chromium_headless_shell` en el perfil aislado. No hay Chromium disponible en las rutas locales revisadas; los escenarios de navegador no se consideran verificados en esta sesión. |
+
+Las verificaciones disponibles confirman build, OpenAPI, MongoDB e HTTP. No cierran la aceptación A1–A12 porque no se pudo iniciar Chromium y sigue faltando la evidencia real de auditoría transversal.
+
+## Dependencias externas aún pendientes
+
+El repositorio conserva auditorías locales para políticas y cambios de Organizations, pero no contiene un módulo/puerto Audit transversal ni una entrega duradera común. Tampoco existe recolección de eventos administrativos de Keycloak. No se añadieron adaptadores simulados ni se atribuyeron cambios de roles a partir de tokens. Por ello 3.5 y 6.6 siguen abiertas conforme a sus dependencias; 7.2 permanece abierta hasta ejecutar Playwright en un entorno con Chromium y cerrar aceptación integrada.
