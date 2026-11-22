@@ -125,7 +125,14 @@ async function inspect(base) {
   assert(html.includes('persistAuthorization:false'));
   for (const asset of ['swagger-ui.css', 'swagger-ui-bundle.js']) assert.equal((await fetch(base + '/docs-assets/' + asset)).status, 200);
   assert.equal((await fetch(base + '/api/auth/login')).status, 404);
-  assert.equal((await fetch(base + '/api/invoices')).status, 404);
+  const invoiceList = specification.paths['/api/invoices'].get;
+  assert.deepEqual(invoiceList.security, [{ bearerAuth: [] }]);
+  assert(invoiceList.parameters.some(value => value.name === 'scope' && value.required));
+  assert(invoiceList.parameters.some(value => value.name === 'thirdPartyId' && value.required));
+  const anonymousInvoices = await fetch(base + '/api/invoices');
+  assert([401, 503].includes(anonymousInvoices.status));
+  assert.equal(anonymousInvoices.headers.get('cache-control'), 'no-store');
+  assert(['UNAUTHENTICATED', 'CONFIGURATION_ERROR'].includes((await anonymousInvoices.json()).error.code));
 }
 
 if (process.env.TEST_API_BASE_URL) await inspect(process.env.TEST_API_BASE_URL);

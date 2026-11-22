@@ -10,13 +10,16 @@ try {
   if (started[1].status === 'fulfilled') identity = started[1].value;
   for (const result of started) if (result.status === 'rejected') throw result.reason;
   await identity.setApplicationRoles(['APP_ADMIN']);
+  const adminAudit = await identity.verifyAdminAuditCapture();
   const directory = await identity.companyDirectoryFixture();
   console.log('Running full integration with disposable MongoDB and Keycloak fixtures.');
-  console.log(await command(process.execPath, [npm, 'run', 'test:integration'], {
+  console.log(await command(process.execPath, [npm, 'run', 'test:integration', '--', ...process.argv.slice(2)], {
     cwd: fileURLToPath(new URL('../backend/', import.meta.url)), env: { ...process.env,
       MONGODB_TEST_URI: mongo.uri, NOTIFICATIONS_RETENTION_TEST_URI: mongo.uri,
       KEYCLOAK_DIRECTORY_TEST_ISSUER: identity.issuer, KEYCLOAK_DIRECTORY_TEST_CLIENT_ID: directory.clientId,
       KEYCLOAK_DIRECTORY_TEST_CLIENT_SECRET: directory.clientSecret, KEYCLOAK_DIRECTORY_TEST_SUBJECT: directory.subject,
+      KEYCLOAK_ADMIN_AUDIT_BASE_URL: adminAudit.base, KEYCLOAK_ADMIN_AUDIT_REALM: adminAudit.realm,
+      KEYCLOAK_ADMIN_AUDIT_CLIENT_ID: adminAudit.clientId, KEYCLOAK_ADMIN_AUDIT_CLIENT_SECRET: adminAudit.clientSecret,
     },
   }));
 } finally {

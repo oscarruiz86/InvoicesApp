@@ -5,6 +5,7 @@ import type { LocalRole, OrganizationType } from '../../domain/organization';
 import type { DriverProvisioningPort } from '../../application/driver-provisioning';
 import { organizationModels } from './organization-repository';
 import { hashInvitationToken, matchesInvitationToken } from '../invitation-tokens';
+import { createMongoAuditWriter, prepareMongoAudit } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 export class InvitationRepositoryError extends Error {
   constructor(readonly code: 'INVALID_RECORD' | 'DUPLICATE_PENDING_INVITATION' | 'DUPLICATE_MEMBERSHIP' | 'IDENTITY_MISMATCH' | 'INVITATION_EXPIRED' | 'INVALID_ROLES' | 'LAST_ROLE_REQUIRED' | 'LAST_ADMINISTRATOR_REQUIRED' | 'VERSION_CONFLICT' | 'RECORD_NOT_FOUND' | 'AUTHORITY_REVOKED' | 'STORAGE_UNAVAILABLE') { super(code); }
@@ -64,7 +65,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
 }) {
   let initialized: Promise<void> | undefined;
   async function initialize(connection: Connection) {
-    if (!initialized) initialized = Promise.all([invitationModel(connection).init(), membershipModel(connection).init(), ...Object.values(organizationModels(connection)).map(model => model.init()),
+    if (!initialized) initialized = Promise.all([invitationModel(connection).init(), membershipModel(connection).init(), prepareMongoAudit(connection), ...Object.values(organizationModels(connection)).map(model => model.init()),
       connection.collection('organization_invitation_events').createIndex({ eventId: 1 }, { unique: true }),
       connection.collection('organization_invitation_events').createIndex({ invitationId: 1, at: 1, eventId: 1 }),
       connection.collection('organization_membership_events').createIndex({ eventId: 1 }, { unique: true }),
@@ -597,6 +598,16 @@ await connection.collection('organization_invitation_events').insertOne({ eventI
               replacementAssignments.filter(value => value.assigned !== false).map(value => String(value.capability) as LocalRole), replacementRoles);
           }
           const eventId = randomUUID();
+          const audit = createMongoAuditWriter(connection, session);
+          const recordMembershipAudit = async (before: Membership, after: Membership, actionId: string) => {
+            await audit.record({ eventId: actionId, occurredAt: now.toISOString(), source: 'organizations', actor: { kind: 'user', subject: input.actorSubject },
+              action: 'MEMBERSHIP_UPDATED', result: 'allowed', reason: 'ASSOCIATION', correlationId: actionId,
+              scope: { companyId: organizationType === 'COMPANY' ? target.organizationId : null,
+                thirdPartyId: organizationType === 'THIRD_PARTY' ? target.organizationId : null },
+              resource: { type: 'organization-membership', id: before.id }, beforeVersion: String(before.revision), afterVersion: String(after.revision) });
+          };
+          await recordMembershipAudit(target, changedTarget.membership, eventId);
+          if (changedReplacement && replacement) await recordMembershipAudit(replacement, changedReplacement.membership, randomUUID());
           await connection.collection('organization_membership_events').insertOne({ eventId, organizationId: target.organizationId, actorSubject: input.actorSubject,
             membershipId: target.id, action: 'MEMBERSHIP_UPDATED', at: now, beforeRevision: target.revision, revision: changedTarget.membership.revision,
             beforeRoles: targetCurrentRoles, afterRoles: targetRoles, beforeStatus: target.status, afterStatus: targetStatus,

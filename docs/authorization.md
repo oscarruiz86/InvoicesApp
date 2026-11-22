@@ -54,7 +54,7 @@ La protección por permiso se compone después de authenticatedEndpoint. El perm
 
 ## Preparación de la política
 
-Con MongoDB accesible y `backend/.env.local` configurado, ejecutar desde la raíz `npm --prefix backend run authorization:init`. Usa el cargador TypeScript Vite ya instalado, sin abrir servidor HTTP ni instalar paquetes. Crea solo el documento ausente; repetir conserva revisión y grants. No se inicializa automáticamente desde una lectura HTTP. Si falla, corregir configuración/conectividad y repetir; no borrar ni sobrescribir revisiones. No habilita acceso organizacional hasta disponer de su proveedor.
+El Compose local ejecuta `authorization:init` como servicio de una sola ejecución después de que MongoDB esté saludable y antes de iniciar el backend. Usa `$setOnInsert`: crea solo el documento ausente y conserva revisión y grants existentes en reinicios. Si falla, Compose no inicia el backend; corregir la configuración/conectividad y ejecutar `docker compose up` de nuevo. Para iniciar el backend directamente, con MongoDB accesible y `backend/.env.local` configurado, ejecutar desde la raíz `npm --prefix backend run authorization:init` antes de arrancarlo. El comando usa el cargador TypeScript Vite ya instalado, sin abrir servidor HTTP ni instalar paquetes. Nunca se inicializa desde una lectura HTTP ni se borran o sobrescriben revisiones. La política inicial no habilita acceso organizacional sin su proveedor.
 
 Prueba aislada: establecer `MONGODB_TEST_URI` a una base terminada en `_test` y ejecutar `npm --prefix backend run test:integration`. La prueba de política usa una base aleatoria propia y la elimina al finalizar; nunca apunta a datos funcionales.
 
