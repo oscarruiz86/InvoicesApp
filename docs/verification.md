@@ -117,6 +117,20 @@ La suite ampliada de integración no queda completamente verde por los dos fallo
 
 La política conserva `APP_ADMIN / roles:read / global` y `APP_ADMIN / roles:manage / global`. El límite de auditoría sigue siendo 1000 eventos pendientes y la actualización falla cerrada al agotarse. No se modificaron roles, perfiles, asociaciones ni credenciales de Keycloak. La recuperación cuando no existe ningún APP_ADMIN asignado queda a cargo del procedimiento operativo de identidad del entorno. No se desplegó ni se abrió un PR; queda revisión antes de integrar a `development`.
 
+## implement-invoice-qr-scanning — 2026-11-22
+
+| Verificación | Resultado |
+| --- | --- |
+| Backend | `npm --prefix backend run check` aprobado: lint sin errores (9 advertencias), TypeScript, 467 pruebas y comprobación arquitectónica. `npm --prefix backend run build` aprobado. |
+| Frontend | ESLint sin errores (13 advertencias preexistentes), TypeScript, 221 pruebas Vitest con `--maxWorkers=1` y comprobación arquitectónica aprobados. |
+| Build frontend | Vite aprobado. Adaptador diferido: 16.78 kB (5.94 kB gzip); worker local: 43.95 kB (10.37 kB gzip); chunk principal: 1,035.25 kB (297.77 kB gzip), con aviso del umbral de 500 kB. |
+| OpenAPI | `npm --prefix backend run openapi:lint` válido; endpoints de preview y alta QR incluidos en el build backend. |
+| MongoDB | 10 pruebas de `invoice-repository.test.ts` aprobadas contra replica set local y URI aislada `_test`: idempotencia, CUFE y duplicidad entre orígenes, cierre/revocación concurrentes y rollback de auditoría. |
+| Navegador | 4/4 pruebas Playwright aprobadas con cámara simulada: registro QR en 360/1280 px y flujo de Facturas/teclado. La prueba UI confirma permisos/errores, lectura única, preview bloqueado, asignación, adjunto separado, cancelación, contexto obsoleto y reintento idempotente. |
+| OpenSpec | `openspec validate implement-invoice-qr-scanning --strict` válido. |
+
+Las pruebas del navegador no acreditan acceso a una cámara física. La tarea 5.2 queda pendiente hasta comprobar un dispositivo real en HTTPS con permiso de cámara concedido y denegado, registrando navegador y dispositivo. No se atribuye a la simulación evidencia de cámara real. No se desplegó el cambio.
+
 ## improve-role-management-save-feedback — 2026-11-19
 
 | Verificación | Resultado |

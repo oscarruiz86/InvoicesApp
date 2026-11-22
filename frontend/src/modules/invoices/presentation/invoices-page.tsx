@@ -10,6 +10,8 @@ import { TableLoadingState } from '@/shared/components/table-loading-state';
 import { SuccessNotice } from '@/shared/components/success-notice';
 import type { AssignmentApi } from '@/modules/fleet/application/fleet-api';
 import type { InvoiceApi, InvoiceDetailsDto, InvoiceDto, InvoiceFields, InvoiceQuery, InvoiceUpdateFields } from '../application/invoice-api';
+import type { QrDecoderLoader } from '../application/qr-decoder';
+import { InvoiceQrCapture } from './invoice-qr-capture';
 import { ApplicationError } from '@/shared/application/application-error';
 import { RequestError } from '@/shared/application/request-error';
 
@@ -26,12 +28,14 @@ function failure(error: unknown) {
 }
 const money = (value: string) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 2 }).format(Number(value));
 
-export function InvoicesPage({ api, assignments, context, authorization }: { readonly api: InvoiceApi; readonly assignments: AssignmentApi;
+export function InvoicesPage({ api, assignments, context, authorization, loadQrDecoder }: { readonly api: InvoiceApi; readonly assignments: AssignmentApi;
+  readonly loadQrDecoder: QrDecoderLoader;
   readonly context: ContextStore; readonly authorization: AuthorizationStore }) {
   const current = useStore(context), auth = useStore(authorization);
   const [query, setQuery] = useState<InvoiceQuery>({ page: 1, pageSize: 20, sort: 'invoiceDate', direction: 'desc' });
   const [draft, setDraft] = useState({ q: '', vehicleId: '', dateFrom: '', dateTo: '' });
   const [filterDraft, setFilterDraft] = useState(draft), [filtersOpen, setFiltersOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [data, setData] = useState<{ generation: number; page: Awaited<ReturnType<InvoiceApi['list']>> } | null>(null);
   const [error, setError] = useState<{ generation: number; text: string } | null>(null), [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false);
@@ -44,18 +48,19 @@ export function InvoicesPage({ api, assignments, context, authorization }: { rea
   const intent = useRef(0), contextGeneration = useRef(current.generation), mounted = useRef(true), idempotency = useRef<string | null>(null), submitting = useRef(false);
   const page = data?.generation === current.generation ? data.page : null;
   const safeForm = form?.generation === current.generation ? form : null;
+  const creating = safeForm?.mode === 'create';
   const safeDetail = detail?.generation === current.generation ? detail.value : null;
   const message = error?.generation === current.generation ? error.text : null;
   const has = (permission: Parameters<typeof auth.has>[0]) => auth.has(permission);
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => context.register({ dirty: () => Boolean(safeForm || filtersOpen), clear: () => {
-    setData(null); setForm(null); setDetail(null); setOptions([]); setError(null); setNotice(null); setDetailImage(null); idempotency.current = null;
-  } }), [context, filtersOpen, safeForm]);
+  useEffect(() => context.register({ dirty: () => Boolean(safeForm || filtersOpen || qrOpen), clear: () => {
+    setData(null); setForm(null); setDetail(null); setOptions([]); setError(null); setNotice(null); setDetailImage(null); idempotency.current = null; setQrOpen(false);
+  } }), [context, filtersOpen, qrOpen, safeForm]);
   useEffect(() => {
     if (contextGeneration.current === current.generation) return;
     contextGeneration.current = current.generation; ++intent.current;
-    setData(null); setForm(null); setDetail(null); setOptions([]); setError(null); setNotice(null); setDetailImage(null);
+    setData(null); setForm(null); setDetail(null); setOptions([]); setError(null); setNotice(null); setDetailImage(null); setQrOpen(false);
     const clean = { q: '', vehicleId: '', dateFrom: '', dateTo: '' }; setDraft(clean); setFilterDraft(clean);
     setQuery({ page: 1, pageSize: 20, sort: 'invoiceDate', direction: 'desc' });
   }, [current.generation]);
@@ -73,7 +78,7 @@ export function InvoicesPage({ api, assignments, context, authorization }: { rea
   }, [api, context, query, current.generation]);
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load, current.generation]);
   useEffect(() => {
-    if (!safeForm || safeForm.mode !== 'create') { setOptions([]); return; }
+    if (!creating && !qrOpen) { setOptions([]); return; }
     let capture: ReturnType<ContextStore['capture']>;
     try { capture = context.capture(); } catch { return; }
     const controller = new AbortController(); setOptionsLoading(true);
@@ -82,7 +87,7 @@ export function InvoicesPage({ api, assignments, context, authorization }: { rea
       .catch(cause => { if (capture.isCurrent() && !controller.signal.aborted) setError({ generation: current.generation, text: failure(cause) }); })
       .finally(() => { capture.release(); if (!controller.signal.aborted) setOptionsLoading(false); });
     return () => controller.abort();
-  }, [assignments, context, current.generation, safeForm?.generation, safeForm?.mode]);
+  }, [assignments, context, current.generation, creating, qrOpen, safeForm?.generation]);
   useEffect(() => {
     if (!safeForm?.value.image) { setPreview(null); return; }
     const url = URL.createObjectURL(safeForm.value.image); setPreview(url); return () => URL.revokeObjectURL(url);
@@ -167,7 +172,7 @@ export function InvoicesPage({ api, assignments, context, authorization }: { rea
     <Typography component="h1" variant="h4">Facturas</Typography>
     {notice && <SuccessNotice onClose={() => setNotice(null)}>{notice}</SuccessNotice>}
     {message && <Alert severity="error" onClose={() => setError(null)}>{message}</Alert>}
-    <DataTable toolbar={<><Button variant="outlined" onClick={openFilters}>Filtros</Button>{has('invoices:create') && <Button variant="contained" onClick={createDraft}>Registrar factura</Button>}</>} loading={loading}>
+    <DataTable toolbar={<><Button variant="outlined" onClick={openFilters}>Filtros</Button>{has('invoices:create') && <><Button variant="outlined" onClick={() => setQrOpen(true)}>Registrar desde QR</Button><Button variant="contained" onClick={createDraft}>Registrar factura</Button></>}</>} loading={loading}>
       {(draft.q || draft.vehicleId || draft.dateFrom || draft.dateTo) && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
         {draft.q && <Chip label={`Búsqueda: ${draft.q}`} onDelete={() => { setDraft(value => ({ ...value, q: '' })); setQuery(value => ({ ...value, q: undefined, page: 1 })); }} />}
         {draft.dateFrom && <Chip label={`Desde ${draft.dateFrom}`} onDelete={() => { setDraft(value => ({ ...value, dateFrom: '' })); setQuery(value => ({ ...value, dateFrom: undefined, page: 1 })); }} />}
@@ -213,5 +218,7 @@ export function InvoicesPage({ api, assignments, context, authorization }: { rea
         {safeDetail.editability.reason === 'QR_IMMUTABLE' && <Alert severity="info">Factura capturada desde QR. Sus datos, asignación e imagen son inmutables y el origen no constituye validación fiscal.</Alert>}
       </>}
     </Stack></DialogContent><DialogActions><Button onClick={() => setDetail(null)}>Cerrar</Button>{safeDetail?.editability.available && has('invoices:update') && <Button variant="contained" onClick={() => { editDraft(safeDetail.invoice); setDetail(null); }}>Editar</Button>}</DialogActions></Dialog>
+    {has('invoices:create') && <InvoiceQrCapture open={qrOpen} api={api} loadDecoder={loadQrDecoder} assignments={options} context={context}
+      onClose={() => setQrOpen(false)} onSaved={() => { setNotice('Factura registrada desde QR.'); void load(); }} />}
   </Stack>;
 }

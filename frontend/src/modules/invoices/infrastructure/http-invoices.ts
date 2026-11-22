@@ -72,7 +72,8 @@ export function createInvoiceApi(http: InvoiceTransport): InvoiceApi {
     },
     async createQr(scope, input, idempotencyKey, signal) {
       if (!id.safeParse(input.assignmentId).success || !id.safeParse(input.vehicleId).success || !idempotencyKey) throw new ApplicationError('CONFIGURATION');
-      return scoped(await http.invoice('POST', 'invoices/qr', queryParams(scope), multipart(input, input.image), { signal, idempotencyKey }), scope);
+      const { image, ...payload } = input;
+      return scoped(await http.invoice('POST', 'invoices/qr', queryParams(scope), multipart(payload, image), { signal, idempotencyKey }), scope);
     },
   };
 }

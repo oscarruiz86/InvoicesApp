@@ -12,7 +12,9 @@ function request(url: string, method: string, body?: BodyInit, headers?: Headers
 }
 function service(overrides: Record<string, unknown> = {}) {
   return { normalizeImage: vi.fn(async () => ({ contentType: 'image/jpeg', data: new Uint8Array([1]), size: 1, width: 1, height: 1, sha256: 'a'.repeat(64) })),
-    create: vi.fn(async () => invoice), list: vi.fn(), detail: vi.fn(), edit: vi.fn(), image: vi.fn(), ...overrides } as never;
+    create: vi.fn(async () => invoice), createQr: vi.fn(async () => ({ ...invoice, origin: 'QR', qrMetadata: { parserVersion: 'invoice-key-value-v1', contentHash: 'a'.repeat(64) } })),
+    previewQr: vi.fn(async () => ({ invoiceNumber: 'QR-1', metadata: { parserVersion: 'invoice-key-value-v1', contentHash: 'a'.repeat(64) } })),
+    list: vi.fn(), detail: vi.fn(), edit: vi.fn(), image: vi.fn(), ...overrides } as never;
 }
 
 describe('invoice presentation contract', () => {
@@ -42,6 +44,34 @@ describe('invoice presentation contract', () => {
     const extra = new FormData(); extra.set('payload', '{}'); extra.set('admin', 'true');
     const extraResponse = await invoiceResponse(svc, 'create', actor, request(`http://localhost/api/invoices?scope=organization&thirdPartyId=${'b'.repeat(24)}`, 'POST', extra));
     expect(extraResponse.status).toBe(400);
+  });
+
+  it('exposes a read-only QR preview and an autoritative, scoped QR create operation', async () => {
+    const query = `scope=organization&thirdPartyId=${'b'.repeat(24)}`, content = 'NumFac=QR-1';
+    const svc = service();
+    const preview = await invoiceResponse(svc, 'qr-preview', actor, request(`http://localhost/api/invoices/qr/preview?${query}`, 'POST',
+      JSON.stringify({ qrContent: content }), { 'content-type': 'application/json' }));
+    expect(preview.status).toBe(200); expect(preview.headers.get('Cache-Control')).toBe('no-store');
+    expect((svc as { previewQr: ReturnType<typeof vi.fn> }).previewQr).toHaveBeenCalledWith(actor, { thirdPartyId: 'b'.repeat(24), qrContent: content });
+
+    const form = new FormData(); form.set('payload', JSON.stringify({ assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), qrContent: content }));
+    const created = await invoiceResponse(svc, 'qr-create', actor, request(`http://localhost/api/invoices/qr?${query}`, 'POST', form, { 'Idempotency-Key': 'qr-retry' }));
+    expect(created.status).toBe(201); expect(created.headers.get('Cache-Control')).toBe('no-store');
+    expect((svc as { createQr: ReturnType<typeof vi.fn> }).createQr).toHaveBeenCalledWith(actor, expect.objectContaining({ thirdPartyId: 'b'.repeat(24),
+      assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), qrContent: content, idempotencyKey: 'qr-retry' }));
+    expect((await created.json())).not.toHaveProperty('ownerSubject');
+  });
+
+  it('limits the actual multipart body even when Content-Length is absent', async () => {
+    const bytes = new Uint8Array(6 * 1024 * 1024 + 1);
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(bytes); controller.close(); } });
+    const svc = service();
+    const raw = new Request(`http://localhost/api/invoices/qr?scope=organization&thirdPartyId=${'b'.repeat(24)}`, { method: 'POST', body,
+      headers: { 'content-type': 'multipart/form-data; boundary=fixture' }, duplex: 'half' } as RequestInit & { duplex: 'half' });
+    const response = await invoiceResponse(svc, 'qr-create', actor, raw);
+    expect(response.status).toBe(413);
+    expect((svc as { createQr: ReturnType<typeof vi.fn> }).createQr).not.toHaveBeenCalled();
+    expect((svc as { normalizeImage: ReturnType<typeof vi.fn> }).normalizeImage).not.toHaveBeenCalled();
   });
 
   it('returns authorized image bytes with private no-sniff headers', async () => {

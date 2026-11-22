@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { createInvoice } from '@/modules/invoices/domain/invoice';
+import { createInvoices } from '@/modules/invoices/application/invoices';
+import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
 import { createMongoInvoiceRepository, createMongoInvoiceAudit } from '@/modules/invoices/infrastructure/mongodb/invoice-repository';
 import { createMongoInvoiceAssignmentAuthority } from '@/modules/fleet/infrastructure/mongodb/invoice-assignment-authority';
 import { invoiceAuthorityConfirmation } from '@/modules/organizations/infrastructure/mongodb/invoice-authority';
@@ -154,6 +156,81 @@ it('deduplicates identical retries and rejects duplicate business keys and stale
   await expect(repository.edit({ current: created, next, editPolicy: { state: 'AVAILABLE', revision: 'r1', scope: owner.thirdPartyId,
     validFrom: new Date(0), validUntil: null, durationSeconds: 3600 }, actorSubject: owner.subject, expectedVersion: 1,
     authority: owner.authority, correlationId: randomUUID() })).rejects.toMatchObject({ code: 'INVOICE_VERSION_CONFLICT' });
+});
+
+it('stores QR and MANUAL origins together, enforces business and CUFE uniqueness, and rolls back QR audit failures', async () => {
+  const owner = await seed();
+  const manual = command(owner, { number: 'FAC-CROSS-ORIGIN' });
+  await repository.create(manual);
+  const base = command(owner, { number: 'FAC-QR-CUFE', idempotencyKey: 'qr-identical-retry' });
+  const qr = { ...base, invoice: { ...base.invoice, origin: 'QR' as const, qrMetadata: { parserVersion: 'invoice-key-value-v1' as const,
+    contentHash: 'a'.repeat(64), cufe: 'b'.repeat(96), sourceUrl: 'https://example.test/qr' } }, requestHash: 'qr-content-hash' };
+  const created = await repository.create(qr);
+  await expect(repository.create(qr)).resolves.toMatchObject({ id: created.id, origin: 'QR', qrMetadata: { cufe: 'b'.repeat(96) } });
+  await expect(repository.create({ ...qr, requestHash: 'changed-qr-content-or-attachment' })).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
+  expect(await connection.collection('invoices').findOne({ _id: new mongoose.Types.ObjectId(created.id) })).toMatchObject({ origin: 'QR' });
+  const event = await connection.collection('invoice_management_events').findOne({ invoiceId: created.id });
+  expect(event).not.toHaveProperty('qrContent'); expect(event).not.toHaveProperty('document');
+
+  const commercialCollision = { ...command(owner, { number: 'FAC-CROSS-ORIGIN' }),
+    invoice: { ...manual.invoice, origin: 'QR' as const, qrMetadata: { parserVersion: 'invoice-key-value-v1' as const, contentHash: 'c'.repeat(64) } } };
+  await expect(repository.create(commercialCollision)).rejects.toMatchObject({ code: 'INVOICE_DUPLICATE' });
+  const cufeCollision = { ...command(owner, { number: 'FAC-QR-DIFFERENT' }),
+    invoice: { ...qr.invoice, id: new mongoose.Types.ObjectId().toString(), invoiceNumber: 'FAC-QR-DIFFERENT' } };
+  await expect(repository.create(cufeCollision)).rejects.toMatchObject({ code: 'INVOICE_DUPLICATE' });
+
+  const failed = { ...command(owner, { number: 'FAC-QR-AUDIT-ROLLBACK' }),
+    invoice: { ...qr.invoice, id: new mongoose.Types.ObjectId().toString(), invoiceNumber: 'FAC-QR-AUDIT-ROLLBACK', qrMetadata: { ...qr.invoice.qrMetadata,
+      contentHash: 'd'.repeat(64), cufe: undefined } } };
+  failAudit = true;
+  try { await expect(repository.create(failed)).rejects.toMatchObject({ code: 'INVOICE_AUDIT_UNAVAILABLE' }); }
+  finally { failAudit = false; }
+  expect(await connection.collection('invoices').countDocuments({ _id: new mongoose.Types.ObjectId(failed.invoice.id) })).toBe(0);
+  expect(await connection.collection('invoice_management_events').countDocuments({ invoiceId: failed.invoice.id })).toBe(0);
+});
+
+it('rejects QR creation when its own many-to-many assignment closes after preview but before transaction confirmation', async () => {
+  const owner = await seed(); let signalRead!: () => void, releaseRead!: () => void;
+  const readCompleted = new Promise<void>(resolve => { signalRead = resolve; }), continueRead = new Promise<void>(resolve => { releaseRead = resolve; });
+  const guardedAssignments = { async readOwnActive(input: Parameters<typeof assignments.readOwnActive>[0]) {
+    const facts = await assignments.readOwnActive(input); signalRead(); await continueRead; return facts;
+  } };
+  const useCases = createInvoices({ repository, authorization: { authorize: async () => owner.authority }, assignments: guardedAssignments,
+    editPolicy: { read: async () => ({ state: 'UNAVAILABLE' as const }) }, imageNormalizer: { normalize: async () => { throw new Error('unused'); } },
+    clock: { now: () => new Date(serverNow) }, ids: { next: () => new mongoose.Types.ObjectId().toString() }, correlationId: { next: randomUUID },
+    qrContentHasher: { sha256: () => 'a'.repeat(64) } });
+  const actor: AuthenticatedActor = { subject: owner.subject, username: null, name: null, email: null, roles: ['DRIVER'], permissions: [] };
+  const create = useCases.createQr(actor, { thirdPartyId: owner.thirdPartyId, assignmentId: owner.assignmentId, vehicleId: owner.vehicleId,
+    qrContent: 'NumFac=QR-RACE\nFecFac=2026-11-20\nHorFac=12:30:00\nNitFac=900123456\nDocAdq=900654321\nValFac=100\nValIva=19\nValOtroIm=0\nValTolFac=119',
+    idempotencyKey: 'qr-assignment-race' });
+  await readCompleted;
+  await connection.collection('vehicle_assignments').updateOne({ _id: new mongoose.Types.ObjectId(owner.assignmentId) }, { $set: { status: 'CLOSED', endedAt: new Date(serverNow) }, $inc: { version: 1 } });
+  releaseRead();
+  await expect(create).rejects.toMatchObject({ code: 'ASSIGNMENT_NOT_ELIGIBLE' });
+  expect(await connection.collection('invoices').countDocuments({ thirdPartyId: owner.thirdPartyId })).toBe(0);
+  expect(await connection.collection('invoice_management_events').countDocuments({ thirdPartyId: owner.thirdPartyId })).toBe(0);
+});
+
+it('rejects QR creation when the driver membership is revoked after parsing but before transaction confirmation', async () => {
+  const owner = await seed(); let signalRead!: () => void, releaseRead!: () => void;
+  const readCompleted = new Promise<void>(resolve => { signalRead = resolve; }), continueRead = new Promise<void>(resolve => { releaseRead = resolve; });
+  const guardedAssignments = { async readOwnActive(input: Parameters<typeof assignments.readOwnActive>[0]) {
+    const facts = await assignments.readOwnActive(input); signalRead(); await continueRead; return facts;
+  } };
+  const useCases = createInvoices({ repository, authorization: { authorize: async () => owner.authority }, assignments: guardedAssignments,
+    editPolicy: { read: async () => ({ state: 'UNAVAILABLE' as const }) }, imageNormalizer: { normalize: async () => { throw new Error('unused'); } },
+    clock: { now: () => new Date(serverNow) }, ids: { next: () => new mongoose.Types.ObjectId().toString() }, correlationId: { next: randomUUID },
+    qrContentHasher: { sha256: () => 'a'.repeat(64) } });
+  const actor: AuthenticatedActor = { subject: owner.subject, username: null, name: null, email: null, roles: ['DRIVER'], permissions: [] };
+  const create = useCases.createQr(actor, { thirdPartyId: owner.thirdPartyId, assignmentId: owner.assignmentId, vehicleId: owner.vehicleId,
+    qrContent: 'NumFac=QR-REVOKED\nFecFac=2026-11-20\nHorFac=12:30:00\nNitFac=900123456\nDocAdq=900654321\nValFac=100\nValIva=19\nValOtroIm=0\nValTolFac=119',
+    idempotencyKey: 'qr-membership-revoke' });
+  await readCompleted;
+  await connection.collection('organization_memberships').updateOne({ subject: owner.subject }, { $set: { status: 'INACTIVE' }, $inc: { revision: 1 } });
+  releaseRead();
+  await expect(create).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  expect(await connection.collection('invoices').countDocuments({ thirdPartyId: owner.thirdPartyId })).toBe(0);
+  expect(await connection.collection('invoice_management_events').countDocuments({ thirdPartyId: owner.thirdPartyId })).toBe(0);
 });
 
 it('arbitrates concurrent commercial duplicates through the unique index', async () => {
