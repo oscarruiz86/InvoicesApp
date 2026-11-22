@@ -41,10 +41,10 @@ export function parameterHandlers(useCases: UseCases, auth: Authorization) {
       } catch (error) { return response(error); }
     },
     async update(actor: AuthenticatedActor, request: Request, key: string) {
-      try { requireGlobal(request); await authorize(actor, 'parameters:update'); if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') ?? '')) throw new ParameterError('INVALID_REQUEST');
+      try { requireGlobal(request); const receipt = await authorize(actor, 'parameters:update'); if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') ?? '')) throw new ParameterError('INVALID_REQUEST');
         let body: unknown; try { body = await request.json(); } catch { throw new ParameterError('INVALID_REQUEST'); }
         const parsed = updateSchema.safeParse(body); if (!parsed.success) throw new ParameterError('INVALID_REQUEST');
-        return Response.json(await useCases.update({ key: decodeURIComponent(key), ...parsed.data, actor: actor.subject }), { headers });
+        return Response.json(await useCases.update({ key: decodeURIComponent(key), ...parsed.data, actor: actor.subject, policyVersion: receipt.policyVersion }), { headers });
       } catch (error) { return response(error); }
     },
   };

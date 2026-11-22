@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 export type InvoiceQrErrorCode = 'QR_INVALID' | 'QR_INCOMPLETE' | 'QR_UNSUPPORTED';
 export class InvoiceQrError extends Error {
   constructor(readonly code: InvoiceQrErrorCode, readonly fields: readonly string[] = []) { super(code); }
@@ -9,7 +7,8 @@ export interface ParsedInvoiceQr {
   readonly invoiceDate: string; readonly invoiceTime: string; readonly invoiceAtUtc: string;
   readonly invoiceNumber: string; readonly issuerNit: string; readonly buyerDocument: string;
   readonly amount: string; readonly vatAmount: string; readonly otherTaxesAmount: string; readonly totalAmount: string;
-  readonly metadata: { readonly parserVersion: 'invoice-key-value-v1'; readonly contentHash: string;
+  readonly canonicalContent: string;
+  readonly metadata: { readonly parserVersion: 'invoice-key-value-v1';
     readonly cufe?: string; readonly sourceUrl?: string };
 }
 
@@ -61,6 +60,6 @@ export function parseInvoiceQr(content: unknown): ParsedInvoiceQr {
   const canonicalContent = normalized.split('\n').map(line => line.trim()).filter(Boolean).join('\n');
   return { invoiceDate: date, invoiceTime, invoiceAtUtc: instant(date, invoiceTime, timeMatch[2]), invoiceNumber: get('NumFac'), issuerNit: get('NitFac'),
     buyerDocument: get('DocAdq'), amount: canonical(amounts[0]!), vatAmount: canonical(amounts[1]!), otherTaxesAmount: canonical(amounts[2]!), totalAmount: canonical(amounts[3]!),
-    metadata: { parserVersion: 'invoice-key-value-v1', contentHash: createHash('sha256').update(canonicalContent, 'utf8').digest('hex'),
+    canonicalContent, metadata: { parserVersion: 'invoice-key-value-v1',
       ...(cufe ? { cufe: cufe.toLowerCase() } : {}), ...(sourceUrl ? { sourceUrl } : {}) } };
 }

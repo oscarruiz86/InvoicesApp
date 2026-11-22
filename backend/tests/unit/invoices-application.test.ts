@@ -10,7 +10,7 @@ const dependencies = (roles: readonly AuthenticatedActor['roles'][number][]) => 
   repository: repo,
   authorization: { authorize: vi.fn(async () => ({ roles, policyVersion: 'p1', contextRevision: 'c1' })) },
   assignments: { readOwnActive: vi.fn() }, editPolicy: { read: vi.fn() }, imageNormalizer: { normalize: vi.fn() },
-  clock: { now: () => new Date('2026-11-20T12:00:00Z') }, ids: { next: () => 'b'.repeat(24) }, correlationId: { next: () => 'correlation' },
+  clock: { now: () => new Date('2026-11-20T12:00:00Z') }, ids: { next: () => 'b'.repeat(24) }, correlationId: { next: () => 'correlation' }, qrContentHasher: { sha256: () => 'a'.repeat(64) },
 });
 
 describe('invoice application', () => {
@@ -61,5 +61,24 @@ describe('invoice application', () => {
     await expect(invoices.edit(actor, { id: 'f'.repeat(24), thirdPartyId: query.thirdPartyId, expectedVersion: 1, changes: { invoiceNumber: 'A-2' } }))
       .rejects.toMatchObject({ code: 'EDIT_POLICY_UNAVAILABLE' });
     expect(repo.edit).not.toHaveBeenCalled();
+  });
+
+  it('refuses QR invoice editing without consulting the functional parameter policy', async () => {
+    const qr = { ...createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId,
+      assignmentId: 'c'.repeat(24), driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20', invoiceTime: '11:59:00',
+      invoiceNumber: 'QR-1', issuerNit: '0001', buyerDocument: '123', amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10', now: new Date('2026-11-20T11:59:00Z') }),
+      origin: 'QR' as const, qrMetadata: { parserVersion: 'invoice-key-value-v1' as const, contentHash: 'a'.repeat(64) } };
+    repo.find.mockResolvedValueOnce(qr as never);
+    const deps = dependencies(['DRIVER']); const invoices = createInvoices(deps);
+    await expect(invoices.detail(actor, { id: qr.id, thirdPartyId: query.thirdPartyId })).resolves.toMatchObject({ editability: { reason: 'QR_IMMUTABLE' } });
+    expect(deps.editPolicy.read).not.toHaveBeenCalled();
+  });
+
+  it('computes a normalized SHA-256 fingerprint outside the pure QR parser', async () => {
+    const deps = dependencies(['DRIVER']);
+    const invoices = createInvoices(deps);
+    const content = 'NumFac=F-1\r\nFecFac=2026-11-20\r\nHorFac=12:30:00\r\nNitFac=000123\r\nDocAdq=001234\r\nValFac=100.00\r\nValIva=19\r\nValOtroIm=0\r\nValTolFac=119.00';
+    const preview = await invoices.previewQr(actor, { thirdPartyId: query.thirdPartyId, qrContent: content });
+    expect(preview.metadata.contentHash).toBe('a'.repeat(64));
   });
 });

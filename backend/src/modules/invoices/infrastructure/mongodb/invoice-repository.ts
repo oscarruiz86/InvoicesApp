@@ -129,7 +129,8 @@ function imageDocument(invoice: Invoice, image: InvoiceImagePayload): Row {
     width: image.width, height: image.height, sha256: image.sha256, data: Buffer.from(image.data) };
 }
 
-export function createMongoInvoiceRepository(connect: () => Promise<Connection>, participants: InvoiceTransactionParticipants): InvoiceRepositoryPort {
+export function createMongoInvoiceRepository(connect: () => Promise<Connection>, participants: InvoiceTransactionParticipants,
+  clock: { now(): Date } = { now: () => new Date() }): InvoiceRepositoryPort {
   async function transaction<T>(fn: (connection: Connection, session: ClientSession, ports: InvoiceTransactionPorts) => Promise<T>): Promise<T> {
     try {
       const connection = await connect(); await ensureReady(connection); await requireTransactions(connection);
@@ -249,7 +250,7 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
           requiredRole: input.authority.roles.includes('DRIVER') ? 'DRIVER' : 'THIRD_PARTY_ADMIN', transactionContext: { connection, session } });
         await ports.editPolicy.confirm({ thirdPartyId: input.current.thirdPartyId, revision: input.editPolicy.revision,
           scope: input.editPolicy.scope, transactionContext: { connection, session } });
-        const decisionAt = new Date();
+        const decisionAt = clock.now();
         if (decisionAt < input.editPolicy.validFrom || (input.editPolicy.validUntil && decisionAt >= input.editPolicy.validUntil)) throw new InvoiceRepositoryError('EDIT_POLICY_UNAVAILABLE');
         if (decisionAt.getTime() >= input.current.createdAt.getTime() + input.editPolicy.durationSeconds * 1000) throw new InvoiceRepositoryError('EDIT_WINDOW_CLOSED');
         const filter = { _id: new Types.ObjectId(input.current.id), thirdPartyId: input.current.thirdPartyId, version: input.expectedVersion,

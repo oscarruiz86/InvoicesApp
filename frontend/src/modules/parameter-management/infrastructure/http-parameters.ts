@@ -10,6 +10,7 @@ async function read<T>(body: unknown, schema: z.ZodType<T>): Promise<T> {
 export function createHttpParameters(http: { parameter(method: 'GET'|'PATCH', path: string, query?: string, body?: unknown, signal?: AbortSignal): Promise<unknown> }): ParameterApi {
   return {
     async list(signal) { const result = await read(await http.parameter('GET', 'parameters', 'scope=global&page=1&pageSize=100', undefined, signal), z.object({ items: z.array(parameter), total: z.number().int(), page: z.number().int(), pageSize: z.number().int() }).strict()); return result.items; },
+    async detail(key, signal) { return read(await http.parameter('GET', `parameters/${key}`, 'scope=global', undefined, signal), parameter); },
     async history(key, signal) { const result = await read(await http.parameter('GET', `parameters/${key}/history`, 'scope=global&page=1&pageSize=100', undefined, signal), z.object({ items: z.array(event), total: z.number().int(), page: z.number().int(), pageSize: z.number().int() }).strict()); return result.items; },
     async update(key, expectedVersion, value, signal) { return read(await http.parameter('PATCH', `parameters/${key}`, 'scope=global', { expectedVersion, value }, signal), parameter); },
   };
