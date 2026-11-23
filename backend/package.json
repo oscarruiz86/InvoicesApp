@@ -61,6 +61,8 @@
     "invoice-images:recover": "node --env-file-if-exists=.env.local scripts/invoice-images-recover.mjs",
     "parameters:inventory": "node --env-file-if-exists=.env.local scripts/parameters-inventory.mjs",
     "parameters:init": "node --env-file-if-exists=.env.local scripts/parameters-init.mjs",
+    "parametric-catalogs:init": "node --env-file-if-exists=.env.local scripts/parametric-catalogs-init.mjs",
+    "parametric-catalogs:reset-dev": "node --env-file-if-exists=.env.local scripts/reset-parametric-catalogs-dev.mjs",
     "test:integration:prepared": "node ../scripts/test-vehicle-management-integration.mjs",
     "test:http:prepared": "node ../scripts/test-vehicle-management-http.mjs"
   }

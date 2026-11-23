@@ -7,7 +7,7 @@ Autenticar usuarios con un proveedor OIDC externo y entregar una identidad verif
 ## Requirements
 
 ### Requirement: Registro y perfil para invitaciones
-El registro autónomo y el perfil propio MUST residir en Keycloak conforme a `implement-user-invitations`. MUST incluir nombre completo, correo, tipo y número documental colombiano; el correo MUST ser no editable en el perfil normal. La aceptación MUST exigir correo actual verificado y perfil completo por puerto de Identity.
+El registro autónomo y el perfil propio MUST residir en Keycloak conforme a `implement-user-invitations`. MUST incluir nombre completo, correo, tipo documental personal disponible en el catálogo y número documental colombiano; el correo MUST ser no editable en el perfil normal. La aceptación MUST exigir correo actual verificado y perfil completo por puerto de Identity.
 
 #### Scenario: Retorno de invitación sin contexto
 - **WHEN** el destinatario se registra o inicia sesión desde una invitación
@@ -17,6 +17,11 @@ El registro autónomo y el perfil propio MUST residir en Keycloak conforme a `im
 - **WHEN** se consulta `/api/auth/me` y luego se solicita una operación organizacional
 - **THEN** `/me` representa los claims básicos del token; el perfil compartido se lee del proveedor y los roles locales de memberships activas, sin autorizar por roles organizacionales del token
 - **AND** APP_ADMIN conserva su fuente global verificada
+
+#### Scenario: Tipo documental provisto por catálogo
+- **WHEN** se ofrece el campo de tipo documental en registro o perfil
+- **THEN** sus opciones corresponden a códigos y etiquetas disponibles del catálogo y el backend rechaza códigos no permitidos
+- **AND** el registro y perfil personales ofrecen solo CC, CE, TI, RC, PA y PPT; NIT no es opción de identidad personal y las empresas/terceros validan NIT o CC según sus propias reglas
 
 ### Requirement: Realm y cliente público de desarrollo
 El entorno MUST disponer del realm `invoices` y cliente OIDC público `invoices-web`, sin secreto, con Authorization Code Flow y PKCE S256 obligatorio. MUST deshabilitar flujo implícito, Direct Access Grants y cuentas de servicio para ese cliente. Las contraseñas MUST ser gestionadas únicamente por Keycloak.

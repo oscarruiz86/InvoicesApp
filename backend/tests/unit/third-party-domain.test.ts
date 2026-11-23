@@ -15,8 +15,8 @@ describe('third-party domain', () => {
     expect(() => thirdPartyProfile({ ...valid, ...changes })).toThrow('INVALID_REQUEST');
   });
   it('supports sparse edits, explicit clearing, and stable tax identifiers', () => {
-    const before = thirdPartyProfile({ ...valid, city: 'Bogotá' });
-    expect(thirdPartyProfile({ tradeName: ' Andino ' }, before).city).toBe('Bogotá');
+    const before = thirdPartyProfile({ ...valid, country: 'CO', department: '11', city: '11001' });
+    expect(thirdPartyProfile({ tradeName: ' Andino ' }, before).city).toBe('11001');
     expect(thirdPartyProfile({ city: null }, before).city).toBeNull();
     expect(() => thirdPartyProfile({}, before)).toThrow('INVALID_REQUEST');
     expect(() => thirdPartyProfile({ email: null }, before)).toThrow('INVALID_REQUEST');

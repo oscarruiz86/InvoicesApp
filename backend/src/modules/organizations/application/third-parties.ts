@@ -4,7 +4,10 @@ import { ResourceNotFound } from '@/modules/identity/application/authorization-e
 import type { ThirdPartyAccess, ThirdPartyEvent, ThirdPartyQuery, ThirdPartyRepository, ThirdPartyTransaction } from './third-party-ports';
 import { ThirdPartyError, thirdPartyId, thirdPartyProfile, type ThirdParty, type ThirdPartyRecord } from '../domain/third-party';
 
-export function createThirdParties(deps: { repository: ThirdPartyRepository; now(): Date; nextEventId(): string }) {
+export function createThirdParties(deps: { repository: ThirdPartyRepository; now(): Date; nextEventId(): string; validateLocation?(input: { country: string | null; department: string | null; city: string | null }): Promise<boolean> }) {
+  async function validateLocation(profile: Pick<ThirdParty, 'country' | 'department' | 'city'>) {
+    if (deps.validateLocation && !await deps.validateLocation(profile)) throw new ThirdPartyError('INVALID_REQUEST', ['country', 'department', 'city']);
+  }
   async function run<T>(access: ThirdPartyAccess, permissions: string[], write: boolean, action: (tx: ThirdPartyTransaction) => Promise<T>, options: { resourceId?: string; requireRelationship?: boolean } = {}) {
     return deps.repository.run(write, async tx => {
       const { actor, scope } = access;
@@ -86,6 +89,7 @@ export function createThirdParties(deps: { repository: ThirdPartyRepository; now
       const relatedCompanyId = globalCreate ? relationshipFor(access, relatedCompanyIdValue) : companyCreate ? access.scope.companyId! : undefined;
       return run(access, ['third-parties:create'], true, async tx => {
         if (!globalCreate && !companyCreate) throw new AuthorizationError();
+        await validateLocation(profile);
         const at = deps.now().toISOString();
         const next = await tx.save({ ...profile, id, status: 'ACTIVE', createdAt: at, updatedAt: at, createdBy: actor.subject, updatedBy: null }, null);
         await tx.record(event(access, id, 'THIRD_PARTY_CREATED', null, next.version, Object.keys(profile), relatedCompanyId));
@@ -108,7 +112,9 @@ export function createThirdParties(deps: { repository: ThirdPartyRepository; now
       return run(access, ['third-parties:update'], true, async tx => {
         const before = await find(tx, access, key, expectedVersion);
         const changes = thirdPartyProfile(input, before.thirdParty);
-        return save(tx, access, before, { ...before.thirdParty, ...changes }, 'THIRD_PARTY_UPDATED');
+        const updated = { ...before.thirdParty, ...changes };
+        await validateLocation(updated);
+        return save(tx, access, before, updated, 'THIRD_PARTY_UPDATED');
       }, { resourceId: key, requireRelationship: access.scope.kind === 'organization' && Boolean(access.scope.companyId) });
     },
     setStatus(access: ThirdPartyAccess, id: string, expectedVersion: string, status: 'ACTIVE' | 'INACTIVE') {

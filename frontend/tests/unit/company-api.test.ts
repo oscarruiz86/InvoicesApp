@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createCompanyApi } from '@/modules/company-management/infrastructure/http-companies';
 import type { CompanyTransport } from '@/modules/company-management/application/company-api';
 import type { PermissionScope } from '@/modules/authentication/domain/permissions';
-const company = { documentType: 'NIT', documentNumber: '001', verificationDigit: null, businessName: 'Empresa', tradeName: null, email: 'contact@example.com', phone: null, address: null, country: null, department: null, city: null, id: '0123456789abcdef01234567', status: 'ACTIVE', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', createdBy: 'actor', updatedBy: null };
+const company = { documentType: 'NIT', documentNumber: '001', verificationDigit: null, businessName: 'Empresa', tradeName: null, email: 'contact@example.com', phone: null, address: null, country: null, department: null, city: null, countryLabel: null, departmentLabel: null, cityLabel: null, id: '0123456789abcdef01234567', status: 'ACTIVE', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', createdBy: 'actor', updatedBy: null };
 const global: PermissionScope = { kind: 'global', companyId: null, thirdPartyId: null };
 const local: PermissionScope = { kind: 'organization', companyId: company.id, thirdPartyId: null };
 function setup(response: unknown = { items: [{ company, version: '1' }], page: 1, pageSize: 20, total: 1 }) {

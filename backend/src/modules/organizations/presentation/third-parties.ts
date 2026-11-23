@@ -10,13 +10,30 @@ const id = z.string().regex(/^[a-f0-9]{24}$/);
 const profile = z.object(Object.fromEntries(thirdPartyFields.map(key => [key, z.string().max(256).nullable().optional()]))).strict();
 const querySchema = z.object({ scope: z.enum(['global', 'organization']), companyId: id.optional(), thirdPartyId: id.optional(), relatedCompanyId: id.optional(),
   page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  q: z.string().trim().min(1).max(100).optional(), status: z.enum(['ACTIVE', 'INACTIVE']).optional(), documentType: z.literal('NIT').optional(),
-  country: z.string().trim().min(1).max(128).optional(), department: z.string().trim().min(1).max(128).optional(), city: z.string().trim().min(1).max(128).optional(),
+  q: z.string().trim().min(1).max(100).optional(), status: z.enum(['ACTIVE', 'INACTIVE']).optional(), documentType: z.enum(['NIT', 'CC']).optional(),
+  country: z.string().regex(/^[A-Z]{2}$/).optional(), department: z.string().regex(/^\d{2}$/).optional(), city: z.string().regex(/^\d{5}$/).optional(),
   sort: z.enum(['businessName', 'documentNumber', 'createdAt', 'updatedAt', 'status', 'country', 'department', 'city']).default('createdAt'), direction: z.enum(['asc', 'desc']).default('desc'),
 }).strict().refine(value => (value.scope === 'global' ? !value.companyId && !value.thirdPartyId : Boolean(value.companyId) !== Boolean(value.thirdPartyId)) && (value.scope === 'global' || !value.relatedCompanyId));
 
 export type ThirdPartyOperation = 'list' | 'create' | 'get' | 'update' | 'status' | 'relationship' | 'relationship-get';
-export function thirdPartyResponse(service: ThirdParties, operation: ThirdPartyOperation, actor: AuthenticatedActor, request: Request, idValue?: string, companyIdValue?: string) {
+type LocationLabels = { countryLabel: string | null; departmentLabel: string | null; cityLabel: string | null };
+type ResolveLocationLabels = (input: { country: string | null; department: string | null; city: string | null }) => Promise<LocationLabels>;
+async function withThirdPartyLabels(value: unknown, resolve: ResolveLocationLabels): Promise<unknown> {
+  if (!value || typeof value !== 'object') return value;
+  const decorate = async (item: unknown) => {
+    if (!item || typeof item !== 'object') return item;
+    const record = item as Record<string, unknown>; const thirdParty = record.thirdParty;
+    if (!thirdParty || typeof thirdParty !== 'object') return item;
+    const profile = thirdParty as Record<string, unknown>;
+    const labels = await resolve({ country: typeof profile.country === 'string' ? profile.country : null,
+      department: typeof profile.department === 'string' ? profile.department : null, city: typeof profile.city === 'string' ? profile.city : null });
+    return { ...record, thirdParty: { ...profile, countryLabel: labels.countryLabel ?? profile.country, departmentLabel: labels.departmentLabel ?? profile.department, cityLabel: labels.cityLabel ?? profile.city } };
+  };
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.items)) return { ...record, items: await Promise.all(record.items.map(decorate)) };
+  return decorate(value);
+}
+export function thirdPartyResponse(service: ThirdParties, operation: ThirdPartyOperation, actor: AuthenticatedActor, request: Request, idValue?: string, companyIdValue?: string, resolveLabels?: ResolveLocationLabels) {
   return respond();
   async function respond() {
     try {
@@ -50,6 +67,7 @@ export function thirdPartyResponse(service: ThirdParties, operation: ThirdPartyO
         }
         case 'relationship-get': result = await service.getRelationship(access, idValue!, companyIdValue!); break;
       }
+      if (resolveLabels) result = await withThirdPartyLabels(result, resolveLabels);
       return Response.json(result, { status: operation === 'create' ? 201 : 200, headers: { 'Cache-Control': 'no-store', ...(operation === 'create' ? { Location: `/api/third-parties/${(result as { thirdParty: { id: string } }).thirdParty.id}` } : {}) } });
     } catch (error) {
       if (error instanceof z.ZodError || error instanceof SyntaxError) error = new ThirdPartyError('INVALID_REQUEST');

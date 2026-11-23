@@ -4,7 +4,7 @@ import type { AuthorizationPolicy, Permission } from '@/modules/identity/domain/
 import type { Company, CompanyRecord } from '../domain/company';
 import type { OrganizationEvidence, ResourceFacts } from '@/modules/identity/domain/authorization-facts';
 
-export interface CompanyQuery { page: number; pageSize: number; q?: string; status?: 'ACTIVE' | 'INACTIVE'; documentType?: 'NIT'; country?: string; department?: string; city?: string; sort: 'businessName' | 'documentNumber' | 'createdAt' | 'updatedAt' | 'status' | 'country' | 'department' | 'city'; direction: 'asc' | 'desc' }
+export interface CompanyQuery { page: number; pageSize: number; q?: string; status?: 'ACTIVE' | 'INACTIVE'; documentType?: 'NIT' | 'CC'; country?: string; department?: string; city?: string; sort: 'businessName' | 'documentNumber' | 'createdAt' | 'updatedAt' | 'status' | 'country' | 'department' | 'city'; direction: 'asc' | 'desc' }
 export interface Administrator { associationId: string; subject: string; capability: 'COMPANY_ADMIN'; active: boolean; version: string }
 export interface CompanyEvent { eventId: string; correlationId: string; at: string; subject: string; companyId: string; scope: OrganizationScope; action: 'COMPANY_CREATED' | 'COMPANY_UPDATED' | 'COMPANY_ACTIVATED' | 'COMPANY_DEACTIVATED'; result: 'allowed'; before: Company | null; after: Company; beforeVersion: string | null; afterVersion: string }
 /** A transaction-local facade; no driver session escapes infrastructure. */

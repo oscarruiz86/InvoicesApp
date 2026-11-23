@@ -21,6 +21,8 @@ import { StatusChip } from '@/shared/components/status-chip';
 import { RecordMetadata } from '@/shared/components/record-metadata';
 import { ListFeedback } from '@/shared/components/list-feedback';
 import { FormDialog } from '@/shared/components/form-dialog';
+import type { CatalogApi } from '@/modules/parameter-management/application/catalog-api';
+import { GeographyFields } from '@/modules/parameter-management/presentation/geography-fields';
 
 const labels: Record<CompanyField, string> = { documentType: 'Tipo de documento', documentNumber: 'Número de documento', verificationDigit: 'Dígito de verificación', businessName: 'Razón social', tradeName: 'Nombre comercial', email: 'Correo electrónico', phone: 'Teléfono', address: 'Dirección', country: 'País', department: 'Departamento', city: 'Ciudad' };
 const emptyForm = () => Object.fromEntries(editableFields.map(key => [key, key === 'documentType' ? 'NIT' : ''])) as Record<CompanyField, string>;
@@ -32,11 +34,12 @@ function message(error: unknown) {
   if (error instanceof RequestError) return ({ COMPANY_DOCUMENT_CONFLICT: 'Ya existe una empresa con esa identificación.', COMPANY_VERSION_CONFLICT: 'La empresa cambió. Recarga los datos antes de volver a guardar.', COMPANY_INACTIVE: 'Activa la empresa antes de asociar administradores.', INVALID_ADMINISTRATOR: 'El usuario debe existir, estar habilitado y tener el rol de administrador de empresa.', INVALID_REQUEST: 'Revisa los campos obligatorios y sus formatos.' } as Record<string, string>)[error.businessCode] ?? 'No fue posible guardar.';
   return errorMessage(error instanceof ApplicationError ? error.code : 'UNEXPECTED');
 }
-export function CompanyPage({ api, context, authorization, mode }: { api: CompanyApi; context: ContextStore; authorization: AuthorizationStore; mode: 'list' | 'create' | 'detail' | 'edit' }) {
+export function CompanyPage({ api, context, authorization, catalogs, mode }: { api: CompanyApi; context: ContextStore; authorization: AuthorizationStore; catalogs?: CatalogApi; mode: 'list' | 'create' | 'detail' | 'edit' }) {
   const { id = '' } = useParams(); const navigate = useNavigate(); const location = useLocation(); const auth = useStore(authorization);
   const routeState = location.state as { companyNotice?: unknown; listSnapshot?: CompanyList; listQuery?: { q: string; status: string; documentType: string; country: string; department: string; city: string; sort: string; direction: string; page: string; pageSize: string } } | null;
   const theme = useTheme(); const mobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [record, setRecord] = useState<CompanyRecord | null>(null); const [list, setList] = useState<CompanyList | null>(() => routeState?.listSnapshot ?? null);
+  const [statusLabels, setStatusLabels] = useState<Record<'ACTIVE' | 'INACTIVE', string>>({ ACTIVE: 'Activa', INACTIVE: 'Inactiva' });
   const [form, setForm] = useState(emptyForm); const [error, setError] = useState<string | null>(null); const [fieldErrors, setFieldErrors] = useState<readonly string[]>([]);
   const [busy, setBusy] = useState(false); const [loading, setLoading] = useState(false); const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState(() => routeState?.listQuery ?? ({ q: '', status: '', documentType: '', country: '', department: '', city: '', sort: 'businessName', direction: 'asc', page: '1', pageSize: '20' }));
@@ -45,6 +48,7 @@ export function CompanyPage({ api, context, authorization, mode }: { api: Compan
   const dirty = useRef(false); const mounted = useRef(false); const generation = useRef(0); const saving = useRef(false);
   const restoreListOnReturn = useRef(Boolean(routeState?.listSnapshot));
   const global = auth.scope.kind === 'global';
+  useEffect(() => { if (!catalogs) return; const controller = new AbortController(); void catalogs.list('statuses', 'companies', controller.signal).then(entries => setStatusLabels(previous => ({ ...previous, ...Object.fromEntries(entries.map(entry => [entry.code, entry.label])) }))).catch(() => undefined); return () => controller.abort(); }, [catalogs]);
   const authorizationAvailable = Boolean(auth.snapshot && (auth.status === 'ready' || auth.status === 'refreshing'));
   useEffect(() => {
     mounted.current = true;
@@ -110,6 +114,7 @@ export function CompanyPage({ api, context, authorization, mode }: { api: Compan
     const invalid = ['documentNumber', 'businessName', 'email'].filter(key => !form[key as CompanyField].trim());
     if (!/^\d{1,20}$/.test(form.documentNumber.trim())) invalid.push('documentNumber');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) invalid.push('email');
+    if (form.documentType === 'NIT' && !form.verificationDigit.trim()) invalid.push('verificationDigit');
     if (form.verificationDigit && !/^\d$/.test(form.verificationDigit)) invalid.push('verificationDigit');
     if (invalid.length) { setFieldErrors(invalid); setError('Revisa los campos indicados.'); return; }
     const input = Object.fromEntries(editableFields.map(key => [key, form[key].trim() || null]));
@@ -131,7 +136,7 @@ export function CompanyPage({ api, context, authorization, mode }: { api: Compan
   const clearFilter = (key: CompanyFilterKey) => setQuery(previous => ({ ...previous, [key]: '', page: '1' }));
   const activeFilters: { key: CompanyFilterKey; label: string }[] = [
     ...(query.q ? [{ key: 'q' as const, label: `Búsqueda: ${query.q}` }] : []),
-    ...(query.status ? [{ key: 'status' as const, label: `Estado: ${query.status === 'ACTIVE' ? 'Activa' : 'Inactiva'}` }] : []),
+    ...(query.status ? [{ key: 'status' as const, label: `Estado: ${statusLabels[query.status as 'ACTIVE' | 'INACTIVE']}` }] : []),
     ...(query.documentType ? [{ key: 'documentType' as const, label: `Documento: ${query.documentType}` }] : []),
     ...(query.country ? [{ key: 'country' as const, label: `País: ${query.country}` }] : []),
     ...(query.department ? [{ key: 'department' as const, label: `Departamento: ${query.department}` }] : []),
@@ -172,8 +177,8 @@ export function CompanyPage({ api, context, authorization, mode }: { api: Compan
           <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }} sortDirection={query.sort === 'city' ? query.direction as 'asc' | 'desc' : false}>{sortHeader('city', 'Ciudad')}</TableCell>
           <TableCell>Acciones</TableCell>
         </TableRow></TableHead><TableBody>{loading ? <TableLoadingState columns={7} rows={Math.min(Number(query.pageSize), 5)} label="Cargando empresas" /> : list?.items.map(item => <TableRow key={item.company.id} hover>
-          <TableCell sx={{ overflowWrap: 'anywhere' }}>{item.company.businessName}</TableCell><TableCell>{item.company.documentNumber}</TableCell><TableCell><StatusChip label={item.company.status === 'ACTIVE' ? 'Activa' : 'Inactiva'} tone={item.company.status === 'ACTIVE' ? 'success' : 'danger'} /></TableCell>
-          <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{item.company.country || '—'}</TableCell><TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{item.company.department || '—'}</TableCell><TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{item.company.city || '—'}</TableCell>
+          <TableCell sx={{ overflowWrap: 'anywhere' }}>{item.company.businessName}</TableCell><TableCell>{item.company.documentNumber}</TableCell><TableCell><StatusChip label={statusLabels[item.company.status]} tone={item.company.status === 'ACTIVE' ? 'success' : 'danger'} /></TableCell>
+          <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{item.company.countryLabel ?? item.company.country ?? '—'}</TableCell><TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{item.company.departmentLabel ?? item.company.department ?? '—'}</TableCell><TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{item.company.cityLabel ?? item.company.city ?? '—'}</TableCell>
           <TableCell><Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap', justifyContent: 'flex-start', alignItems: 'center' }}>
             <DataTableAction label="Consultar empresa" onClick={() => navigate(`/companies/${item.company.id}`, { state: { listSnapshot: list, listQuery: query } })}><SvgIcon fontSize="small" aria-hidden="true"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></SvgIcon></DataTableAction>
             {auth.has('companies:update') && <DataTableAction label="Editar empresa" onClick={() => navigate(`/companies/${item.company.id}/edit`, { state: { listSnapshot: list, listQuery: query } })}><SvgIcon fontSize="small" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75-11.06 11.06Zm17.71-10.04a1 1 0 0 0 0-1.41l-2.51-2.51a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 2-1.66Z" /></SvgIcon></DataTableAction>}
@@ -182,8 +187,8 @@ export function CompanyPage({ api, context, authorization, mode }: { api: Compan
         </TableRow>)}</TableBody></Table></DataTableSurface>}
         {list && mobile && <Stack spacing={1.5}>{list.items.map(item => <Card key={item.company.id} variant="outlined"><CardContent><Stack spacing={1}>
           <Typography variant="h6">{item.company.businessName}</Typography><Typography>{item.company.documentType} {item.company.documentNumber}</Typography>
-          <Typography color="text.secondary">{[item.company.country, item.company.department, item.company.city].filter(Boolean).join(' · ') || 'Ubicación sin informar'}</Typography>
-          <StatusChip label={item.company.status === 'ACTIVE' ? 'Activa' : 'Inactiva'} tone={item.company.status === 'ACTIVE' ? 'success' : 'danger'} />
+          <Typography color="text.secondary">{[item.company.countryLabel ?? item.company.country, item.company.departmentLabel ?? item.company.department, item.company.cityLabel ?? item.company.city].filter(Boolean).join(' · ') || 'Ubicación sin informar'}</Typography>
+          <StatusChip label={statusLabels[item.company.status]} tone={item.company.status === 'ACTIVE' ? 'success' : 'danger'} />
           <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <Button component={Link} to={`/companies/${item.company.id}`} state={{ listSnapshot: list, listQuery: query }}>Consultar</Button>
             {auth.has('companies:update') && <Button component={Link} to={`/companies/${item.company.id}/edit`} state={{ listSnapshot: list, listQuery: query }}>Editar</Button>}
@@ -195,11 +200,9 @@ export function CompanyPage({ api, context, authorization, mode }: { api: Compan
           <Typography color="text.secondary">Combina los filtros y aplícalos al listado de empresas.</Typography>
           <TextField autoFocus label="Buscar" placeholder="NIT, razón social o nombre comercial" value={draftFilters.q} onChange={event => setDraftFilters(previous => ({ ...previous, q: event.target.value }))} slotProps={{ htmlInput: { 'aria-label': 'Buscar por nombre o documento' } }} />
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-            <TextField select label="Estado" value={draftFilters.status} onChange={event => setDraftFilters(previous => ({ ...previous, status: event.target.value }))}><MenuItem value="">Todos</MenuItem><MenuItem value="ACTIVE">Activa</MenuItem><MenuItem value="INACTIVE">Inactiva</MenuItem></TextField>
-            <TextField select label="Tipo de documento" value={draftFilters.documentType} onChange={event => setDraftFilters(previous => ({ ...previous, documentType: event.target.value }))}><MenuItem value="">Todos</MenuItem><MenuItem value="NIT">NIT</MenuItem></TextField>
-            <TextField label="País" value={draftFilters.country} onChange={event => setDraftFilters(previous => ({ ...previous, country: event.target.value }))} />
-            <TextField label="Departamento" value={draftFilters.department} onChange={event => setDraftFilters(previous => ({ ...previous, department: event.target.value }))} />
-            <TextField label="Ciudad" value={draftFilters.city} onChange={event => setDraftFilters(previous => ({ ...previous, city: event.target.value }))} />
+            <TextField select label="Estado" value={draftFilters.status} onChange={event => setDraftFilters(previous => ({ ...previous, status: event.target.value }))}><MenuItem value="">Todos</MenuItem><MenuItem value="ACTIVE">{statusLabels.ACTIVE}</MenuItem><MenuItem value="INACTIVE">{statusLabels.INACTIVE}</MenuItem></TextField>
+            <TextField select label="Tipo de documento" value={draftFilters.documentType} onChange={event => setDraftFilters(previous => ({ ...previous, documentType: event.target.value }))}><MenuItem value="">Todos</MenuItem><MenuItem value="NIT">NIT</MenuItem><MenuItem value="CC">Cédula de ciudadanía</MenuItem></TextField>
+            {catalogs ? <Box sx={{ gridColumn: { sm: '1 / -1' } }}><GeographyFields api={catalogs} value={{ country: draftFilters.country, department: draftFilters.department, city: draftFilters.city }} onChange={value => setDraftFilters(previous => ({ ...previous, ...value }))} /></Box> : <><TextField label="País" value={draftFilters.country} onChange={event => setDraftFilters(previous => ({ ...previous, country: event.target.value }))} /><TextField label="Departamento" value={draftFilters.department} onChange={event => setDraftFilters(previous => ({ ...previous, department: event.target.value }))} /><TextField label="Ciudad" value={draftFilters.city} onChange={event => setDraftFilters(previous => ({ ...previous, city: event.target.value }))} /></>}
           </Box>
         </Stack>
       </ListFilterDialog>
@@ -215,12 +218,14 @@ export function CompanyPage({ api, context, authorization, mode }: { api: Compan
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {mode !== 'create' && loading && <Alert severity="info" role="status" sx={{ mb: 2 }}>Cargando empresa…</Alert>}
         {(mode === 'create' || mode === 'edit') && (mode === 'create' || record) && <Stack id="company-editor-form" component="form" noValidate onSubmit={event => { event.preventDefault(); save(); }} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2, alignItems: 'start' }}>
-          {editableFields.map(key => <TextField key={key} label={labels[key]} required={['documentType', 'documentNumber', 'businessName', 'email'].includes(key)} value={form[key]} disabled={busy || key === 'documentType'} error={fieldErrors.includes(key)} helperText={fieldErrors.includes(key) ? 'Revisa este campo.' : key === 'documentNumber' ? 'Solo dígitos, sin separadores ni dígito de verificación.' : undefined} type={key === 'email' ? 'email' : 'text'} onChange={event => { dirty.current = true; setForm(previous => ({ ...previous, [key]: event.target.value })); }} slotProps={{ htmlInput: { maxLength: key === 'documentNumber' ? 20 : key === 'verificationDigit' ? 1 : key === 'phone' ? 32 : ['country', 'department', 'city'].includes(key) ? 128 : key === 'email' ? 254 : 256 } }} />)}
+          <TextField select label={labels.documentType} required value={form.documentType} disabled={busy} onChange={event => { dirty.current = true; setForm(previous => ({ ...previous, documentType: event.target.value, verificationDigit: event.target.value === 'CC' ? '' : previous.verificationDigit })); }}><MenuItem value="NIT">NIT</MenuItem><MenuItem value="CC">Cédula de ciudadanía</MenuItem></TextField>
+          {editableFields.filter(key => !['documentType', 'country', 'department', 'city'].includes(key)).map(key => <TextField key={key} label={labels[key]} required={['documentNumber', 'businessName', 'email'].includes(key) || key === 'verificationDigit' && form.documentType === 'NIT'} value={form[key]} disabled={busy} error={fieldErrors.includes(key)} helperText={fieldErrors.includes(key) ? 'Revisa este campo.' : key === 'documentNumber' ? 'Solo dígitos, sin separadores ni dígito de verificación.' : undefined} type={key === 'email' ? 'email' : 'text'} onChange={event => { dirty.current = true; setForm(previous => ({ ...previous, [key]: event.target.value })); }} slotProps={{ htmlInput: { maxLength: key === 'documentNumber' ? 20 : key === 'verificationDigit' ? 1 : key === 'phone' ? 32 : key === 'email' ? 254 : 256 } }} />)}
+          {catalogs ? <Box sx={{ gridColumn: { md: '1 / -1' } }}><GeographyFields api={catalogs} value={{ country: form.country, department: form.department, city: form.city }} disabled={busy} onChange={value => { dirty.current = true; setForm(previous => ({ ...previous, ...value })); }} /></Box> : editableFields.filter(key => ['country', 'department', 'city'].includes(key)).map(key => <TextField key={key} label={labels[key]} value={form[key]} onChange={event => { dirty.current = true; setForm(previous => ({ ...previous, [key]: event.target.value })); }} />)}
         </Stack>}
         {mode === 'detail' && record && <Stack spacing={2}>
           <Paper variant="outlined" sx={{ p: 2 }}><Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-            {editableFields.map(key => <Box key={key}><Typography variant="caption" color="text.secondary">{labels[key]}</Typography><Typography sx={{ overflowWrap: 'anywhere' }}>{record.company[key] || 'Sin información'}</Typography></Box>)}
-            <Box><Typography variant="caption" color="text.secondary">Estado</Typography><Box sx={{ mt: .5 }}><StatusChip label={record.company.status === 'ACTIVE' ? 'Activa' : 'Inactiva'} tone={record.company.status === 'ACTIVE' ? 'success' : 'danger'} /></Box></Box>
+            {editableFields.map(key => <Box key={key}><Typography variant="caption" color="text.secondary">{labels[key]}</Typography><Typography sx={{ overflowWrap: 'anywhere' }}>{(key === 'country' ? record.company.countryLabel : key === 'department' ? record.company.departmentLabel : key === 'city' ? record.company.cityLabel : record.company[key]) || 'Sin información'}</Typography></Box>)}
+            <Box><Typography variant="caption" color="text.secondary">Estado</Typography><Box sx={{ mt: .5 }}><StatusChip label={statusLabels[record.company.status]} tone={record.company.status === 'ACTIVE' ? 'success' : 'danger'} /></Box></Box>
             <RecordMetadata createdAt={record.company.createdAt} updatedAt={record.company.updatedAt} formatDate={value => new Date(value).toLocaleString('es-CO')} />
           </Box></Paper>
         </Stack>}

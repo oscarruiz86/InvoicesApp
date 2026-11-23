@@ -13,7 +13,7 @@ const record: ThirdPartyRecord = {
   relationship: { companyId, thirdPartyId, status: 'ACTIVE', version: '1', createdAt: null, updatedAt: '2026-11-18T12:00:00.000Z', createdBy: null, updatedBy: null },
   thirdParty: {
     id: thirdPartyId, documentType: 'NIT', documentNumber: '001', verificationDigit: null, businessName: 'Tercero Andino', tradeName: null,
-    email: 'contacto@example.invalid', phone: null, address: null, country: 'Colombia', department: null, city: null, status: 'ACTIVE',
+    email: 'contacto@example.invalid', phone: null, address: null, country: 'CO', department: null, city: null, countryLabel: 'Colombia', departmentLabel: null, cityLabel: null, status: 'ACTIVE',
     createdAt: '2026-11-17T12:00:00.000Z', updatedAt: '2026-11-18T12:00:00.000Z', createdBy: 'admin-1', updatedBy: null,
   },
 };

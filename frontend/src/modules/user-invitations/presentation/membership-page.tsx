@@ -299,7 +299,7 @@ export function MembershipPage({ api, context, authorization, companies }: { api
       pagination={result && result.total > 0 && <DataPagination page={page} pageSize={result.pageSize} total={result.total} disabled={loading} label="Páginas de usuarios vinculados"
         onPageChange={setPage} onPageSizeChange={value => { setPageSize(value); setPage(1); }} onRefresh={() => void load()} refreshLabel="Actualizar usuarios" refreshDisabled={busy} />}>
       {(companyId || roles.includes('APP_ADMIN')) && loading && <Alert severity="info" role="status" sx={{ display: { xs: 'block', md: 'none' } }}>Cargando usuarios…</Alert>}
-      {result && !loading && !result.items.length && <ListFeedback kind="empty" title="No hay empresas que coincidan con la consulta.">Ajusta la búsqueda o limpia los filtros.</ListFeedback>}
+      {result && !loading && !result.items.length && <ListFeedback kind="empty" title="No hay usuarios que coincidan con la consulta.">Ajusta la búsqueda o limpia los filtros.</ListFeedback>}
       {(loading || Boolean(result)) && <DataTableSurface loading={loading} sx={{ display: { xs: 'none', md: 'block' } }}>
         <Table size="small" aria-label="Usuarios asociados" sx={{ width: '100%', tableLayout: 'fixed', '& .MuiTableCell-root': { minWidth: 0, overflowWrap: 'anywhere' } }}>
           <TableHead><TableRow>
