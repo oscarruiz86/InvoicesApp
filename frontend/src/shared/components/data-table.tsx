@@ -1,15 +1,17 @@
 import type { ReactNode } from 'react';
 import { IconButton, Paper, Stack, TableContainer, TableSortLabel, Tooltip } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
+import { ListToolbar } from './list-toolbar';
 
-export function DataTable({ children, toolbar, pagination, loading = false }: {
+export function DataTable({ children, toolbar, mobileSortAction, pagination, loading = false }: {
   readonly children: ReactNode;
   readonly toolbar?: ReactNode;
+  readonly mobileSortAction?: ReactNode;
   readonly pagination?: ReactNode;
   readonly loading?: boolean;
 }) {
   return <Stack spacing={1.25} aria-busy={loading} sx={{ minWidth: 0 }}>
-    {toolbar && <Stack direction="row" spacing={1} useFlexGap sx={{ justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>{toolbar}</Stack>}
+    {(toolbar || mobileSortAction) && <ListToolbar mobileSortAction={mobileSortAction}>{toolbar}</ListToolbar>}
     {children}
     {pagination}
   </Stack>;
@@ -20,7 +22,10 @@ export function DataTableSurface({ children, loading = false, sx }: {
   readonly loading?: boolean;
   readonly sx?: SxProps<Theme>;
 }) {
-  return <TableContainer component={Paper} variant="outlined" aria-busy={loading} sx={[{ overflowX: 'auto' }, ...(Array.isArray(sx) ? sx : [sx])]}>{children}</TableContainer>;
+  return <TableContainer component={Paper} variant="outlined" aria-busy={loading} sx={[{
+    width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden',
+    '& table': { maxWidth: '100%' },
+  }, ...(Array.isArray(sx) ? sx : [sx])]}>{children}</TableContainer>;
 }
 
 export function DataTableAction({ label, onClick, children, disabled = false, primary = false }: {
@@ -36,6 +41,7 @@ export function DataTableAction({ label, onClick, children, disabled = false, pr
         width: 40, height: 40, border: '1px solid', borderColor: primary ? '#1749aa' : '#64748b', borderRadius: 2,
         bgcolor: primary ? '#1749aa' : '#ffffff', color: primary ? '#ffffff' : '#1749aa',
         '&:hover': { bgcolor: primary ? '#123780' : '#e8effe' },
+        '&.Mui-focusVisible': { outline: '3px solid #1d4ed8', outlineOffset: 2 },
       }}>{children}</IconButton>
     </span>
   </Tooltip>;

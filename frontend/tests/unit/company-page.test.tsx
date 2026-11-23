@@ -133,8 +133,11 @@ it('keeps stale edits unsaved and offers an explicit reload after a version conf
 }, 15000);
 
 it('requires confirmation and waits for the server before changing status', async () => {
-  const user = userEvent.setup(); const status = vi.fn(async () => ({ ...record, company: { ...company, status: 'INACTIVE' as const } })); const get = vi.fn().mockResolvedValueOnce(record).mockResolvedValue({ ...record, company: { ...company, status: 'INACTIVE' as const } }); const f = setup({ ...api, get, status }); await act(() => f.authorization.getState().setContext(globalScope));
-  f.renderPage('detail', `/companies/${company.id}`);
+  const user = userEvent.setup(); let currentStatus: CompanyRecord['company']['status'] = 'ACTIVE';
+  const status = vi.fn(async () => { currentStatus = 'INACTIVE'; return { ...record, company: { ...company, status: currentStatus } }; });
+  const list = vi.fn(async () => ({ items: [{ company: { ...company, status: currentStatus }, version: '1' }], page: 1, pageSize: 20, total: 1 }));
+  const f = setup({ ...api, list, status }); await act(() => f.authorization.getState().setContext(globalScope));
+  f.renderPage('list', '/companies');
   await user.click(await screen.findByRole('button', { name: 'Desactivar empresa' }));
   await user.click(within(screen.getByRole('dialog', { name: 'Desactivar empresa' })).getByRole('button', { name: 'Cancelar' })); await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Desactivar empresa' })); expect(status).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Desactivar empresa' })); await user.click(screen.getByRole('button', { name: 'Confirmar' }));
@@ -147,7 +150,7 @@ it('keeps the active state visible when the server rejects a status change', asy
   const status = vi.fn(async () => { throw new RequestError('COMPANY_VERSION_CONFLICT'); });
   const f = setup({ ...api, get: vi.fn(async () => record), status });
   await act(() => f.authorization.getState().setContext(globalScope));
-  f.renderPage('detail', `/companies/${company.id}`);
+  f.renderPage('list', '/companies');
   await user.click(await screen.findByRole('button', { name: 'Desactivar empresa' }));
   await user.click(screen.getByRole('button', { name: 'Confirmar' }));
   expect(await screen.findByText('La empresa cambió. Recarga los datos antes de volver a guardar.')).toBeTruthy();

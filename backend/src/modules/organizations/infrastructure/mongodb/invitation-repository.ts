@@ -129,7 +129,8 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         const model = invitationModel(connection);
         const organizationFilter: Record<string, unknown> = input.companyWide
           ? input.organizationType === 'ALL'
-            ? { $or: [{ organizationType: 'COMPANY', organizationId: input.organizationId }, { organizationType: 'THIRD_PARTY', companyId: input.companyId }] }
+            ? input.companyId ? { $or: [{ organizationType: 'COMPANY', organizationId: input.companyId }, { organizationType: 'THIRD_PARTY', companyId: input.companyId }] }
+              : { organizationType: { $in: ['COMPANY', 'THIRD_PARTY'] } }
             : { organizationType: 'THIRD_PARTY', companyId: input.companyId }
           : { organizationId: input.organizationId, ...(input.companyId ? { companyId: input.companyId } : {}), ...(input.organizationType ? { organizationType: input.organizationType } : {}) };
         const predicates: Record<string, unknown>[] = [organizationFilter];
@@ -426,20 +427,25 @@ await connection.collection('organization_invitation_events').insertOne({ eventI
         return { items, total };
       } catch (error) { return mapError(error); }
     },
-    async listMembershipsByCompany(input: { companyId: string; status?: 'ACTIVE' | 'INACTIVE'; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly organization: { readonly id: string; readonly organizationType: OrganizationType; readonly name: string } }[]; readonly total: number }> {
-      if (!input.companyId || !Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) {
+    async listMembershipsByCompany(input: { companyId?: string; status?: 'ACTIVE' | 'INACTIVE'; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly organization: { readonly id: string; readonly organizationType: OrganizationType; readonly name: string } }[]; readonly total: number }> {
+      if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) {
         throw new InvitationRepositoryError('INVALID_RECORD');
       }
       try {
         const connection = await connect();
         await initialize(connection);
         const companies = connection.collection('organizations');
-        const company = await companies.findOne({ id: input.companyId, type: 'COMPANY', active: true }, { projection: { _id: 0, id: 1, type: 1, name: 1 } });
-        if (!company) throw new InvitationRepositoryError('RECORD_NOT_FOUND');
-        const relations = await connection.collection('company_third_party_relations').find({ companyId: input.companyId, active: true }, { projection: { thirdPartyId: 1, _id: 0 } }).toArray();
-        const thirdPartyIds = relations.map(value => value.thirdPartyId).filter((value): value is string => typeof value === 'string');
-        const organizations = await companies.find({ $or: [{ id: input.companyId, type: 'COMPANY', active: true },
-          { id: { $in: thirdPartyIds }, type: 'THIRD_PARTY', active: true }] }, { projection: { _id: 0, id: 1, type: 1, name: 1 } }).toArray();
+        let organizations;
+        if (input.companyId) {
+          const company = await companies.findOne({ id: input.companyId, type: 'COMPANY', active: true }, { projection: { _id: 0, id: 1, type: 1, name: 1 } });
+          if (!company) throw new InvitationRepositoryError('RECORD_NOT_FOUND');
+          const relations = await connection.collection('company_third_party_relations').find({ companyId: input.companyId, active: true }, { projection: { thirdPartyId: 1, _id: 0 } }).toArray();
+          const thirdPartyIds = relations.map(value => value.thirdPartyId).filter((value): value is string => typeof value === 'string');
+          organizations = await companies.find({ $or: [{ id: input.companyId, type: 'COMPANY', active: true },
+            { id: { $in: thirdPartyIds }, type: 'THIRD_PARTY', active: true }] }, { projection: { _id: 0, id: 1, type: 1, name: 1 } }).toArray();
+        } else {
+          organizations = await companies.find({ type: { $in: ['COMPANY', 'THIRD_PARTY'] }, active: true }, { projection: { _id: 0, id: 1, type: 1, name: 1 } }).toArray();
+        }
         const organizationById = new Map(organizations.map(value => [String(value.id), {
           id: String(value.id), organizationType: value.type as OrganizationType, name: String(value.name),
         }]));

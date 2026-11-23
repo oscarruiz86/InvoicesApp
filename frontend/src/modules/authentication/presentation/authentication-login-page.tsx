@@ -17,8 +17,7 @@ export function AuthenticationLoginPage({ authentication }: { authentication: Au
   if (authenticated) return <Navigate to="/session" replace />;
   return <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, maxWidth: 440, mx: 'auto' }}><Stack spacing={2}>
     <Typography variant="h4" component="h1">Iniciar sesión</Typography>
-    <Alert severity="info">Tu contraseña se actualizó. Para continuar a Invoices App y revisar tus invitaciones, inicia sesión con el correo y la contraseña de tu cuenta.</Alert>
-    {state.error && <Alert severity="error">{messages[state.error]}</Alert>}
+    {state.error && <Alert severity={state.error === 'SESSION_EXPIRED' ? 'warning' : 'error'}>{messages[state.error]}</Alert>}
     <Button variant="contained" disabled={busy} onClick={() => void state.login('/session')}>
       {busy ? 'Conectando…' : state.error ? 'Reintentar inicio de sesión' : 'Iniciar sesión'}
     </Button>

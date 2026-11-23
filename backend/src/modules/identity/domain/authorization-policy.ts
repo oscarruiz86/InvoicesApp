@@ -53,6 +53,7 @@ function resourceMatches(subject: string, permission: Permission, grant: Grant, 
       || resource.associationKind !== (grant.role === 'APP_ADMIN' ? 'user-company' : 'user-third-party'))) return false;
   }
   if (resource.type === 'users' && permission === 'users:update' && resource.targetRole) return false; // Profile updates never assign roles.
+  if (grant.role === 'THIRD_PARTY_ADMIN' && permission === 'invoices:update') return true;
   if (grant.role !== 'DRIVER') return !['invoices:update', 'invoices:create'].includes(permission) || resource.eligible === true;
   switch (permission) {
     case 'vehicles:read': return resource.active === true && resource.assignmentActive === true && resource.assignedSubject === subject;

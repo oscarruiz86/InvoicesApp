@@ -76,21 +76,23 @@ export function createThirdParties(deps: { repository: ThirdPartyRepository; now
   }
 
   return {
-    create(access: ThirdPartyAccess, input: Record<string, unknown>) {
+    create(access: ThirdPartyAccess, input: Record<string, unknown>, relatedCompanyIdValue?: string) {
       const profile = thirdPartyProfile(input); const id = deps.repository.nextId();
+      const actor = access.actor;
+      const globalCreate = access.scope.kind === 'global' && actor.roles.includes('APP_ADMIN');
+      const companyCreate = access.scope.kind === 'organization' && Boolean(access.scope.companyId);
+      if (globalCreate && !relatedCompanyIdValue) throw new ThirdPartyError('INVALID_REQUEST', ['relatedCompanyId']);
+      if (!globalCreate && relatedCompanyIdValue) throw new AuthorizationError();
+      const relatedCompanyId = globalCreate ? relationshipFor(access, relatedCompanyIdValue) : companyCreate ? access.scope.companyId! : undefined;
       return run(access, ['third-parties:create'], true, async tx => {
-        const actor = access.actor;
-        const globalCreate = access.scope.kind === 'global' && actor.roles.includes('APP_ADMIN');
-        const companyCreate = access.scope.kind === 'organization' && Boolean(access.scope.companyId);
         if (!globalCreate && !companyCreate) throw new AuthorizationError();
         const at = deps.now().toISOString();
         const next = await tx.save({ ...profile, id, status: 'ACTIVE', createdAt: at, updatedAt: at, createdBy: actor.subject, updatedBy: null }, null);
-        await tx.record(event(access, id, 'THIRD_PARTY_CREATED', null, next.version, Object.keys(profile)));
-        if (companyCreate) {
-          const companyId = access.scope.companyId!;
-          const relation = await tx.saveRelationship({ companyId, thirdPartyId: id, status: 'ACTIVE', createdAt: at, updatedAt: at,
+        await tx.record(event(access, id, 'THIRD_PARTY_CREATED', null, next.version, Object.keys(profile), relatedCompanyId));
+        if (relatedCompanyId) {
+          const relation = await tx.saveRelationship({ companyId: relatedCompanyId, thirdPartyId: id, status: 'ACTIVE', createdAt: at, updatedAt: at,
             createdBy: actor.subject, updatedBy: null }, null);
-          await tx.record(event(access, id, 'RELATIONSHIP_ACTIVATED', null, relation.version, ['relationship.status']));
+          await tx.record(event(access, id, 'RELATIONSHIP_ACTIVATED', null, relation.version, ['relationship.status'], relatedCompanyId));
           return { ...next, relationship: relation };
         }
         return next;

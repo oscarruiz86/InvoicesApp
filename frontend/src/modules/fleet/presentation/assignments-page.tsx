@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
-import { Alert, Autocomplete, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, SvgIcon, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, SvgIcon, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import { authorizationAvailable } from '@/modules/authentication/presentation/authorization-store';
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
@@ -12,6 +12,12 @@ import { DataPagination } from '@/shared/components/data-pagination';
 import { DataTable, DataTableAction, DataTableSortHeader, DataTableSurface } from '@/shared/components/data-table';
 import { SuccessNotice } from '@/shared/components/success-notice';
 import { TableLoadingState } from '@/shared/components/table-loading-state';
+import { PageHeader } from '@/shared/components/page-header';
+import { AppliedFilters } from '@/shared/components/applied-filters';
+import { ListFilterDialog } from '@/shared/components/list-filter-dialog';
+import { MobileSortControl } from '@/shared/components/mobile-sort-control';
+import { StatusChip } from '@/shared/components/status-chip';
+import { ListFeedback } from '@/shared/components/list-feedback';
 
 type CreateOptions = { readonly generation: number; readonly drivers: readonly DriverDto[]; readonly vehicles: readonly VehicleDto[]; driverId: string; vehicleId: string };
 function failure(error: unknown): string {
@@ -29,7 +35,7 @@ export function AssignmentsPage({ api, drivers, vehicles, context, authorization
   readonly context: ContextStore; readonly authorization: AuthorizationStore;
 }) {
   const current = useStore(context), auth = useStore(authorization);
-  const [query, setQuery] = useState<AssignmentListQuery>({ page: 1, pageSize: 20, sort: 'startedAt', direction: 'desc', status: 'ACTIVE' });
+  const [query, setQuery] = useState<AssignmentListQuery>({ page: 1, pageSize: 20, sort: 'startedAt', direction: 'desc' });
   const [data, setData] = useState<{ generation: number; page: FleetPage<AssignmentDto> } | null>(null);
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ generation: number; text: string } | null>(null);
@@ -44,7 +50,7 @@ export function AssignmentsPage({ api, drivers, vehicles, context, authorization
   const [driverSearchLoading, setDriverSearchLoading] = useState(false);
   const [vehicleSearchLoading, setVehicleSearchLoading] = useState(false);
   const [draftQuery, setDraftQuery] = useState('');
-  const [draftStatus, setDraftStatus] = useState<AssignmentListQuery['status'] | 'ALL'>('ACTIVE');
+  const [draftStatus, setDraftStatus] = useState<AssignmentListQuery['status'] | 'ALL'>('ALL');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const intent = useRef(0), mounted = useRef(true), dirty = useRef(false), controllers = useRef(new Set<AbortController>());
   const contextGeneration = useRef(current.generation);
@@ -71,7 +77,7 @@ export function AssignmentsPage({ api, drivers, vehicles, context, authorization
   useEffect(() => {
     if (contextGeneration.current === current.generation) return;
     contextGeneration.current = current.generation;
-    setData(null); setDetail(null); setFinalize(null); setCreate(null); setError(null); setNotice(null); setQuery({ page: 1, pageSize: 20, sort: 'startedAt', direction: 'desc', status: 'ACTIVE' });
+    setData(null); setDetail(null); setFinalize(null); setCreate(null); setError(null); setNotice(null); setQuery({ page: 1, pageSize: 20, sort: 'startedAt', direction: 'desc' });
   }, [current.generation]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -196,7 +202,7 @@ export function AssignmentsPage({ api, drivers, vehicles, context, authorization
       return { duplicate: false };
     }, result => {
       if (result.duplicate) { setDuplicatePair(true); return; }
-      setCreate(null); setNotice('Asignación creada.'); setQuery(value => ({ ...value, page: 1, status: 'ACTIVE' })); void load();
+      setCreate(null); setNotice('Asignación creada.'); setQuery(value => ({ ...value, page: 1 })); void load();
     });
   }
   function closeAssignment(record: AssignmentDto) {
@@ -223,14 +229,17 @@ export function AssignmentsPage({ api, drivers, vehicles, context, authorization
       sort: key, direction: value.sort === key && value.direction === 'asc' ? 'desc' : 'asc' }))}>{label}</DataTableSortHeader>;
   const items = page?.items ?? [];
   const showTable = Boolean(loading || (page && page.total > 0));
-  const actions = (item: AssignmentDto) => <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
+  const actions = (item: AssignmentDto, compact = false) => compact ? <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'flex-start' }}>
+    <DataTableAction label="Ver detalle de asignación" onClick={() => openDetail(item)} disabled={busy}><SvgIcon fontSize="small" aria-hidden="true"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></SvgIcon></DataTableAction>
+    {item.status === 'ACTIVE' && has('vehicles:unassign') && <DataTableAction label="Finalizar asignación" onClick={() => openFinalize(item)} disabled={busy}><SvgIcon fontSize="small" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 11H7v-2h10v2Z" /></SvgIcon></DataTableAction>}
+  </Stack> : <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
     <Button size="small" sx={{ width: '100%', maxWidth: 180 }} onClick={() => openDetail(item)}>Ver detalle</Button>
     {item.status === 'ACTIVE' && has('vehicles:unassign') && <Button size="small" sx={{ width: '100%', maxWidth: 180 }} color="warning" disabled={busy} onClick={() => openFinalize(item)}>Finalizar asignación</Button>}
   </Stack>;
   const assignmentCard = (item: AssignmentDto) => <Paper variant="outlined" key={item.id} sx={{ p: 2, minWidth: 0 }}><Stack spacing={1}>
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
       <Typography variant="h6" sx={{ overflowWrap: 'anywhere' }}>{item.driver.name}</Typography>
-      <Chip size="small" color={item.status === 'ACTIVE' ? 'success' : 'default'} label={item.status === 'ACTIVE' ? 'Activa' : 'Finalizada'} />
+      <StatusChip tone={item.status === 'ACTIVE' ? 'success' : 'neutral'} label={item.status === 'ACTIVE' ? 'Activa' : 'Finalizada'} />
     </Stack>
     <Typography>Placa: {item.vehiclePlate || 'No disponible'}</Typography>
     <Typography color="text.secondary">Inicio: {new Date(item.startedAt).toLocaleString()}</Typography>
@@ -238,29 +247,31 @@ export function AssignmentsPage({ api, drivers, vehicles, context, authorization
     {actions(item)}
   </Stack></Paper>;
 
-  return <Stack spacing={2} sx={{ width: '100%', minWidth: 0, maxWidth: 1100, mx: 'auto' }}>
+  return <Stack spacing={2} sx={{ width: '100%', minWidth: 0 }}>
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-      <Box><Typography component="h1" variant="h4">Asignaciones</Typography></Box>
+      <PageHeader title="Asignaciones" />
     </Stack>
     {notice && <SuccessNotice onClose={() => setNotice(null)}>{notice}</SuccessNotice>}
     {message && <Alert severity="error" onClose={() => setError(null)}>{message}</Alert>}
-    {(query.q || query.status) && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-      {query.q && <Chip label={`Búsqueda: ${query.q}`} onDelete={clearSearchFilter} />}
-      {query.status && <Chip label={`Estado: ${query.status === 'ACTIVE' ? 'Activas' : 'Finalizadas'}`} onDelete={clearStatusFilter} />}
-    </Stack>}
-    <DataTable loading={loading}
+    <AppliedFilters filters={[
+      ...(query.q ? [{ key: 'q', label: `Búsqueda: ${query.q}` }] : []),
+      ...(query.status ? [{ key: 'status', label: `Estado: ${query.status === 'ACTIVE' ? 'Activas' : 'Finalizadas'}` }] : []),
+    ]} onRemove={key => key === 'q' ? clearSearchFilter() : clearStatusFilter()} onClear={clearFilters} />
+    <DataTable loading={loading} mobileSortAction={<MobileSortControl fields={[
+      { key: 'driverName', label: 'Conductor' }, { key: 'startedAt', label: 'Fecha de inicio' }, { key: 'status', label: 'Estado' },
+    ]} sortBy={query.sort} direction={query.direction} onChange={(sort, direction) => setQuery(value => ({ ...value, page: 1, sort: sort as AssignmentListQuery['sort'], direction }))} />}
       toolbar={<>
-        <DataTableAction label="Filtrar asignaciones" onClick={openFilters} disabled={busy}><SvgIcon fontSize="small" aria-hidden="true"><path d="M3 5h18l-7.5 8.2V19l-3 1.7v-7.5L3 5z" /></SvgIcon></DataTableAction>
         {has('vehicles:assign') && <DataTableAction label="Nueva asignación" primary onClick={() => void openCreate()} disabled={busy || loading}><SvgIcon fontSize="small" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2Z" /></SvgIcon></DataTableAction>}
+        <DataTableAction label="Filtrar asignaciones" onClick={openFilters} disabled={busy}><SvgIcon fontSize="small" aria-hidden="true"><path d="M3 5h18l-7.5 8.2V19l-3 1.7v-7.5L3 5z" /></SvgIcon></DataTableAction>
       </>}
       pagination={page && page.total > 0 && <DataPagination page={page.page} pageSize={page.pageSize} total={page.total} disabled={loading || busy}
         label="Páginas de asignaciones" onPageChange={value => setQuery(query => ({ ...query, page: value }))}
         onPageSizeChange={value => setQuery(query => ({ ...query, page: 1, pageSize: value }))}
         onRefresh={() => void load()} refreshLabel="Actualizar asignaciones" refreshDisabled={busy} />}>
-      {(loading || (!page && !message)) && <Alert severity="info" role="status">{loading ? 'Cargando asignaciones…' : 'Preparando asignaciones…'}</Alert>}
-      {!loading && page?.total === 0 && <Alert severity="info">No hay asignaciones para este filtro.</Alert>}
+      {(loading || (!page && !message)) && <Box sx={{ display: { xs: 'block', md: 'none' } }}><ListFeedback kind="loading" title="Cargando asignaciones…">Estamos consultando los registros.</ListFeedback></Box>}
+      {!loading && page?.total === 0 && <ListFeedback kind="empty" title="No hay asignaciones para este filtro.">Ajusta la búsqueda o cambia el estado seleccionado.</ListFeedback>}
       {showTable && <DataTableSurface loading={loading} sx={{ display: { xs: 'none', md: 'block' } }}>
-        <Table size="small" aria-label="Asignaciones" sx={{ width: '100%', tableLayout: 'fixed', minWidth: { md: 0, lg: 900 } }}>
+        <Table size="small" aria-label="Asignaciones" sx={{ width: '100%', tableLayout: 'fixed', minWidth: 0 }}>
           <TableHead><TableRow>
             <TableCell sx={{ width: { xs: '32%', lg: '21%' } }} sortDirection={query.sort === 'driverName' ? query.direction : false}>{sortHeader('driverName', 'Conductor')}</TableCell>
             <TableCell sx={{ width: { xs: '22%', lg: '16%' } }}>Placa</TableCell>
@@ -271,28 +282,25 @@ export function AssignmentsPage({ api, drivers, vehicles, context, authorization
           <TableBody>{loading ? <TableLoadingState columns={6} rows={5} label="Cargando asignaciones" /> : items.map(item => <TableRow key={item.id} hover>
             <TableCell sx={{ overflowWrap: 'anywhere' }}>{item.driver.name}</TableCell>
             <TableCell>{item.vehiclePlate || 'No disponible'}</TableCell>
-            <TableCell><Chip size="small" color={item.status === 'ACTIVE' ? 'success' : 'default'} label={item.status === 'ACTIVE' ? 'Activa' : 'Finalizada'} /></TableCell>
+            <TableCell><StatusChip tone={item.status === 'ACTIVE' ? 'success' : 'neutral'} label={item.status === 'ACTIVE' ? 'Activa' : 'Finalizada'} /></TableCell>
             <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>{new Date(item.startedAt).toLocaleString()}</TableCell><TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>{item.endedAt ? new Date(item.endedAt).toLocaleString() : '—'}</TableCell>
-            <TableCell>{actions(item)}</TableCell>
+            <TableCell>{actions(item, true)}</TableCell>
           </TableRow>)}</TableBody>
         </Table>
       </DataTableSurface>}
       {!loading && items.length > 0 && <Stack spacing={1.5} sx={{ display: { xs: 'flex', md: 'none' } }}>{items.map(assignmentCard)}</Stack>}
     </DataTable>
 
-    <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} fullWidth maxWidth="sm">
-      <DialogTitle>Filtros de asignaciones</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+    <ListFilterDialog open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} title="Filtros de asignaciones" leadingAction={<Button onClick={clearFilters}>Limpiar filtros</Button>}>
+      <Stack spacing={2} sx={{ pt: 1 }}>
         <Typography>Filtra las asignaciones por estado o busca por conductor o vehículo.</Typography>
         <TextField select fullWidth label="Estado" value={draftStatus} onChange={event => setDraftStatus(event.target.value as AssignmentListQuery['status'] | 'ALL')}>
           <MenuItem value="ALL">Todos los estados</MenuItem><MenuItem value="ACTIVE">Activas</MenuItem><MenuItem value="CLOSED">Finalizadas</MenuItem>
         </TextField>
         <TextField fullWidth label="Buscar conductor o vehículo" value={draftQuery} onChange={event => setDraftQuery(event.target.value)}
           onKeyDown={event => { if (event.key === 'Enter') applyFilters(); }} slotProps={{ htmlInput: { maxLength: 100 } }} />
-      </Stack></DialogContent><DialogActions>
-        <Button onClick={clearFilters}>Limpiar filtros</Button><Button onClick={() => setFiltersOpen(false)}>Cancelar</Button>
-        <Button variant="contained" onClick={applyFilters}>Aplicar filtros</Button>
-      </DialogActions>
-    </Dialog>
+      </Stack>
+    </ListFilterDialog>
 
     <Dialog open={Boolean(safeCreate)} onClose={() => !busy && setCreate(null)} fullWidth maxWidth="sm">
       <DialogTitle>Nueva asignación</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1}}>

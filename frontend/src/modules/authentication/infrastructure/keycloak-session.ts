@@ -6,6 +6,7 @@ import type { OidcConfiguration } from './oidc-configuration';
 export type OidcClient = Pick<Keycloak, 'init' | 'createLoginUrl' | 'createLogoutUrl' | 'updateToken' | 'isTokenExpired' | 'clearToken' | 'authenticated' | 'token' | 'refreshToken' | 'idToken' | 'onTokenExpired'> & Partial<Pick<Keycloak, 'accountManagement'>>;
 const logoutKey = 'invoices.logout';
 const loginReturnPathKey = 'invoices.login-return-path';
+const checkSsoCallbackKey = 'invoices.check-sso-callback';
 const defaultLoginReturnPath = '/session';
 
 function safeLoginReturnPath(path: unknown): string {
@@ -75,12 +76,7 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
       if (initialization) return initialization;
       initialization = (async () => {
         const callback = window.location.pathname === '/auth/callback';
-        const returnPath = callback ? takeLoginReturnPath() : undefined;
-
-        if (!configuration) {
-          if (callback) cleanCallbackUrl();
-          publish({ status: 'anonymous', error: 'CONFIGURATION' }); return;
-        }
+        const checkSso = !callback && window.location.pathname !== '/login';
         try {
           const marker = sessionStorage.getItem(logoutKey);
           if (marker) {
@@ -92,20 +88,33 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
             return;
           }
         } catch { publish({ status: 'error', error: 'LOGOUT_UNCONFIRMED' }); return; }
+        const checkSsoCallback = callback && sessionStorage.getItem(checkSsoCallbackKey) === '1';
+        if (checkSsoCallback) sessionStorage.removeItem(checkSsoCallbackKey);
+        if (checkSso) {
+          saveLoginReturnPath(window.location.pathname + window.location.search + window.location.hash);
+          sessionStorage.setItem(checkSsoCallbackKey, '1');
+        }
+        const returnPath = callback ? takeLoginReturnPath() : undefined;
+
+        if (!configuration) {
+          if (callback) cleanCallbackUrl();
+          publish({ status: 'anonymous', error: 'CONFIGURATION' }); return;
+        }
         const epoch = generation;
         const instance = options.factory?.() ?? new Keycloak(configuration);
         client = instance;
         publish({ status: 'initializing' });
         instance.onTokenExpired = () => { void port.getAccessToken().catch(() => {}); };
         try {
-          const operation = instance.init({ flow: 'standard', pkceMethod: 'S256', useNonce: true, responseMode: 'query', scope: 'openid profile email', checkLoginIframe: false, enableLogging: false });
+          const operation = instance.init({ flow: 'standard', pkceMethod: 'S256', useNonce: true, responseMode: 'query', scope: 'openid profile email', ...(checkSso ? { onLoad: 'check-sso' as const, redirectUri: `${window.location.origin}/auth/callback` } : {}), checkLoginIframe: false, enableLogging: false });
           void operation.then(() => { if (epoch !== generation) clear(instance); }, () => {});
           const authenticated = await bounded(operation);
           if (epoch !== generation) return;
-          if (callback && !authenticated) throw new Error('INVALID_CALLBACK');
+          if (callback && !authenticated && !checkSsoCallback) throw new Error('INVALID_CALLBACK');
           if (callback) cleanCallbackUrl();
-          publish(authenticated ? { status: 'authenticated', credentialRevision: ++credentialRevision, ...(returnPath ? { returnPath } : {}) } : { status: 'anonymous' });
+          publish(authenticated ? { status: 'authenticated', credentialRevision: ++credentialRevision, ...(returnPath ? { returnPath } : {}) } : { status: 'anonymous', ...(checkSsoCallback && returnPath ? { returnPath } : {}) });
         } catch {
+          if (checkSso) sessionStorage.removeItem(checkSsoCallbackKey);
           if (callback) cleanCallbackUrl();
           if (epoch === generation) discard('AUTHENTICATION');
         }

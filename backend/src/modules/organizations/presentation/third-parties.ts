@@ -8,12 +8,12 @@ import { ThirdPartyError, thirdPartyFields } from '../domain/third-party';
 const version = z.string().regex(/^[1-9]\d*$/).max(16);
 const id = z.string().regex(/^[a-f0-9]{24}$/);
 const profile = z.object(Object.fromEntries(thirdPartyFields.map(key => [key, z.string().max(256).nullable().optional()]))).strict();
-const querySchema = z.object({ scope: z.enum(['global', 'organization']), companyId: id.optional(), thirdPartyId: id.optional(),
+const querySchema = z.object({ scope: z.enum(['global', 'organization']), companyId: id.optional(), thirdPartyId: id.optional(), relatedCompanyId: id.optional(),
   page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().min(1).max(100).optional(), status: z.enum(['ACTIVE', 'INACTIVE']).optional(), documentType: z.literal('NIT').optional(),
   country: z.string().trim().min(1).max(128).optional(), department: z.string().trim().min(1).max(128).optional(), city: z.string().trim().min(1).max(128).optional(),
   sort: z.enum(['businessName', 'documentNumber', 'createdAt', 'updatedAt', 'status', 'country', 'department', 'city']).default('createdAt'), direction: z.enum(['asc', 'desc']).default('desc'),
-}).strict().refine(value => value.scope === 'global' ? !value.companyId && !value.thirdPartyId : Boolean(value.companyId) !== Boolean(value.thirdPartyId));
+}).strict().refine(value => (value.scope === 'global' ? !value.companyId && !value.thirdPartyId : Boolean(value.companyId) !== Boolean(value.thirdPartyId)) && (value.scope === 'global' || !value.relatedCompanyId));
 
 export type ThirdPartyOperation = 'list' | 'create' | 'get' | 'update' | 'status' | 'relationship' | 'relationship-get';
 export function thirdPartyResponse(service: ThirdParties, operation: ThirdPartyOperation, actor: AuthenticatedActor, request: Request, idValue?: string, companyIdValue?: string) {
@@ -21,8 +21,8 @@ export function thirdPartyResponse(service: ThirdParties, operation: ThirdPartyO
   async function respond() {
     try {
       const url = new URL(request.url); const raw: Record<string, string> = {};
-      const allowed = ['scope', ...(operation === 'list' ? ['companyId', 'thirdPartyId', 'page', 'pageSize', 'q', 'status', 'documentType', 'country', 'department', 'city', 'sort', 'direction']
-        : operation === 'relationship' || operation === 'relationship-get' ? ['companyId'] : operation === 'create' ? ['companyId'] : ['companyId', 'thirdPartyId'])];
+      const allowed = ['scope', ...(operation === 'list' ? ['companyId', 'thirdPartyId', 'relatedCompanyId', 'page', 'pageSize', 'q', 'status', 'documentType', 'country', 'department', 'city', 'sort', 'direction']
+        : operation === 'relationship' || operation === 'relationship-get' ? ['companyId'] : operation === 'create' ? ['companyId', 'relatedCompanyId'] : ['companyId', 'thirdPartyId'])];
       for (const [key, value] of url.searchParams) { if (key in raw || !allowed.includes(key)) throw new ThirdPartyError('INVALID_REQUEST'); raw[key] = value; }
       const query = querySchema.parse(raw);
       const scope: OrganizationScope = query.scope === 'global' ? { kind: 'global', companyId: null, thirdPartyId: null }
@@ -35,7 +35,7 @@ export function thirdPartyResponse(service: ThirdParties, operation: ThirdPartyO
       switch (operation) {
         case 'list': result = await service.list(access, query); break;
         case 'get': result = await service.get(access, idValue!); break;
-        case 'create': result = await service.create(access, profile.parse(await request.json())); break;
+        case 'create': result = await service.create(access, profile.parse(await request.json()), query.relatedCompanyId); break;
         case 'update': {
           const input = z.object({ expectedVersion: version, changes: profile }).strict().parse(await request.json());
           result = await service.update(access, idValue!, input.expectedVersion, input.changes); break;

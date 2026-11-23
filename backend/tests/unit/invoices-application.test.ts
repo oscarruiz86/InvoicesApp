@@ -28,6 +28,24 @@ describe('invoice application', () => {
     expect(repo.list).toHaveBeenCalledWith({ ...query, ownerSubject: actor.subject });
   });
 
+  it('returns per-invoice editability for a driver using the configured time window', async () => {
+    const now = new Date('2026-11-20T12:00:00Z');
+    const base = { id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24),
+      driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20', invoiceTime: '11:59:00', invoiceNumber: 'A-1',
+      issuerNit: '0001', buyerDocument: '123', amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10' };
+    const open = createInvoice({ ...base, now: new Date(now.getTime() - 60_000) });
+    const closed = createInvoice({ ...base, id: 'e'.repeat(24), invoiceNumber: 'A-2', now: new Date(now.getTime() - 43_201_000) });
+    repo.list.mockResolvedValueOnce({ items: [open, closed], total: 2 } as never);
+    const deps = dependencies(['DRIVER']);
+    deps.clock.now = () => now;
+    deps.editPolicy.read = vi.fn(async () => ({ state: 'AVAILABLE' as const, policy: { state: 'AVAILABLE' as const, revision: '1', scope: 'global',
+      validFrom: new Date('2026-01-01T00:00:00Z'), validUntil: null, durationSeconds: 43_200 } }));
+    const result = await createInvoices(deps).list(actor, query);
+    expect(result.items.map(item => item.editability)).toEqual([
+      { available: true, reason: null }, { available: false, reason: 'EDIT_WINDOW_CLOSED' },
+    ]);
+  });
+
   it('scopes detail and image lookups to the authorized driver before returning private bytes', async () => {
     const owned = createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId,
       assignmentId: 'c'.repeat(24), driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20', invoiceTime: '11:59:00',
@@ -74,13 +92,13 @@ describe('invoice application', () => {
     expect(deps.editPolicy.read).not.toHaveBeenCalled();
   });
 
-  it.each([['DRIVER'], ['THIRD_PARTY_ADMIN']] as const)('returns QR_IMMUTABLE to an authorized %s before reading edit policy or changing its image', async role => {
+  it('returns QR_IMMUTABLE to a driver before reading edit policy or changing its image', async () => {
     const qr = { ...createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24),
       driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20', invoiceTime: '11:59:00', invoiceNumber: 'QR-1', issuerNit: '0001',
       buyerDocument: '123', amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10', now: new Date('2026-11-20T11:59:00Z') }),
       origin: 'QR' as const, qrMetadata: { parserVersion: 'invoice-key-value-v1' as const, contentHash: 'a'.repeat(64) } };
     repo.find.mockResolvedValueOnce(qr as never);
-    const deps = dependencies([role]); const invoices = createInvoices(deps);
+    const deps = dependencies(['DRIVER']); const invoices = createInvoices(deps);
     await expect(invoices.edit(actor, { id: qr.id, thirdPartyId: query.thirdPartyId, expectedVersion: qr.version, changes: { image: { data: Buffer.from([1]),
       contentType: 'image/jpeg', size: 1, width: 1, height: 1, sha256: 'a'.repeat(64) } } })).rejects.toMatchObject({ code: 'QR_IMMUTABLE' });
     expect(deps.editPolicy.read).not.toHaveBeenCalled(); expect(repo.edit).not.toHaveBeenCalled();

@@ -8,6 +8,9 @@ import type { ContextStore } from '@/modules/organization-context/presentation/c
 import type { RoleGrant } from '../domain/role-policy';
 import { roleGrantKey } from '../domain/role-policy';
 import type { RolePolicyApi } from '../application/role-policy-api';
+import { PageHeader } from '@/shared/components/page-header';
+import { ListFeedback } from '@/shared/components/list-feedback';
+import { TableLoadingState } from '@/shared/components/table-loading-state';
 
 const globalScope = { kind: 'global', companyId: null, thirdPartyId: null } as const;
 const roleLabels: Record<RoleGrant['role'], string> = {
@@ -140,16 +143,17 @@ export function RoleManagementPage({ api, authorization, context }: { api: RoleP
     }
   }
 
-  return <Stack spacing={2} sx={{ width: '100%', minWidth: 0, maxWidth: 1080 }}>
+  return <Stack spacing={2} sx={{ width: '100%', minWidth: 0 }}>
     <Box>
-      <Typography component="h1" variant="h4" sx={{ overflowWrap: 'anywhere' }}>Roles y permisos</Typography>
+      <PageHeader title="Roles y permisos" />
       <Typography color="text.secondary">Consulta la política local y administra solo las combinaciones permitidas por el servidor.</Typography>
     </Box>
     {!isGlobal && <Alert severity="warning">Roles y permisos solo está disponible en el contexto GLOBAL.</Alert>}
-    {status === 'loading' && <Alert severity="info" role="status">{policy ? 'Recargando la política…' : 'Cargando la política…'}</Alert>}
-    {error && <Alert severity="error" role="alert">{error}</Alert>}
+    {status === 'loading' && !policy && <Paper variant="outlined" sx={{ p: { xs: 1, sm: 2 }, minWidth: 0 }} role="status" aria-label="Cargando permisos"><Typography component="h2" variant="h6" sx={{ mb: 1 }}>Cargando la matriz de permisos…</Typography><TableContainer sx={{ width: '100%', overflowX: 'hidden' }}><Table size="small" aria-label="Cargando permisos por rol" sx={{ tableLayout: 'fixed', width: '100%' }}><TableHead><TableRow><TableCell sx={{ width: '57%', px: { xs: .5, sm: 1 } }}>Permiso y ámbito</TableCell><TableCell align="center" sx={{ width: '43%', px: { xs: .5, sm: 1 } }}>Concedido</TableCell></TableRow></TableHead><TableBody><TableLoadingState columns={2} rows={7} label="Cargando matriz de permisos" columnSx={[{}, {}]} /></TableBody></Table></TableContainer></Paper>}
+    {status === 'loading' && policy && <Alert severity="info" role="status">Actualizando la política; la matriz vigente permanece disponible.</Alert>}
+    {error && (policy || status !== 'error') && <Alert severity="error" role="alert">{error}</Alert>}
     {notice && <Alert severity="success" role="status">{notice}</Alert>}
-    {status === 'error' && !policy && <Button onClick={() => void reload()} disabled={!isGlobal || saving} variant="outlined">Recargar política</Button>}
+    {status === 'error' && !policy && <ListFeedback kind="error" title={error ?? 'No se pudo cargar la política.'} action={<Button color="inherit" size="small" onClick={() => void reload()} disabled={!isGlobal || saving}>Reintentar</Button>} />}
     {isGlobal && policy && <>
       <Typography variant="body2" color="text.secondary">Versión vigente: {policy.policy.version}</Typography>
       {!canManage && <Alert severity="info">Tienes acceso de lectura. Se requiere `roles:manage` para editar la matriz.</Alert>}

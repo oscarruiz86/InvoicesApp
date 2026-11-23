@@ -26,7 +26,7 @@ const record: InvoiceDto = { id: 'abcdef0123456789abcdef01', origin: 'MANUAL', t
   createdAt: '2026-11-20T12:00:00.000Z', updatedAt: '2026-11-20T12:00:00.000Z', imageUrl: null };
 const qrContent = 'NumFac=QR-E2E-1\nFecFac=2026-11-20\nHorFac=12:30:00\nNitFac=900123456\nDocAdq=900654321\nValFac=100\nValIva=19\nValOtroIm=0\nValTolFac=119';
 const qrInvoice: InvoiceDto = { ...record, origin: 'QR', invoiceNumber: 'QR-E2E-1', qrMetadata: { parserVersion: 'invoice-key-value-v1', contentHash: 'a'.repeat(64) } };
-const api: InvoiceApi = { list: async (_scope, query) => ({ items: query.page === 1 ? [record] : [], total: 1, page: query.page, pageSize: query.pageSize }),
+const api: InvoiceApi = { list: async (_scope, query) => ({ items: query.page === 1 ? [{ ...record, editability: { available: true, reason: null } }] : [], total: 1, page: query.page, pageSize: query.pageSize }),
   detail: async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' } }), create: async () => record, update: async () => record, image: async () => new Blob(),
   createQr: async () => qrInvoice };
 const qrDecoder: QrDecoder = { openCamera: async (_video, onResult) => { queueMicrotask(() => onResult(qrContent)); return { stop: () => {}, destroy: () => {} }; }, decodeImage: async () => qrContent };

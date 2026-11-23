@@ -12,10 +12,13 @@ export interface InvoiceDetailsDto {
   readonly invoice: InvoiceDto;
   readonly editability: { readonly available: boolean; readonly reason: 'PERMISSION_INSUFFICIENT' | 'EDIT_POLICY_UNAVAILABLE' | 'EDIT_WINDOW_CLOSED' | 'QR_IMMUTABLE' | null };
 }
-export interface InvoicePage { readonly items: readonly InvoiceDto[]; readonly total: number; readonly page: number; readonly pageSize: number }
+export interface InvoiceListItemDto extends InvoiceDto {
+  readonly editability: InvoiceDetailsDto['editability'];
+}
+export interface InvoicePage { readonly items: readonly InvoiceListItemDto[]; readonly total: number; readonly page: number; readonly pageSize: number }
 export interface InvoiceQuery {
   readonly page: number; readonly pageSize: number; readonly sort: 'invoiceDate' | 'invoiceNumber' | 'totalAmount' | 'createdAt';
-  readonly direction: 'asc' | 'desc'; readonly q?: string; readonly vehicleId?: string; readonly dateFrom?: string; readonly dateTo?: string;
+  readonly direction: 'asc' | 'desc'; readonly q?: string; readonly vehicleId?: string; readonly driverId?: string; readonly dateFrom?: string; readonly dateTo?: string;
 }
 export interface InvoiceFields {
   readonly assignmentId: string; readonly vehicleId: string; readonly invoiceDate: string; readonly invoiceTime: string;

@@ -2,11 +2,11 @@ import type { PermissionScope } from '@/modules/authentication/domain/permission
 
 export type InvitationRole = 'COMPANY_ADMIN' | 'THIRD_PARTY_ADMIN' | 'DRIVER';
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED';
-export interface InvitationRecord { readonly id: string; readonly organizationId: string; readonly organizationType: 'COMPANY' | 'THIRD_PARTY'; readonly companyId: string | null; readonly organizationName?: string;
+export interface InvitationRecord { readonly id: string; readonly organizationId: string; readonly organizationType: 'COMPANY' | 'THIRD_PARTY'; readonly companyId: string | null; readonly organizationName?: string; readonly companyName?: string;
   readonly recipientEmail: string; readonly roles: readonly InvitationRole[]; readonly status: InvitationStatus; readonly expiresAt: string; readonly version: number;
   readonly deliveryStatus: 'UNKNOWN' | 'LOGGED' | 'FAILED'; readonly createdAt: string; readonly resolvedAt: string | null }
 export interface OrganizationTarget { readonly organizationId: string; readonly organizationType: 'COMPANY' | 'THIRD_PARTY'; readonly companyId: string | null }
-export interface InvitationListTarget { readonly organizationId: string; readonly organizationType: 'ALL'; readonly companyId: string }
+export interface InvitationListTarget { readonly organizationId: string; readonly organizationType: 'ALL'; readonly companyId: string | null }
 export interface InvitationSearchFilters {
   readonly email?: string;
   readonly role?: InvitationRole;
@@ -41,6 +41,7 @@ export interface InvitationApi {
   searchUsers(scope: PermissionScope, target: OrganizationTarget, search: string, documentNumber: string, signal?: AbortSignal): Promise<readonly IdentityCandidate[]>;
   memberships(scope: PermissionScope, target: OrganizationTarget, status: 'ACTIVE' | 'INACTIVE' | '', page: number, filters?: MembershipFilters, signal?: AbortSignal, pageSize?: number): Promise<Page<MembershipRecord>>;
   membershipsByCompany(scope: PermissionScope, companyId: string, status: 'ACTIVE' | 'INACTIVE' | '', page: number, filters?: MembershipFilters, signal?: AbortSignal, pageSize?: number): Promise<Page<MembershipRecord>>;
+  membershipsAll(scope: PermissionScope, status: 'ACTIVE' | 'INACTIVE' | '', page: number, filters?: MembershipFilters, signal?: AbortSignal, pageSize?: number): Promise<Page<MembershipRecord>>;
   profile(scope: PermissionScope, target: OrganizationTarget, id: string, signal?: AbortSignal): Promise<MembershipRecord>;
   changeRoles(scope: PermissionScope, target: OrganizationTarget, id: string, revision: number, roles: readonly InvitationRole[], signal?: AbortSignal): Promise<MembershipRecord>;
   changeStatus(scope: PermissionScope, target: OrganizationTarget, id: string, revision: number, status: 'ACTIVE' | 'INACTIVE', signal?: AbortSignal): Promise<MembershipRecord>;

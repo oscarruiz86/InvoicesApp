@@ -1,10 +1,13 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router';
+import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
 import { useStore } from 'zustand';
 import { Alert, Box, Button, Chip, CircularProgress, Paper, Stack, Typography } from '@mui/material';
 import type { HealthStore } from './health-store';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import { errorMessage } from '@/shared/components/error-messages';
+import { PageHeader } from '@/shared/components/page-header';
+import { ModuleAccessCard } from '@/shared/components/module-access-card';
 
 function HomeAccessCards({ authorization }: { authorization: AuthorizationStore }) {
   const auth = useStore(authorization);
@@ -14,22 +17,18 @@ function HomeAccessCards({ authorization }: { authorization: AuthorizationStore 
     ...(auth.has('associations:read') ? [{ title: 'Usuarios', description: 'Consulta usuarios vinculados y administra sus accesos.', path: '/organization-memberships', action: 'Abrir usuarios' }] : []),
   ];
   return <>
-    {modules.map(module => <Paper key={module.path} variant="outlined" sx={{ p: 2, minWidth: 0, minHeight: 148 }}><Stack spacing={1.5} sx={{ height: '100%', alignItems: 'flex-start' }}>
-      <Typography component="h2" variant="h6">{module.title}</Typography>
-      <Typography color="text.secondary" sx={{ flexGrow: 1 }}>{module.description}</Typography>
-      <Button component={Link} to={module.path}>{module.action}</Button>
-    </Stack></Paper>)}
+    {modules.map(module => <ModuleAccessCard key={module.path} title={module.title} description={module.description} action={<Button component={Link} to={module.path}>{module.action}</Button>} />)}
   </>;
 }
 
-export function HomePage({ store, authorization }: { store: HealthStore; authorization?: AuthorizationStore }) {
+export function HomePage({ store, authorization, authentication }: { store: HealthStore; authorization?: AuthorizationStore; authentication: AuthenticationStore }) {
+  const session = useStore(authentication);
   const { status, errorCode, check, cancel } = useStore(store);
   useEffect(() => { void check(); return cancel; }, [check, cancel]);
   return <Stack spacing={3}>
-    <Box>
-      <Typography component="h1" variant="h4">Inicio</Typography>
-      <Typography color="text.secondary" sx={{ mt: 0.5 }}>Accesos disponibles para este rol y el contexto actual.</Typography>
-    </Box>
+    <PageHeader title="Inicio" description="Accesos disponibles para este rol y el contexto actual." actions={session.status === 'initializing'
+      ? <Stack direction="row" spacing={1} role="status" sx={{ alignItems: 'center' }}><CircularProgress size={18} aria-label="Verificando sesión" /><Typography>Verificando sesión…</Typography></Stack>
+      : ['anonymous', 'error'].includes(session.status) ? <Button variant="contained" onClick={() => void session.login('/')}>Iniciar sesión</Button> : undefined} />
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
       {authorization && <HomeAccessCards authorization={authorization} />}
       <Paper variant="outlined" sx={{ p: 2, minWidth: 0, minHeight: 148 }}><Stack spacing={1.5} sx={{ height: '100%', alignItems: 'flex-start' }}>

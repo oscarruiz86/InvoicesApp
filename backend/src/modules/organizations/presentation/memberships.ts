@@ -14,6 +14,8 @@ const pageQuery = z.object({ organizationId: id, organizationType, companyId: id
   page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) }).strict();
 const companyPageQuery = z.object({ lookup: z.literal('by-company'), companyId: id, status: membershipStatus.optional(), search: z.string().trim().min(1).max(120).optional(),
   role: role.optional(), page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) }).strict();
+const allPageQuery = z.object({ lookup: z.literal('all'), companyId: id.optional(), status: membershipStatus.optional(), search: z.string().trim().min(1).max(120).optional(),
+  role: role.optional(), page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) }).strict();
 const userSearchQuery = z.object({ organizationId: id, organizationType, companyId: id.nullable().default(null), search: z.string().trim().min(1).max(120).optional(),
   documentNumber: z.string().trim().regex(/^[A-Za-z0-9-]{3,20}$/).optional() }).strict().refine(value => Boolean(value.search || value.documentNumber));
 const scopeQuery = z.object({ organizationId: id, organizationType, companyId: id.nullable().default(null) }).strict();
@@ -31,7 +33,8 @@ export async function membershipResponse(service: MembershipService, operation: 
     if (operation === 'list') {
       const params = new URL(request.url).searchParams; const raw: Record<string, string> = {};
       for (const [key, value] of params) { if (key in raw) throw new MembershipUseCaseError('INVALID_REQUEST'); raw[key] = value; }
-      result = raw.lookup === 'by-company' ? await service.listByCompany(actor, companyPageQuery.parse(raw)) : await service.list(actor, pageQuery.parse(raw));
+      result = raw.lookup === 'by-company' ? await service.listByCompany(actor, companyPageQuery.parse(raw))
+        : raw.lookup === 'all' ? await service.listByCompany(actor, allPageQuery.parse(raw)) : await service.list(actor, pageQuery.parse(raw));
     } else if (operation === 'profile') {
       const params = new URL(request.url).searchParams; const raw: Record<string, string> = {};
       for (const [key, value] of params) { if (key in raw) throw new MembershipUseCaseError('INVALID_REQUEST'); raw[key] = value; }

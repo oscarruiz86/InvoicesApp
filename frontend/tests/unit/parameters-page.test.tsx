@@ -50,8 +50,8 @@ it('keeps the catalog on unrelated permission refreshes and clears it when read 
 it('renders empty and error states and can retry the catalog request', async () => {
   const list = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]);
   setup({ list });
-  expect(await screen.findByText(/No se pudo consultar el catálogo/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Recargar' }));
+  expect((await screen.findAllByText(/No se pudo consultar el catálogo/)).length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
   expect(await screen.findByText(/El catálogo aún no está inicializado/)).toBeInTheDocument();
   expect(list).toHaveBeenCalledTimes(2);
 });
@@ -60,12 +60,12 @@ it('shows the history dialog and supports editing only after current value, boun
   const history = vi.fn(async () => [{ eventId: 'evt-1', actor: 'admin:test', at: '2026-11-21T10:00:00Z', previousValue: 43200, value: 21600, previousVersion: 1, version: 2 }]);
   const { api } = setup({ history });
   await screen.findAllByText('Ventana manual');
-  fireEvent.click(screen.getByRole('button', { name: 'Historial' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Ver historial del parámetro' }));
   const historyDialog = await screen.findByRole('dialog', { name: 'Historial: Ventana manual' });
   expect(within(historyDialog).getByText(/43200 → 21600 segundos/)).toBeInTheDocument();
   fireEvent.click(within(historyDialog).getByRole('button', { name: 'Cerrar' }));
 
-  fireEvent.click(screen.getByRole('button', { name: 'Editar valor' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Editar valor del parámetro' }));
   const dialog = await screen.findByRole('dialog', { name: 'Editar: Ventana manual' });
   expect(within(dialog).getByText('Valor actual: 43200 segundos · versión 1')).toBeInTheDocument();
   expect(within(dialog).getByText(/El cambio se aplica también a facturas existentes/)).toBeInTheDocument();
@@ -86,7 +86,7 @@ it('loads and displays the parameter detail view', async () => {
   const detail = vi.fn(async () => ({ ...record, value: 21600, version: 2 }));
   setup({ detail });
   await screen.findAllByText('Ventana manual');
-  fireEvent.click(screen.getByRole('button', { name: 'Detalle' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Consultar parámetro' }));
   const dialog = await screen.findByRole('dialog', { name: 'Detalle: Ventana manual' });
   expect(detail).toHaveBeenCalledWith(record.key, expect.any(AbortSignal));
   expect(within(dialog).getByText(/Valor actual: 21.600 segundos/)).toBeInTheDocument();
@@ -98,7 +98,7 @@ it('preserves a conflicting draft and prevents duplicate submissions while savin
   const update = vi.fn(() => new Promise<never>((_resolve, reject) => { rejectUpdate = reject; }));
   const { api } = setup({ update });
   await screen.findAllByText('Ventana manual');
-  fireEvent.click(screen.getByRole('button', { name: 'Editar valor' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Editar valor del parámetro' }));
   const dialog = await screen.findByRole('dialog', { name: 'Editar: Ventana manual' });
   const input = within(dialog).getByRole('spinbutton', { name: 'Nuevo valor (segundos)' });
   fireEvent.change(input, { target: { value: '24000' } });
@@ -124,7 +124,7 @@ it('does not apply a pending catalog response after global read access is revoke
   const authorization = createStore(() => ({ has: () => true })) as unknown as AuthorizationStore;
   const context = createStore(() => ({ status: 'ready', activeContext: { kind: 'GLOBAL' } })) as unknown as ContextStore;
   render(<ParametersPage api={api} authorization={authorization} context={context} />);
-  expect(screen.getByLabelText('Cargando parámetros')).toBeInTheDocument();
+  expect(screen.getAllByLabelText('Cargando parámetros').length).toBeGreaterThan(0);
   act(() => authorization.setState({ has: (permission: string) => permission !== 'parameters:read' } as never));
   await act(async () => resolveList([record]));
   expect(screen.queryAllByText('Ventana manual')).toHaveLength(0);
@@ -141,7 +141,7 @@ it('cancels an in-flight update and does not reload or restore its notice after 
   const context = createStore(() => ({ status: 'ready', activeContext: { kind: 'GLOBAL' } })) as unknown as ContextStore;
   render(<ParametersPage api={api} authorization={authorization} context={context} />);
   await screen.findAllByText('Ventana manual');
-  fireEvent.click(screen.getAllByRole('button', { name: 'Editar valor' })[0]!);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Editar valor del parámetro' })[0]!);
   const dialog = await screen.findByRole('dialog', { name: 'Editar: Ventana manual' });
   fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Nuevo valor (segundos)' }), { target: { value: '21600' } });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar cambio' }));

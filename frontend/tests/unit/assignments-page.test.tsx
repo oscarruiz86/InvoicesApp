@@ -54,7 +54,7 @@ it('shows loading then an empty state', async () => {
   let resolve!: (value: { items: AssignmentDto[]; total: number; page: number; pageSize: number }) => void;
   deps.listAssignments.mockImplementationOnce(() => new Promise(value => { resolve = value; }));
   renderPage(deps);
-  expect(screen.getByRole('status')).toHaveTextContent('Cargando asignaciones');
+  expect(screen.getByRole('progressbar', { name: 'Cargando asignaciones' })).toBeInTheDocument();
   await act(async () => resolve({ items: [], total: 0, page: 1, pageSize: 20 }));
   expect(await screen.findByText('No hay asignaciones para este filtro.')).toBeInTheDocument();
 });
@@ -145,13 +145,13 @@ it.each([360, 1280])('keeps the assignment view keyboard accessible at %i px', a
   expect(await screen.findAllByText('ABC123')).not.toHaveLength(0);
   expect(screen.queryByRole('combobox', { name: 'Estado' })).not.toBeInTheDocument();
   expect(screen.queryByRole('textbox', { name: 'Buscar conductor o vehículo' })).not.toBeInTheDocument();
-  expect(screen.getByText('Estado: Activas')).toBeInTheDocument();
+  expect(screen.queryByText('Estado: Activas')).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Filtrar asignaciones' }));
   const filters = await screen.findByRole('dialog', { name: 'Filtros de asignaciones' });
   expect(within(filters).getByRole('combobox', { name: 'Estado' })).toBeInTheDocument();
   await userEvent.type(within(filters).getByRole('textbox', { name: 'Buscar conductor o vehículo' }), 'ABC123');
   await userEvent.click(within(filters).getByRole('button', { name: 'Aplicar filtros' }));
   expect(await screen.findByText('Búsqueda: ABC123')).toBeInTheDocument();
-  await waitFor(() => expect(deps.listAssignments).toHaveBeenLastCalledWith(scope, expect.objectContaining({ q: 'ABC123', status: 'ACTIVE' }), expect.any(AbortSignal)));
-  expect(screen.getByText('Estado: Activas')).toBeInTheDocument();
+  await waitFor(() => expect(deps.listAssignments).toHaveBeenLastCalledWith(scope, expect.objectContaining({ q: 'ABC123', status: undefined }), expect.any(AbortSignal)));
+  expect(screen.queryByText('Estado: Activas')).not.toBeInTheDocument();
 });

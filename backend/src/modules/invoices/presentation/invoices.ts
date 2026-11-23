@@ -6,7 +6,7 @@ import { InvoiceImageError } from '../application/invoice-image-error';
 
 const id = z.string().regex(/^[a-f\d]{24}$/i);
 const selected = z.object({ scope: z.literal('organization'), thirdPartyId: id }).strict();
-const listQuery = selected.extend({ q: z.string().trim().min(1).max(100).optional(), vehicleId: id.optional(),
+const listQuery = selected.extend({ q: z.string().trim().min(1).max(100).optional(), vehicleId: id.optional(), driverId: id.optional(),
   dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   page: z.coerce.number().int().min(1).max(1_000_000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
   sort: z.enum(['invoiceDate', 'invoiceNumber', 'totalAmount', 'createdAt']).default('invoiceDate'), direction: z.enum(['asc', 'desc']).default('desc') });
@@ -17,10 +17,10 @@ export type InvoiceOperation = 'list' | 'detail' | 'create' | 'edit' | 'image' |
 type InvoiceUseCases = ReturnType<typeof createInvoices>;
 
 function message(error: InvoiceUseCaseError) {
-  const status = error.code === 'INVALID_REQUEST' ? 400 : error.code === 'FORBIDDEN' ? 403 : error.code === 'RESOURCE_NOT_FOUND' ? 404
+  const status = ['INVALID_REQUEST', 'IMAGE_REQUIRED'].includes(error.code) ? 400 : error.code === 'FORBIDDEN' ? 403 : error.code === 'RESOURCE_NOT_FOUND' ? 404
     : ['INVOICE_DUPLICATE', 'IDEMPOTENCY_CONFLICT', 'INVOICE_VERSION_CONFLICT', 'ASSIGNMENT_NOT_ELIGIBLE'].includes(error.code) ? 409
     : ['EDIT_WINDOW_CLOSED', 'QR_IMMUTABLE'].includes(error.code) ? 403 : ['QR_INVALID', 'QR_INCOMPLETE', 'QR_UNSUPPORTED'].includes(error.code) ? 400 : 503;
-  const body = status === 400 ? 'Revisa los datos de la solicitud QR.' : status === 403 ? 'No tienes permiso para esta operación o la factura QR es inmutable.'
+  const body = error.code === 'IMAGE_REQUIRED' ? 'Adjunta una imagen para registrar la factura manualmente.' : status === 400 ? 'Revisa los datos de la solicitud QR.' : status === 403 ? 'No tienes permiso para esta operación o la factura QR es inmutable.'
     : status === 404 ? 'No se encontró la factura.' : status === 409 ? 'La factura cambió o existe un conflicto de duplicidad.'
       : 'El servicio de facturas no está disponible.';
   return Response.json({ error: { code: error.code, message: body } }, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -88,7 +88,7 @@ export async function invoiceResponse(service: InvoiceUseCases, operation: Invoi
       const { scope: _scope, ...input } = listQuery.parse(raw);
       if (input.dateFrom && input.dateTo && input.dateFrom > input.dateTo) throw new InvoiceUseCaseError('INVALID_REQUEST');
       const page = await service.list(actor, input);
-      result = { ...page, items: page.items.map(invoice => invoiceView(invoice as unknown as Record<string, unknown>)) };
+      result = { ...page, items: page.items.map(item => ({ ...invoiceView(item.invoice as unknown as Record<string, unknown>), editability: item.editability })) };
     } else if (operation === 'qr-preview') {
       const { thirdPartyId } = selected.parse(raw);
       const body = z.object({ qrContent: z.string().min(1).max(16 * 1024) }).strict().parse(await request.json());

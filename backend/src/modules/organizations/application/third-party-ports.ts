@@ -5,6 +5,7 @@ import type { ThirdParty, ThirdPartyRecord, ThirdPartyRelationship } from '../do
 
 export interface ThirdPartyQuery {
   page: number; pageSize: number; q?: string; status?: 'ACTIVE' | 'INACTIVE'; documentType?: 'NIT';
+  relatedCompanyId?: string;
   relationshipActiveOnly?: boolean;
   country?: string; department?: string; city?: string;
   sort: 'businessName' | 'documentNumber' | 'createdAt' | 'updatedAt' | 'status' | 'country' | 'department' | 'city'; direction: 'asc' | 'desc';

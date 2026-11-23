@@ -7,6 +7,7 @@ import { RequestError } from '@/shared/application/request-error';
 import { errorMessage } from '@/shared/components/error-messages';
 import { getRoleLabel } from '@shared/role-labels';
 import { DataPagination } from '@/shared/components/data-pagination';
+import { PageHeader } from '@/shared/components/page-header';
 import { SuccessNotice } from '@/shared/components/success-notice';
 import type { InvitationApi, InvitationStatus, ReceivedInvitation } from '../application/invitation-api';
 import { activateInvitationContext } from './activate-invitation-context';
@@ -77,7 +78,7 @@ export function ReceivedInvitationsPage({ api, context }: { api: InvitationApi; 
   };
 
   return <Stack spacing={2} sx={{ minWidth: 0 }}>
-    <Typography variant="h4" component="h1">Mis invitaciones</Typography>
+    <PageHeader title="Mis invitaciones" />
     <Typography>Las invitaciones se buscan con el correo verificado de tu cuenta. Puedes volver aquí después de crear la cuenta o cambiar de navegador.</Typography>
     <Typography color="text.secondary">Al aceptar, compartirás con la organización tu nombre completo, tipo y número de documento y correo electrónico. Crear tu cuenta no acepta una invitación automáticamente.</Typography>
     {error && <Alert severity="error">{error}</Alert>}

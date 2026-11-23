@@ -8,5 +8,5 @@ export interface ThirdPartyRelationship {
   companyId: string; thirdPartyId: string; status: 'ACTIVE' | 'INACTIVE'; version: string;
   createdAt: string | null; updatedAt: string; createdBy: string | null; updatedBy: string | null;
 }
-export interface ThirdPartyRecord { thirdParty: ThirdParty; version: string; relationship: ThirdPartyRelationship | null }
+export interface ThirdPartyRecord { thirdParty: ThirdParty; version: string; relationship: ThirdPartyRelationship | null; relatedCompanies?: readonly { id: string; name: string }[] }
 export interface ThirdPartyList { items: readonly ThirdPartyRecord[]; page: number; pageSize: number; total: number }

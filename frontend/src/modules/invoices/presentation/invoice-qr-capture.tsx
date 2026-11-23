@@ -54,6 +54,7 @@ export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context,
     setError(null); setPreview(null); setQrContent(''); setBusy(true);
     try {
       const { canonicalContent: _canonicalContent, ...result } = parseInvoiceQr(content);
+      void _canonicalContent;
       if (request === serial.current) { setQrContent(content); setPreview(result); idempotency.current = null; }
     } catch (cause) {
       if (request === serial.current) setError(message(cause));
