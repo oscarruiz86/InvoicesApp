@@ -40,6 +40,11 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (!valid || (method === 'GET' && body !== undefined) || (method === 'PATCH' && body === undefined)) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
+    catalog(method: 'GET' | 'POST' | 'PATCH', path: string, query = 'scope=global', body?: unknown, signal?: AbortSignal): Promise<unknown> {
+      const valid = /^(?:catalogs\/(?:document-types|countries|departments|municipalities|statuses)(?:\/[A-Za-z0-9_-]{1,12}(?:\/deactivate)?)?)$/.test(path);
+      if (!valid || (method === 'GET' && body !== undefined) || (method !== 'GET' && body === undefined)) throw new ApplicationError('CONFIGURATION');
+      return request(path, query, signal, body, method);
+    },
     company(method: 'GET' | 'POST' | 'PATCH', path: string, query: string, body?: unknown, signal?: AbortSignal): Promise<unknown> {
       const base = /^companies(?:\/[a-f0-9]{24})?$/;
       const action = /^companies\/[a-f0-9]{24}\/status$/;
@@ -171,6 +176,7 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
           if (path.startsWith('assignments') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           if (path.startsWith('invoices') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           if (path.startsWith('parameters') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
+          if (path.startsWith('catalogs/') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           throw new ApplicationError('UNAVAILABLE');
         }
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
@@ -187,6 +193,10 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
         if (path.startsWith('parameters') && [400, 404, 409].includes(response.status)) {
           const failure = await response.json().catch(() => null);
           throw new RequestError(typeof failure?.error?.code === 'string' ? failure.error.code : response.status === 409 ? 'PARAMETER_VERSION_CONFLICT' : 'INVALID_REQUEST');
+        }
+        if (path.startsWith('catalogs/') && [400, 404, 409].includes(response.status)) {
+          const failure = await response.json().catch(() => null);
+          throw new RequestError(typeof failure?.error?.code === 'string' ? failure.error.code : response.status === 409 ? 'CATALOG_VERSION_CONFLICT' : 'INVALID_REQUEST');
         }
         if (companyMethod && path.startsWith('invoices') && [413, 415].includes(response.status)) {
           const failure = await response.json().catch(() => null);

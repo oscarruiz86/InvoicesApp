@@ -7,22 +7,30 @@ Administrar el ciclo de vida de empresas y sus administradores con identificaci�
 ## Requirements
 
 ### Requirement: Registro de empresa con metadatos confiables
-El sistema MUST crear empresas con documentType NIT, documentNumber, businessName y email obligatorios; MUST generar id, createdAt, updatedAt y createdBy desde el servidor y comenzar en ACTIVE. MUST admitir verificationDigit, tradeName, phone, address, country, department y city opcionales, sin guardar administradores dentro de Company.
+El sistema MUST crear empresas con documentType NIT o CC, documentNumber, businessName y email obligatorios. MUST generar identidad, fechas, actor y estado ACTIVE en el servidor. NIT MUST exigir un dígito de verificación; CC MUST NOT admitirlo. tradeName, phone, address y ubicación son opcionales. Los administradores no se embeben en Company.
 
 #### Scenario: Registro válido
-- **WHEN** APP_ADMIN con companies:create global registra NIT, razón social y correo válidos
+- **WHEN** APP_ADMIN con companies:create global registra NIT con dígito de verificación o CC sin dígito, razón social y correo válidos
 - **THEN** recibe 201 con id ObjectId serializado, estado ACTIVE, fechas UTC de servidor y createdBy igual al sujeto autenticado
 - **AND** updatedBy permanece null hasta una modificación y la empresa tiene representación organizacional compatible
 
+#### Scenario: Dígito según tipo documental
+- **WHEN** se registra NIT sin dígito de verificación o CC con un dígito
+- **THEN** se rechaza la solicitud indicando el campo inválido
+
 #### Scenario: Campos opcionales
-- **WHEN** se registra una empresa con todos los campos opcionales válidos o se omiten
-- **THEN** se conservan sus valores o se devuelven null, sin inventar ubicación, teléfono o dígito de verificación
+- **WHEN** se registra una empresa con nombre comercial, teléfono, dirección o ubicación opcionales válidos o se omiten
+- **THEN** se conservan sus valores o se devuelven null sin inventar información
+
+#### Scenario: Referencias de catálogo
+- **WHEN** se registra una empresa con ubicación o tipo documental
+- **THEN** el backend valida códigos existentes y relaciones geográficas padre-hijo y devuelve código y etiqueta legible
 
 ### Requirement: Validación y normalización de datos
-El sistema MUST rechazar campos obligatorios ausentes/vacíos, formatos inválidos y propiedades no admitidas. MUST recortar textos, normalizar email a minúsculas y exigir documentNumber de 1–20 dígitos sin separadores, conservando ceros iniciales. MUST aceptar verificationDigit opcional de un dígito, sin calcularlo automáticamente.
+El sistema MUST rechazar campos obligatorios ausentes/vacíos, formatos inválidos y propiedades no admitidas. MUST recortar textos, normalizar email a minúsculas y exigir documentNumber de 1–20 dígitos sin separadores, conservando ceros iniciales. Para NIT MUST requerir verificationDigit de un dígito; para CC MUST rechazarlo. No debe calcularlo automáticamente.
 
 #### Scenario: Entradas inválidas
-- **WHEN** falta businessName, email o documentNumber, el correo es inválido o se envían letras/separadores en el NIT
+- **WHEN** falta businessName, email o documentNumber, el correo es inválido, el documento contiene letras/separadores o el dígito no cumple la regla de su tipo
 - **THEN** devuelve 400 INVALID_REQUEST con errores de campos seguros y no persiste empresa ni evento de éxito
 
 #### Scenario: Metadatos manipulados
@@ -32,6 +40,10 @@ El sistema MUST rechazar campos obligatorios ausentes/vacíos, formatos inválid
 #### Scenario: Correo normalizado
 - **WHEN** se registra o edita usando email con espacios exteriores y mayúsculas
 - **THEN** el valor almacenado y devuelto queda recortado y en minúsculas
+
+#### Scenario: Documento según tipo
+- **WHEN** se envía CC con verificationDigit o NIT sin un dígito verificador válido
+- **THEN** se rechaza con error del campo correspondiente sin persistir empresa
 
 ### Requirement: Unicidad tributaria conservada
 El sistema MUST garantizar unicidad de la pareja documentType/documentNumber, incluso con solicitudes concurrentes y empresas inactivas. MUST permitir corrección autorizada de identificación solo si la nueva pareja está libre. MUST NOT imponer unicidad de email o razón social.
@@ -77,6 +89,10 @@ El sistema MUST ofrecer listado con búsqueda literal por prefijo en documentNum
 #### Scenario: Límites y orden
 - **WHEN** se solicita page menor que 1, pageSize mayor que 100, sort no permitido o parámetros duplicados/desconocidos
 - **THEN** recibe 400; una página válida posterior al final devuelve items vacío y conserva total correcto
+
+#### Scenario: Filtro geográfico por código
+- **WHEN** el listado se filtra por códigos de país, departamento o municipio
+- **THEN** solo devuelve empresas con referencias coincidentes y no interpreta etiquetas como identificadores
 
 ### Requirement: Detalle y edición con control de versión
 El sistema MUST ofrecer detalle y edición de datos admitidos con companies:read y companies:update respectivamente. MUST ocultar IDs ajenos/inexistentes con 404 después de validar permiso/contexto. MUST exigir versión de recurso en modificaciones, conservar createdAt/createdBy y actualizar updatedAt/updatedBy desde servidor únicamente al cambiar datos.

@@ -298,7 +298,7 @@ export function InvitationPage({ api, context, authorization, companies }: { api
       pagination={items && items.total > 0 ? <DataPagination page={page} pageSize={items.pageSize} total={items.total} disabled={loading} label="Páginas de invitaciones"
         onPageChange={setPage} onPageSizeChange={value => { setPageSize(value); setPage(1); }} onRefresh={() => void load()} refreshLabel="Actualizar invitaciones" refreshDisabled={busy} /> : undefined}>
       {listTarget && loading && <Alert severity="info" role="status" sx={{ display: { xs: 'block', md: 'none' } }}>Cargando invitaciones…</Alert>}
-      {listTarget && items && !loading && sortedItems.length === 0 && <ListFeedback kind="empty" title="No hay empresas que coincidan con la consulta.">Ajusta la búsqueda o limpia los filtros.</ListFeedback>}
+      {listTarget && items && !loading && sortedItems.length === 0 && <ListFeedback kind="empty" title="No hay usuarios que coincidan con la consulta.">Ajusta la búsqueda o limpia los filtros.</ListFeedback>}
       {showTable && <DataTableSurface loading={loading} sx={{ display: { xs: 'none', md: 'block' } }}>
         <Table size="small" aria-label="Invitaciones enviadas" sx={{ width: '100%', tableLayout: 'fixed', minWidth: 0 }}>
           <TableHead><TableRow>

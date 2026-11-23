@@ -6,7 +6,10 @@ import type { Permission } from '@/modules/identity/domain/permissions';
 import { companyId, companyProfile, CompanyError, type Company, type CompanyRecord } from '../domain/company';
 import type { CompanyAccess, CompanyEvent, CompanyQuery, CompanyRepository, CompanyTransaction } from './company-ports';
 
-export function createCompanies(deps: { repository: CompanyRepository; audit: SecurityAudit; now(): Date; nextEventId(): string }) {
+export function createCompanies(deps: { repository: CompanyRepository; audit: SecurityAudit; now(): Date; nextEventId(): string; validateLocation?(input: { country: string | null; department: string | null; city: string | null }): Promise<boolean> }) {
+  async function validateLocation(profile: Pick<Company, 'country' | 'department' | 'city'>) {
+    if (deps.validateLocation && !await deps.validateLocation(profile)) throw new CompanyError('INVALID_REQUEST', ['country', 'department', 'city']);
+  }
   async function run<T>(access: CompanyAccess, permissions: Permission[], write: boolean, action: (tx: CompanyTransaction) => Promise<T>) {
     try {
       return await deps.repository.run(write, async tx => {
@@ -45,6 +48,7 @@ export function createCompanies(deps: { repository: CompanyRepository; audit: Se
       const profile = companyProfile(input); const id = deps.repository.nextId(); const eventId = deps.nextEventId();
       return run(access, ['companies:create'], true, async tx => {
         if (access.scope.kind !== 'global' || !access.actor.roles.includes('APP_ADMIN')) throw new AuthorizationError();
+        await validateLocation(profile);
         const at = deps.now().toISOString();
         const next = await tx.save({ ...profile, id, status: 'ACTIVE', createdAt: at, updatedAt: at, createdBy: access.actor.subject, updatedBy: null }, null);
         await tx.record(event(access, id, 'COMPANY_CREATED', null, next.company, null, next.version, eventId));
@@ -57,7 +61,9 @@ export function createCompanies(deps: { repository: CompanyRepository; audit: Se
       const eventId = deps.nextEventId();
       return run(access, ['companies:update'], true, async tx => {
         const before = await find(tx, access, id, expectedVersion);
-        return save(tx, access, before, { ...before.company, ...companyProfile(input, before.company) }, 'COMPANY_UPDATED', eventId);
+        const updated = { ...before.company, ...companyProfile(input, before.company) };
+        await validateLocation(updated);
+        return save(tx, access, before, updated, 'COMPANY_UPDATED', eventId);
       });
     },
     setStatus(access: CompanyAccess, id: string, expectedVersion: string, status: 'ACTIVE' | 'INACTIVE') {

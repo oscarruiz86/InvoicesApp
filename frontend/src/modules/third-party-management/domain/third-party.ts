@@ -1,8 +1,8 @@
 export const editableFields = ['documentType', 'documentNumber', 'verificationDigit', 'businessName', 'tradeName', 'email', 'phone', 'address', 'country', 'department', 'city'] as const;
 export type ThirdPartyField = typeof editableFields[number];
-export interface ThirdPartyProfile { [key: string]: string | null }
+export interface ThirdPartyProfile { [key: string]: string | null | undefined }
 export interface ThirdParty extends ThirdPartyProfile {
-  id: string; status: 'ACTIVE' | 'INACTIVE'; createdAt: string; updatedAt: string; createdBy: string; updatedBy: string | null;
+  id: string; countryLabel?: string | null; departmentLabel?: string | null; cityLabel?: string | null; status: 'ACTIVE' | 'INACTIVE'; createdAt: string; updatedAt: string; createdBy: string; updatedBy: string | null;
 }
 export interface ThirdPartyRelationship {
   companyId: string; thirdPartyId: string; status: 'ACTIVE' | 'INACTIVE'; version: string;

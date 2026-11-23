@@ -10,9 +10,9 @@ import { prepareThirdPartyRelationships, requireThirdPartyStorage } from './thir
 
 const optional = (maxlength: number) => ({ type: String, default: null, maxlength });
 const schema = new Schema({
-  documentType: { type: String, required: true, enum: ['NIT'] }, documentNumber: { type: String, required: true, match: /^\d{1,20}$/ },
+  documentType: { type: String, required: true, enum: ['NIT', 'CC'] }, documentNumber: { type: String, required: true, match: /^\d{1,20}$/ },
   verificationDigit: optional(1), businessName: { type: String, required: true, maxlength: 256 }, tradeName: optional(256),
-  email: { type: String, required: true, maxlength: 254 }, phone: optional(32), address: optional(256), country: optional(128), department: optional(128), city: optional(128),
+  email: { type: String, required: true, maxlength: 254 }, phone: optional(32), address: optional(256), country: optional(2), department: optional(2), city: optional(5),
   status: { type: String, required: true, enum: ['ACTIVE', 'INACTIVE'] }, createdAt: { type: Date, required: true }, updatedAt: { type: Date, required: true },
   createdBy: { type: String, required: true, maxlength: 128 }, updatedBy: { type: String, default: null, maxlength: 128 }, revision: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
   businessNameSearch: { type: String, required: true }, tradeNameSearch: { type: String, default: null },
@@ -36,7 +36,7 @@ function decodeRelationship(raw: Record<string, unknown>): ThirdPartyRelationshi
 function decode(raw: Record<string, unknown>, relationship: (ThirdPartyRelationship & { version: string }) | null = null): ThirdPartyRecord {
   const profileInput = Object.fromEntries(['documentType', 'documentNumber', 'verificationDigit', 'businessName', 'tradeName', 'email', 'phone', 'address', 'country', 'department', 'city'].map(key => [key, raw[key]]));
   if (!Number.isSafeInteger(raw.revision) || Number(raw.revision) < 1 || !['ACTIVE', 'INACTIVE'].includes(String(raw.status)) || typeof raw.createdBy !== 'string') throw new ThirdPartyError('THIRD_PARTY_STORAGE_UNAVAILABLE');
-  const thirdParty: ThirdParty = { ...thirdPartyProfile(profileInput), id: String(raw._id), status: raw.status as 'ACTIVE' | 'INACTIVE',
+  const thirdParty: ThirdParty = { ...thirdPartyProfile(profileInput, undefined, true), id: String(raw._id), status: raw.status as 'ACTIVE' | 'INACTIVE',
     createdAt: new Date(raw.createdAt as string).toISOString(), updatedAt: new Date(raw.updatedAt as string).toISOString(),
     createdBy: raw.createdBy, updatedBy: typeof raw.updatedBy === 'string' ? raw.updatedBy : null };
   return { thirdParty, version: String(raw.revision), relationship };

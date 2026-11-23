@@ -4,7 +4,7 @@ import type { CompanyApi, CompanyTransport } from '../application/company-api';
 import { editableFields } from '../domain/company';
 import type { PermissionScope } from '@/modules/authentication/domain/permissions';
 const fields = Object.fromEntries(editableFields.map(key => [key, z.string().nullable()]));
-const company = z.object({ ...fields, id: z.string().regex(/^[a-f0-9]{24}$/), status: z.enum(['ACTIVE', 'INACTIVE']), createdAt: z.string(), updatedAt: z.string(), createdBy: z.string(), updatedBy: z.string().nullable() }).strict();
+const company = z.object({ ...fields, countryLabel: z.string().nullable().optional(), departmentLabel: z.string().nullable().optional(), cityLabel: z.string().nullable().optional(), id: z.string().regex(/^[a-f0-9]{24}$/), status: z.enum(['ACTIVE', 'INACTIVE']), createdAt: z.string(), updatedAt: z.string(), createdBy: z.string(), updatedBy: z.string().nullable() }).strict();
 const record = z.object({ company, version: z.string() }).strict();
 const page = { page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative() };
 export function createCompanyApi(http: CompanyTransport): CompanyApi {

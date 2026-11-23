@@ -4,7 +4,7 @@ import type { AuthorizationPolicy } from '@/modules/identity/domain/permissions'
 import type { ThirdParty, ThirdPartyRecord, ThirdPartyRelationship } from '../domain/third-party';
 
 export interface ThirdPartyQuery {
-  page: number; pageSize: number; q?: string; status?: 'ACTIVE' | 'INACTIVE'; documentType?: 'NIT';
+  page: number; pageSize: number; q?: string; status?: 'ACTIVE' | 'INACTIVE'; documentType?: 'NIT' | 'CC';
   relatedCompanyId?: string;
   relationshipActiveOnly?: boolean;
   country?: string; department?: string; city?: string;

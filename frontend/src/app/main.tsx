@@ -31,6 +31,7 @@ import { createAssignmentApi } from '@/modules/fleet/infrastructure/http-assignm
 import { createRolePolicyApi } from '@/modules/role-management/application/role-policy-api';
 import { createInvoiceApi } from '@/modules/invoices/infrastructure/http-invoices';
 import { createHttpParameters } from '@/modules/parameter-management/infrastructure/http-parameters';
+import { createHttpCatalogApi } from '@/modules/parameter-management/infrastructure/http-catalogs';
 
 async function composeApplication() {
   try {
@@ -49,7 +50,7 @@ async function composeApplication() {
     import.meta.hot?.dispose(() => { unsubscribeForbidden(); organizationContext.dispose(); authorization.dispose(); http.dispose(); });
     await authentication.getState().initialize();
     const rolePolicy = createRolePolicyApi(createHttpRolePolicy(http));
-    return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} thirdParties={createThirdPartyApi(http)} invitations={createInvitationApi(http)} rolePolicy={rolePolicy} fleet={createDriverApi(http)} vehicles={createVehicleApi(http)} assignmentApi={createAssignmentApi(http)} invoices={createInvoiceApi(http)} parameters={createHttpParameters(http)} />;
+    return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} thirdParties={createThirdPartyApi(http)} invitations={createInvitationApi(http)} rolePolicy={rolePolicy} fleet={createDriverApi(http)} vehicles={createVehicleApi(http)} assignmentApi={createAssignmentApi(http)} invoices={createInvoiceApi(http)} parameters={createHttpParameters(http)} catalogs={createHttpCatalogApi(http)} />;
   } catch {
     return <ThemeProvider theme={theme}><CssBaseline /><Alert severity="error">{errorMessage('CONFIGURATION')}</Alert></ThemeProvider>;
   }

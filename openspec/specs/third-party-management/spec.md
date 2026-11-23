@@ -7,11 +7,11 @@ Administrar terceros y sus relaciones autorizadas con empresas, preservando el a
 
 ### Requirement: Registro de tercero y representación organizacional compatible
 
-El sistema MUST crear terceros con NIT, razón social y correo obligatorios, y con dígito de verificación, nombre comercial, teléfono y ubicación opcionales. MUST generar identificador, estado ACTIVE, versión, fechas y actor de creación en el servidor, y crear en la misma confirmación una representación organizacional THIRD_PARTY compatible. Los administradores MUST permanecer en asociaciones, no embebidos en el tercero.
+El sistema MUST crear terceros con documentType NIT o CC, número de documento, razón social y correo obligatorios. NIT MUST exigir un dígito de verificación; CC MUST NOT admitirlo. nombre comercial, teléfono, dirección y ubicación son opcionales. MUST generar identidad, estado ACTIVE, versión, fechas y actor de creación en el servidor y representación THIRD_PARTY compatible. Los administradores MUST permanecer en asociaciones, no embebidos en el tercero.
 
 #### Scenario: Registro válido desde una empresa autorizada
 
-- **WHEN** un COMPANY_ADMIN autorizado registra datos tributarios válidos en el ámbito de su empresa
+- **WHEN** un COMPANY_ADMIN autorizado registra NIT con dígito de verificación o CC sin dígito en el ámbito de su empresa
 - **THEN** recibe el tercero activo con metadatos de servidor y una relación activa con esa empresa
 - **AND** el tercero queda disponible para los flujos que consultan organizaciones sin crear una membresía automáticamente
 
@@ -20,18 +20,26 @@ El sistema MUST crear terceros con NIT, razón social y correo obligatorios, y c
 - **WHEN** se registra un tercero sin datos de contacto u ubicación opcionales
 - **THEN** el sistema conserva valores nulos sin inventar información
 
+#### Scenario: Dígito según tipo documental
+- **WHEN** se registra NIT sin dígito de verificación o CC con un dígito
+- **THEN** se rechaza la solicitud con INVALID_REQUEST y no se crea tercero ni relación
+
+#### Scenario: Referencias de catálogo
+- **WHEN** se registra un tercero con ubicación o tipo documental
+- **THEN** el backend valida códigos existentes y relaciones geográficas padre-hijo y devuelve código y etiqueta legible
+
 ### Requirement: Validación, normalización y unicidad tributaria
 
-El sistema MUST rechazar campos obligatorios vacíos, propiedades no admitidas, metadatos controlados por servidor y formatos inválidos. MUST recortar textos, normalizar el correo a minúsculas y exigir NIT de uno a veinte dígitos sin separadores. La identificación tributaria de un tercero MUST ser única entre terceros activos e inactivos, sin convertir el correo ni la razón social en identificadores únicos.
+El sistema MUST rechazar campos obligatorios vacíos, propiedades no admitidas, metadatos controlados por servidor y formatos inválidos. MUST recortar textos, normalizar el correo a minúsculas y exigir documentNumber de uno a veinte dígitos sin separadores. NIT MUST requerir dígito de verificación de un dígito; CC MUST rechazarlo. La pareja documentType/documentNumber MUST ser única entre terceros activos e inactivos, sin convertir el correo ni la razón social en identificadores únicos.
 
 #### Scenario: Entrada inválida
 
-- **WHEN** se omite la razón social, el correo o el NIT, o se envía un NIT con letras o separadores
+- **WHEN** se omite razón social, correo o número de documento, se envía un documento con letras/separadores o el dígito no cumple la regla de su tipo
 - **THEN** responde 400 con errores seguros por campo y no crea tercero, relación ni evento de éxito
 
-#### Scenario: Tercero tributario duplicado
+#### Scenario: Tercero duplicado por tipo y número
 
-- **WHEN** dos operaciones intentan registrar o corregir el mismo NIT de tercero
+- **WHEN** dos operaciones intentan registrar o corregir el mismo tipo y número de documento
 - **THEN** solo una puede confirmarse y la otra recibe conflicto sin revelar el registro existente
 
 ### Requirement: Relaciones empresariales independientes y trazables
@@ -55,7 +63,7 @@ El sistema MUST permitir que un tercero se relacione con varias empresas y que c
 
 ### Requirement: Consulta de terceros aislada por ámbito
 
-El sistema MUST ofrecer listado paginado, búsqueda, filtros y detalle de terceros dentro de un ámbito autorizado. Los filtros, conteos y páginas MUST aplicarse después de verificar el ámbito. APP_ADMIN global podrá consultar terceros conforme a sus permisos; COMPANY_ADMIN se limitará a terceros relacionados con su empresa; THIRD_PARTY_ADMIN se limitará a su propio tercero.
+El sistema MUST ofrecer listado paginado, búsqueda, filtros por estado, tipo documental y códigos geográficos, y detalle de terceros dentro de un ámbito autorizado. Los filtros, conteos y páginas MUST aplicarse después de verificar el ámbito. APP_ADMIN global podrá consultar terceros conforme a sus permisos; COMPANY_ADMIN se limitará a terceros relacionados con su empresa; THIRD_PARTY_ADMIN se limitará a su propio tercero.
 
 #### Scenario: Tercero de otra empresa no enumerado
 
@@ -66,6 +74,10 @@ El sistema MUST ofrecer listado paginado, búsqueda, filtros y detalle de tercer
 
 - **WHEN** un actor autorizado para una empresa solicita el identificador de un tercero ajeno
 - **THEN** recibe una respuesta neutra de recurso no encontrado sin revelar datos ni relaciones
+
+#### Scenario: Filtro geográfico por código
+- **WHEN** el listado se filtra por códigos de país, departamento o municipio
+- **THEN** solo devuelve terceros con referencias coincidentes y no interpreta etiquetas como identificadores
 
 ### Requirement: Edición del perfil administrativo separada de identidades
 

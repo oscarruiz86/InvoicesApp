@@ -9973,6 +9973,197 @@
           }
         }
       }
+    },
+    "/api/catalogs/{catalog}": {
+      "get": {
+        "operationId": "listCatalogEntries",
+        "summary": "Consultar opciones de un catálogo paramétrico",
+        "tags": [
+          "Parametric catalogs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "catalog",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "document-types",
+                "countries",
+                "departments",
+                "municipalities",
+                "statuses"
+              ]
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global"
+              ]
+            }
+          },
+          {
+            "name": "parentCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Opciones activas ordenadas por etiqueta. Los departamentos dependen de CO; los municipios de un departamento."
+          },
+          "400": {
+            "description": "Consulta inválida"
+          },
+          "403": {
+            "description": "Permiso parameters:read requerido"
+          },
+          "503": {
+            "description": "Catálogo no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "parameters:read"
+        ],
+        "x-authorization-scope": "global"
+      },
+      "post": {
+        "operationId": "createCatalogEntry",
+        "summary": "Crear un tipo documental o una ubicación geográfica",
+        "tags": ["Parametric catalogs"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "catalog", "in": "path", "required": true, "schema": { "type": "string", "enum": ["document-types", "countries", "departments", "municipalities"] } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["code", "label", "parentCode"], "properties": { "code": { "type": "string", "minLength": 2, "maxLength": 12 }, "label": { "type": "string", "minLength": 1, "maxLength": 128 }, "parentCode": { "type": ["string", "null"] } } } } } },
+        "responses": { "201": { "description": "Entrada creada o reactivada" }, "400": { "description": "Código o relación padre-hijo inválidos" }, "403": { "description": "Permiso parameters:update requerido" }, "503": { "description": "Catálogo no disponible" } },
+        "x-required-permissions": ["parameters:update"],
+        "x-authorization-scope": "global"
+      }
+    },
+    "/api/catalogs/{catalog}/{code}": {
+      "patch": {
+        "operationId": "updateCatalogLabel",
+        "summary": "Editar etiqueta de una opción de catálogo",
+        "tags": [
+          "Parametric catalogs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "catalog",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "document-types",
+                "countries",
+                "departments",
+                "municipalities",
+                "statuses"
+              ]
+            }
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expectedVersion",
+                  "label",
+                  "parentCode"
+                ],
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "parentCode": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Etiqueta actualizada y auditada"
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "403": {
+            "description": "Permiso parameters:update requerido"
+          },
+          "404": {
+            "description": "Código inexistente"
+          },
+          "409": {
+            "description": "Versión desactualizada"
+          },
+          "503": {
+            "description": "Catálogo no disponible"
+          }
+        },
+        "x-required-permissions": [
+          "parameters:update"
+        ],
+        "x-authorization-scope": "global"
+      }
+    },
+    "/api/catalogs/{catalog}/{code}/deactivate": {
+      "post": {
+        "operationId": "deactivateCatalogEntry",
+        "summary": "Desactivar lógicamente una entrada de catálogo",
+        "tags": ["Parametric catalogs"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "catalog", "in": "path", "required": true, "schema": { "type": "string", "enum": ["document-types", "countries", "departments", "municipalities"] } },
+          { "name": "code", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedVersion", "parentCode"], "properties": { "expectedVersion": { "type": "integer", "minimum": 1 }, "parentCode": { "type": ["string", "null"] } } } } } },
+        "responses": { "200": { "description": "Entrada marcada inactiva y auditada" }, "400": { "description": "Entrada protegida, dependencias existentes o solicitud inválida" }, "403": { "description": "Permiso parameters:update requerido" }, "409": { "description": "Versión desactualizada" }, "503": { "description": "Catálogo no disponible" } },
+        "x-required-permissions": ["parameters:update"],
+        "x-authorization-scope": "global"
+      }
     }
   },
   "components": {
