@@ -12,7 +12,7 @@ export interface ThirdPartyRelationship {
   companyId: string; thirdPartyId: string; status: 'ACTIVE' | 'INACTIVE'; createdAt: string | null;
   updatedAt: string; createdBy: string | null; updatedBy: string | null;
 }
-export interface ThirdPartyRecord { thirdParty: ThirdParty; version: string; relationship: (ThirdPartyRelationship & { version: string }) | null }
+export interface ThirdPartyRecord { thirdParty: ThirdParty; version: string; relationship: (ThirdPartyRelationship & { version: string }) | null; relatedCompanies?: readonly { id: string; name: string }[] }
 
 export class ThirdPartyError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'THIRD_PARTY_DOCUMENT_CONFLICT' | 'THIRD_PARTY_VERSION_CONFLICT'

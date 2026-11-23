@@ -8,11 +8,15 @@ Registrar y consultar facturas manuales vinculadas a una asignación concreta, c
 
 ### Requirement: Captura manual con ficha mínima
 
-Cada factura MUST capturar vehículo, fecha, hora, número, NIT emisor, documento adquiriente, valor factura, IVA, otros impuestos y total. MUST permitir adjuntar una imagen. El servidor MUST generar identificador, origen MANUAL, propietario, tercero, asignación, versión y fechas de registro. MUST rechazar metadatos manipulados y propiedades desconocidas.
+Cada factura MUST capturar vehículo, fecha, hora, número, NIT emisor, documento adquiriente, valor factura, IVA, otros impuestos y total. El registro MANUAL MUST incluir una imagen adjunta válida. El servidor MUST generar identificador, origen MANUAL, propietario, tercero, asignación, versión y fechas de registro. MUST rechazar metadatos manipulados y propiedades desconocidas.
 
 #### Scenario: Registro válido
 - **WHEN** un DRIVER autorizado envía la ficha válida para una asignación propia elegible
 - **THEN** se crea una factura MANUAL versionada con metadatos de servidor
+
+#### Scenario: Imagen requerida para registro manual
+- **WHEN** un DRIVER autorizado intenta registrar una factura MANUAL sin imagen
+- **THEN** responde 400 y no crea la factura
 
 #### Scenario: Origen QR manipulado
 - **WHEN** el cliente envía origen QR, CUFE o una URL para simular captura automática
@@ -44,7 +48,7 @@ Los importes MUST ser decimales no negativos con máximo dos decimales y suma ex
 
 ### Requirement: Acceso aislado por rol
 
-DRIVER con permiso vigente MUST crear y consultar solo facturas propias en su tercero autorizado. THIRD_PARTY_ADMIN MUST consultar facturas de su tercero y editar solo las elegibles con invoices:update. APP_ADMIN y COMPANY_ADMIN MUST NOT recibir acceso implícito. Los filtros de ámbito MUST preceder conteos y paginación.
+DRIVER con permiso vigente MUST crear y consultar solo facturas propias en su tercero autorizado. THIRD_PARTY_ADMIN MUST consultar y editar facturas dentro de su tercero autorizado con invoices:update, sin restricciones por origen MANUAL/QR ni ventana temporal. APP_ADMIN y COMPANY_ADMIN MUST NOT recibir acceso implícito. Los filtros de ámbito MUST preceder conteos y paginación.
 
 #### Scenario: Acceso ajeno
 - **WHEN** un actor con permiso consulta un identificador ajeno o inexistente
@@ -110,13 +114,21 @@ El sistema MUST registrar facturas QR mediante una operación diferenciada, esta
 - **WHEN** se intenta registrar por QR una factura con NIT y número ya existentes en el tercero por captura manual
 - **THEN** responde 409 sin crear otra factura ni revelar información ajena
 
-### Requirement: Inmutabilidad posterior de factura QR
+### Requirement: Restricción de edición de factura QR por rol
 
-Una factura QR MUST NOT permitir edición posterior de datos comerciales, vínculos, origen o imagen por ningún rol. Este rechazo MUST preceder la consulta de ventana temporal después de autorizar el acceso al recurso. El detalle MUST informar la razón QR_IMMUTABLE y conservar consulta autorizada e imagen existente.
+Una factura QR MUST NOT permitir edición posterior de datos comerciales, vínculos, origen o imagen por DRIVER ni por roles sin invoices:update. THIRD_PARTY_ADMIN con invoices:update MAY editar los campos comerciales y la imagen en su tercero autorizado, conservando el origen QR y sus metadatos originales. La autorización del tercero y la versión esperada MUST seguir confirmándose transaccionalmente.
 
-#### Scenario: Administrador intenta editar QR
-- **WHEN** un THIRD_PARTY_ADMIN con invoices:update solicita cambiar una factura QR o reemplazar su imagen
-- **THEN** responde 403 QR_IMMUTABLE sin consultar Configuration ni modificar factura o auditoría
+#### Scenario: Administrador de tercero edita QR
+- **WHEN** un THIRD_PARTY_ADMIN con invoices:update solicita cambiar una factura QR o reemplazar su imagen dentro de su tercero autorizado
+- **THEN** se aplican los cambios con control de versión y auditoría, conservando el origen QR y sus metadatos
+
+#### Scenario: Conductor intenta editar QR
+- **WHEN** un DRIVER intenta cambiar una factura QR
+- **THEN** responde 403 QR_IMMUTABLE sin modificar factura o auditoría
+
+#### Scenario: Administrador de tercero edita factura fuera de ventana
+- **WHEN** un THIRD_PARTY_ADMIN con invoices:update edita una factura manual luego de vencida la ventana configurable
+- **THEN** se permite el cambio si la autorización de tercero y la versión esperada siguen vigentes
 
 ### Requirement: Procedencia QR mínima y estable
 

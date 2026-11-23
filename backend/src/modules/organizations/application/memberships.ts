@@ -30,7 +30,7 @@ const permissionFor = (organizationType: OrganizationType, companyId: string | n
 export function createMemberships(deps: {
   repository: InvitationRepositoryPort & {
     listMemberships(input: { organizationId: string; organizationType: OrganizationType; status?: Membership['status']; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[] }[]; readonly total: number }>;
-    listMembershipsByCompany(input: { companyId: string; status?: Membership['status']; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly organization: { readonly id: string; readonly organizationType: OrganizationType; readonly name: string } }[]; readonly total: number }>;
+    listMembershipsByCompany(input: { companyId?: string; status?: Membership['status']; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly organization: { readonly id: string; readonly organizationType: OrganizationType; readonly name: string } }[]; readonly total: number }>;
     findMembership(input: { membershipId: string; organizationId: string; organizationType: OrganizationType }): Promise<{ readonly membership: Membership; readonly roles: readonly LocalRole[] } | null>;
     changeMembership(input: { membershipId: string; expectedRevision: number; actorSubject: string; now: Date; status?: Membership['status']; roles?: readonly string[]; companyId: string | null; driverProvisioning?: DriverProvisioningPort }): Promise<{
       readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly replacement?: { readonly membership: Membership; readonly roles: readonly LocalRole[] };
@@ -84,9 +84,11 @@ export function createMemberships(deps: {
       }));
       return { items, page: input.page, pageSize: input.pageSize, total: result.total };
     },
-    async listByCompany(actor: AuthenticatedActor, input: { companyId: string; status?: Membership['status']; search?: string; documentNumber?: string; role?: LocalRole; page: number; pageSize: number }) {
+    async listByCompany(actor: AuthenticatedActor, input: { companyId?: string; status?: Membership['status']; search?: string; documentNumber?: string; role?: LocalRole; page: number; pageSize: number }) {
       if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new MembershipUseCaseError('INVALID_REQUEST');
-      await authorize(actor, input.companyId, 'COMPANY', null);
+      if (!input.companyId && !actor.roles.includes('APP_ADMIN')) throw new MembershipUseCaseError('FORBIDDEN');
+      if (input.companyId) await authorize(actor, input.companyId, 'COMPANY', null);
+      else { try { await deps.authorization.requirePermission(actor, 'users:read', globalScope); } catch { throw new MembershipUseCaseError('FORBIDDEN'); } }
       let subjects: readonly string[] | undefined;
       if (input.search || input.documentNumber) {
         if (!deps.identity.search) throw new MembershipUseCaseError('UNAVAILABLE');

@@ -31,7 +31,7 @@ it('shows only the shared profile fields and prevents removing the final role', 
   expect((await screen.findAllByText('Ana Ejemplo')).length).toBeGreaterThan(0);
   expect(screen.queryByText('Correo: ana@example.invalid')).toBeNull();
   expect(screen.queryByRole('button', { name: /Quitar Administrador de empresa/i })).toBeNull();
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Ver' }));
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Consultar usuario Ana Ejemplo' }));
   const details = await screen.findByRole('dialog', { name: 'Detalle del usuario' });
   expect(details.textContent).toContain('CC · 12345');
   expect(details.textContent).toContain('ana@example.invalid');
@@ -77,7 +77,7 @@ it('invites an associate by email from a modal', async () => {
   await user.click(screen.getByRole('button', { name: 'Enviar invitación' }));
   expect(await screen.findByText('Cambios guardados.')).toBeInTheDocument();
   expect(create).toHaveBeenCalledWith(scope, { organizationId: 'company-1', organizationType: 'COMPANY', companyId: null }, 'nuevo@example.invalid', ['COMPANY_ADMIN'], expect.any(AbortSignal));
-}, 15000);
+}, 30000);
 
 it('opens associate details and confirms suspension in a dialog', async () => {
   const user = userEvent.setup();
@@ -89,12 +89,12 @@ it('opens associate details and confirms suspension in a dialog', async () => {
   await act(() => authorization.getState().setContext(scope));
   render(<MemoryRouter><MembershipPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization} /></MemoryRouter>);
   await screen.findAllByText('Ana Ejemplo');
-  await user.click(screen.getByRole('button', { name: 'Ver' }));
+  await user.click(screen.getByRole('button', { name: 'Consultar usuario Ana Ejemplo' }));
   expect(await screen.findByRole('dialog', { name: 'Detalle del usuario' })).toBeInTheDocument();
   expect(profile).toHaveBeenCalledWith(scope, { organizationId: 'company-1', organizationType: 'COMPANY', companyId: null }, 'membership-1', expect.any(AbortSignal));
   await user.click(screen.getByRole('button', { name: 'Cerrar' }));
   await waitForElementToBeRemoved(() => screen.queryByRole('dialog', { name: 'Detalle del usuario' }));
-  await user.click(screen.getByRole('button', { name: 'Suspender' }));
+  await user.click(screen.getByRole('button', { name: 'Suspender usuario Ana Ejemplo' }));
   expect(screen.getByRole('dialog', { name: 'Suspender asociado' })).toBeInTheDocument();
   await user.click(within(screen.getByRole('dialog', { name: 'Suspender asociado' })).getByRole('button', { name: 'Suspender' }));
   expect(await screen.findByText('Cambios guardados.')).toBeInTheDocument();

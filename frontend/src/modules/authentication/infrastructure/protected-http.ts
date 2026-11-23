@@ -119,7 +119,7 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
           || (qrCreate && body instanceof FormData && Boolean(options.idempotencyKey))
           : method === 'PATCH' && detail && body instanceof FormData;
       const params = new URLSearchParams(query);
-      const allowed = method === 'GET' && list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'q', 'vehicleId', 'dateFrom', 'dateTo', 'sort', 'direction'] : ['scope', 'thirdPartyId'];
+      const allowed = method === 'GET' && list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'q', 'vehicleId', 'driverId', 'dateFrom', 'dateTo', 'sort', 'direction'] : ['scope', 'thirdPartyId'];
       for (const [key] of params) if (!allowed.includes(key) || params.getAll(key).length !== 1) throw new ApplicationError('CONFIGURATION');
       if (!valid || params.get('scope') !== 'organization' || !/^[a-f0-9]{24}$/.test(params.get('thirdPartyId') ?? '') || Boolean(options.binary) !== image)
         throw new ApplicationError('CONFIGURATION');

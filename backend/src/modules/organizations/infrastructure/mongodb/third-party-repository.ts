@@ -114,6 +114,12 @@ export function createThirdPartyRepository(connect: () => Promise<Connection>, p
             },
             async list(scope, query) {
               const filter: Record<string, unknown> = {};
+              if (query.relatedCompanyId) {
+                const linked = await relationships.find({ companyId: query.relatedCompanyId }, { projection: { thirdPartyId: 1, _id: 0 }, session }).toArray();
+                const ids = linked.map(value => value.thirdPartyId).filter((value): value is string => typeof value === 'string' && /^[a-f0-9]{24}$/.test(value));
+                if (!ids.length) return { items: [], total: 0 };
+                filter._id = { $in: ids.map(value => new Types.ObjectId(value)) };
+              }
               if (scope.kind === 'organization' && scope.companyId) {
                 const linked = await relationships.find({ companyId: scope.companyId, ...(query.relationshipActiveOnly ? { active: true } : {}) }, { projection: { thirdPartyId: 1, _id: 0 }, session }).toArray();
                 const ids = linked.map(value => value.thirdPartyId).filter((value): value is string => typeof value === 'string' && /^[a-f0-9]{24}$/.test(value));
@@ -130,7 +136,22 @@ export function createThirdPartyRepository(connect: () => Promise<Connection>, p
               const total = await thirdParties.countDocuments(filter).session(session).exec();
               const relationRows = scope.kind === 'organization' && scope.companyId && rows.length ? await relationships.find({ companyId: scope.companyId, thirdPartyId: { $in: rows.map(value => String(value._id)) } }, { session }).toArray() : [];
               const relationById = new Map(relationRows.map(value => [String(value.thirdPartyId), decodeRelationship(value as Record<string, unknown>)]));
-              return { items: rows.map(row => decode(row as Record<string, unknown>, relationById.get(String(row._id)) ?? null)), total };
+              const companyVisibility = scope.kind === 'global' ? {} : scope.companyId ? { companyId: scope.companyId } : null;
+              const relatedRows = rows.length && companyVisibility ? await relationships.find({ ...companyVisibility, thirdPartyId: { $in: rows.map(value => String(value._id)) } }, { session }).toArray() : [];
+              const companyIds = [...new Set(relatedRows.map(value => value.companyId).filter((value): value is string => typeof value === 'string'))];
+              const companyRows = companyIds.length ? await organizations.find({ id: { $in: companyIds }, type: 'COMPANY' }, { projection: { id: 1, name: 1, _id: 0 }, session }).toArray() : [];
+              const companyNameById = new Map(companyRows.flatMap(value => typeof value.id === 'string' && typeof value.name === 'string' ? [[value.id, value.name] as const] : []));
+              const companiesByThirdParty = new Map<string, { id: string; name: string }[]>();
+              for (const relation of relatedRows) {
+                const companyId = typeof relation.companyId === 'string' ? relation.companyId : '';
+                const name = companyNameById.get(companyId);
+                const thirdPartyId = typeof relation.thirdPartyId === 'string' ? relation.thirdPartyId : '';
+                if (!name || !thirdPartyId) continue;
+                const linked = companiesByThirdParty.get(thirdPartyId) ?? [];
+                linked.push({ id: companyId, name }); companiesByThirdParty.set(thirdPartyId, linked);
+              }
+              return { items: rows.map(row => ({ ...decode(row as Record<string, unknown>, relationById.get(String(row._id)) ?? null),
+                relatedCompanies: companiesByThirdParty.get(String(row._id)) ?? [] })), total };
             },
             async save(value, expectedVersion) {
               if (!write) throw new ThirdPartyError('THIRD_PARTY_STORAGE_UNAVAILABLE');

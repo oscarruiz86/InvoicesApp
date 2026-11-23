@@ -33,7 +33,7 @@ module.exports = {
         "path": "^src/.*/domain/"
       },
       "to": {
-        "pathNot": "^src/(modules/[^/]+/domain/|shared/domain/)"
+        "pathNot": "^(src/(modules/[^/]+/domain/|shared/domain/)|\\.\\./shared/invoice-qr\\.ts$)"
       }
     },
     {

@@ -1,7 +1,7 @@
 import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
 import { createInvoice, createQrInvoice, InvoiceDomainError, type Invoice } from '../domain/invoice';
 import { InvoiceQrError, parseInvoiceQr } from '../domain/invoice-qr';
-import { evaluateInvoiceEditWindow } from '../domain/edit-window';
+import { evaluateInvoiceEditWindow, type InvoiceEditPolicy } from '../domain/edit-window';
 import type { InvoiceAssignmentConfirmationPort, InvoiceAuthorizationPort, InvoiceClock, InvoiceCorrelationId,
   InvoiceEditPolicyReader, InvoiceIds, InvoiceImageInput, InvoiceListQuery, InvoiceRepositoryPort } from './invoice-ports';
 import type { InvoiceImageNormalizer } from './invoice-ports';
@@ -9,7 +9,7 @@ import type { InvoiceImageNormalizer } from './invoice-ports';
 export type InvoiceUseCaseErrorCode = 'INVALID_REQUEST' | 'FORBIDDEN' | 'RESOURCE_NOT_FOUND' | 'INVOICE_STORAGE_UNAVAILABLE'
   | 'AUTHORIZATION_UNAVAILABLE' | 'ASSIGNMENT_NOT_ELIGIBLE' | 'ASSIGNMENT_EVIDENCE_UNAVAILABLE'
   | 'INVOICE_DUPLICATE' | 'IDEMPOTENCY_CONFLICT' | 'INVOICE_VERSION_CONFLICT' | 'EDIT_WINDOW_CLOSED'
-  | 'EDIT_POLICY_UNAVAILABLE' | 'INVOICE_AUDIT_UNAVAILABLE' | 'QR_INVALID' | 'QR_INCOMPLETE' | 'QR_UNSUPPORTED' | 'QR_IMMUTABLE';
+  | 'EDIT_POLICY_UNAVAILABLE' | 'INVOICE_AUDIT_UNAVAILABLE' | 'IMAGE_REQUIRED' | 'QR_INVALID' | 'QR_INCOMPLETE' | 'QR_UNSUPPORTED' | 'QR_IMMUTABLE';
 export class InvoiceUseCaseError extends Error {
   constructor(readonly code: InvoiceUseCaseErrorCode) { super(code); }
 }
@@ -29,10 +29,10 @@ export interface InvoiceDetailsView {
 const id = (value: unknown): value is string => typeof value === 'string' && /^[a-f\d]{24}$/i.test(value);
 const sorts = ['invoiceDate', 'invoiceNumber', 'totalAmount', 'createdAt'] as const;
 export function validateInvoiceListQuery(input: InvoiceListQuery): void {
-  const allowed = ['thirdPartyId', 'ownerSubject', 'q', 'vehicleId', 'dateFrom', 'dateTo', 'page', 'pageSize', 'sort', 'direction'];
+  const allowed = ['thirdPartyId', 'ownerSubject', 'q', 'vehicleId', 'driverId', 'dateFrom', 'dateTo', 'page', 'pageSize', 'sort', 'direction'];
   if (!input || Object.keys(input).some(key => !allowed.includes(key)) || !id(input.thirdPartyId)
     || (input.ownerSubject !== undefined && (!input.ownerSubject || input.ownerSubject.length > 128))
-    || (input.vehicleId !== undefined && !id(input.vehicleId))
+    || (input.vehicleId !== undefined && !id(input.vehicleId)) || (input.driverId !== undefined && !id(input.driverId))
     || (input.q !== undefined && (!input.q.trim() || input.q.length > 100))
     || (input.dateFrom !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(input.dateFrom))
     || (input.dateTo !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(input.dateTo))
@@ -78,7 +78,27 @@ export function createInvoices(deps: {
       const receipt = await authorize(actor, input.thirdPartyId, 'invoices:read');
       if (!isAllowedChangeRole(receipt.roles)) throw new InvoiceUseCaseError('FORBIDDEN');
       const scoped = receipt.roles.includes('DRIVER') ? { ...input, ownerSubject: actor.subject } : input;
-      try { return { ...(await deps.repository.list(scoped)), page: input.page, pageSize: input.pageSize }; }
+      try {
+        const page = await deps.repository.list(scoped);
+        let updateAllowed = false;
+        try { await authorize(actor, input.thirdPartyId, 'invoices:update'); updateAllowed = true; }
+        catch (error) { const mapped = mapError(error); if (mapped.code !== 'FORBIDDEN') throw mapped; }
+        if (!updateAllowed) return { ...page, items: page.items.map(invoice => ({ invoice, editability: { available: false, reason: 'PERMISSION_INSUFFICIENT' as const } })), page: input.page, pageSize: input.pageSize };
+        if (receipt.roles.includes('THIRD_PARTY_ADMIN')) return { ...page, items: page.items.map(invoice => ({ invoice, editability: { available: true, reason: null } })), page: input.page, pageSize: input.pageSize };
+        const manuals = page.items.filter(invoice => invoice.origin === 'MANUAL');
+        const policyEvidence = manuals.length
+          ? await deps.editPolicy.read({ thirdPartyId: input.thirdPartyId }).catch(() => ({ state: 'UNAVAILABLE' as const }))
+          : null;
+        const items = page.items.map(invoice => {
+          if (invoice.origin === 'QR') return { invoice, editability: { available: false, reason: 'QR_IMMUTABLE' as const } };
+          if (!policyEvidence || policyEvidence.state === 'UNAVAILABLE') return { invoice, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' as const } };
+          const window = evaluateInvoiceEditWindow({ createdAt: invoice.createdAt, now: deps.clock.now(), policy: policyEvidence.policy });
+          if (window === 'POLICY_UNAVAILABLE') return { invoice, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' as const } };
+          if (window === 'CLOSED') return { invoice, editability: { available: false, reason: 'EDIT_WINDOW_CLOSED' as const } };
+          return { invoice, editability: { available: true, reason: null } };
+        });
+        return { ...page, items, page: input.page, pageSize: input.pageSize };
+      }
       catch (error) { throw mapError(error); }
     },
     async detail(actor: AuthenticatedActor, input: { readonly id: string; readonly thirdPartyId: string }) {
@@ -86,13 +106,15 @@ export function createInvoices(deps: {
       const receipt = await authorize(actor, input.thirdPartyId, 'invoices:read');
       if (!isAllowedChangeRole(receipt.roles)) throw new InvoiceUseCaseError('FORBIDDEN');
       try {
+        const driverOnly = receipt.roles.includes('DRIVER') && !receipt.roles.includes('THIRD_PARTY_ADMIN');
         const invoice = await deps.repository.find({ id: input.id, thirdPartyId: input.thirdPartyId,
-          ...(receipt.roles.includes('DRIVER') ? { ownerSubject: actor.subject } : {}) });
+          ...(driverOnly ? { ownerSubject: actor.subject } : {}) });
         if (!invoice) throw new InvoiceUseCaseError('RESOURCE_NOT_FOUND');
         let updateAllowed = false;
         try { await authorize(actor, input.thirdPartyId, 'invoices:update'); updateAllowed = true; }
         catch (error) { const mapped = mapError(error); if (mapped.code !== 'FORBIDDEN') throw mapped; }
         if (!updateAllowed) return { invoice, editability: { available: false, reason: 'PERMISSION_INSUFFICIENT' as const } } satisfies InvoiceDetailsView;
+        if (receipt.roles.includes('THIRD_PARTY_ADMIN')) return { invoice, editability: { available: true, reason: null } } satisfies InvoiceDetailsView;
         if (invoice.origin === 'QR') return { invoice, editability: { available: false, reason: 'QR_IMMUTABLE' as const } } satisfies InvoiceDetailsView;
         const policyEvidence = await deps.editPolicy.read({ thirdPartyId: input.thirdPartyId }).catch(() => ({ state: 'UNAVAILABLE' as const }));
         if (policyEvidence.state === 'UNAVAILABLE') return { invoice, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' as const } } satisfies InvoiceDetailsView;
@@ -114,6 +136,7 @@ export function createInvoices(deps: {
         || !id(command.assignmentId) || !id(command.vehicleId)) throw new InvoiceUseCaseError('INVALID_REQUEST');
       const receipt = await authorize(actor, command.thirdPartyId, 'invoices:create');
       assertRole(receipt.roles, 'DRIVER');
+      if (!image) throw new InvoiceUseCaseError('IMAGE_REQUIRED');
       try {
         const assignment = await deps.assignments.readOwnActive({ actorSubject: actor.subject, thirdPartyId: command.thirdPartyId,
           assignmentId: command.assignmentId, vehicleId: command.vehicleId });
@@ -162,33 +185,38 @@ export function createInvoices(deps: {
       if (!id(input.id) || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) throw new InvoiceUseCaseError('INVALID_REQUEST');
       const receipt = await authorize(actor, input.thirdPartyId, 'invoices:update');
       if (!isAllowedChangeRole(receipt.roles)) throw new InvoiceUseCaseError('FORBIDDEN');
-      const driverOwner = receipt.roles.includes('DRIVER') ? actor.subject : undefined;
+      const driverOwner = receipt.roles.includes('DRIVER') && !receipt.roles.includes('THIRD_PARTY_ADMIN') ? actor.subject : undefined;
       try {
         const current = await deps.repository.find({ id: input.id, thirdPartyId: input.thirdPartyId, ...(driverOwner ? { ownerSubject: driverOwner } : {}) });
         if (!current) throw new InvoiceUseCaseError('RESOURCE_NOT_FOUND');
-        if (current.origin === 'QR') throw new InvoiceUseCaseError('QR_IMMUTABLE');
         if (current.version !== input.expectedVersion) throw new InvoiceUseCaseError('INVOICE_VERSION_CONFLICT');
-        const evidence = await deps.editPolicy.read({ thirdPartyId: input.thirdPartyId });
-        if (evidence.state === 'UNAVAILABLE') throw new InvoiceUseCaseError('EDIT_POLICY_UNAVAILABLE');
-        const policy = evidence.policy;
+        const thirdPartyAdmin = receipt.roles.includes('THIRD_PARTY_ADMIN');
         const now = deps.clock.now();
-        const window = evaluateInvoiceEditWindow({ createdAt: current.createdAt, now, policy });
-        if (window === 'POLICY_UNAVAILABLE') throw new InvoiceUseCaseError('EDIT_POLICY_UNAVAILABLE');
-        if (current.origin !== 'MANUAL' || window === 'CLOSED') throw new InvoiceUseCaseError('EDIT_WINDOW_CLOSED');
+        let policy: InvoiceEditPolicy | undefined;
+        if (!thirdPartyAdmin) {
+          if (current.origin === 'QR') throw new InvoiceUseCaseError('QR_IMMUTABLE');
+          const evidence = await deps.editPolicy.read({ thirdPartyId: input.thirdPartyId });
+          if (evidence.state === 'UNAVAILABLE') throw new InvoiceUseCaseError('EDIT_POLICY_UNAVAILABLE');
+          policy = evidence.policy;
+          const window = evaluateInvoiceEditWindow({ createdAt: current.createdAt, now, policy });
+          if (window === 'POLICY_UNAVAILABLE') throw new InvoiceUseCaseError('EDIT_POLICY_UNAVAILABLE');
+          if (current.origin !== 'MANUAL' || window === 'CLOSED') throw new InvoiceUseCaseError('EDIT_WINDOW_CLOSED');
+        }
         const values = { invoiceDate: current.invoiceDate, invoiceTime: current.invoiceTime, invoiceNumber: current.invoiceNumber,
           issuerNit: current.issuerNit, buyerDocument: current.buyerDocument, amount: current.amounts.amount, vatAmount: current.amounts.vatAmount,
           otherTaxesAmount: current.amounts.otherTaxesAmount, totalAmount: current.amounts.totalAmount, imageId: current.imageId };
         const { image, ...changes } = input.changes;
         const imagePayload = image ? { ...image, id: deps.ids.next() } : undefined;
-        const next = createInvoice({ ...values, ...changes, id: current.id, ownerSubject: current.ownerSubject, thirdPartyId: current.thirdPartyId,
+        const updatedManual = createInvoice({ ...values, ...changes, id: current.id, ownerSubject: current.ownerSubject, thirdPartyId: current.thirdPartyId,
           assignmentId: current.assignmentId, driverId: current.driverId, vehicleId: current.vehicleId, vehiclePlate: current.vehiclePlate,
           imageId: imagePayload?.id ?? current.imageId, now });
+        const next: Invoice = current.origin === 'QR' ? { ...updatedManual, origin: 'QR', qrMetadata: current.qrMetadata } : updatedManual;
         const changed = current.invoiceDate !== next.invoiceDate || current.invoiceTime !== next.invoiceTime || current.invoiceNumber !== next.invoiceNumber
           || current.issuerNit !== next.issuerNit || current.buyerDocument !== next.buyerDocument || current.imageId !== next.imageId
           || JSON.stringify(current.amounts) !== JSON.stringify(next.amounts);
         if (!changed) return current;
         const versioned: Invoice = { ...next, version: current.version + 1, createdAt: current.createdAt };
-        return await deps.repository.edit({ current, next: versioned, image: imagePayload, editPolicy: policy, actorSubject: actor.subject,
+        return await deps.repository.edit({ current, next: versioned, image: imagePayload, ...(policy ? { editPolicy: policy } : {}), actorSubject: actor.subject,
           expectedVersion: input.expectedVersion, authority: receipt, correlationId: deps.correlationId.next() });
       } catch (error) { throw mapError(error); }
     },

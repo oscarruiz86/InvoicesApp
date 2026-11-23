@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { Link, Navigate, useNavigate } from 'react-router';
-import { Alert, Button, Card, CardActions, CardContent, Chip, Paper, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardActions, CardContent, Chip, Paper, Stack, Typography } from '@mui/material';
 import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
 import { authorizationAvailable, type AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import { errorMessage } from '@/shared/components/error-messages';
@@ -10,11 +10,12 @@ import type { OrganizationDestination } from '../domain/context';
 import type { ContextStore } from './context-store';
 
 export function OrganizationCard({ organization, select }: { organization: OrganizationDestination; select(): void }) {
-  return <Card variant="outlined" sx={{ width: '100%', overflowWrap: 'anywhere' }}><CardContent>
+  return <Card variant="outlined" sx={{ width: '100%', minHeight: 190, overflowWrap: 'anywhere', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}><CardContent>
     <Typography component="h2" variant="h6">{organization.organizationName}</Typography>
-    <Typography>{organization.organizationType === 'COMPANY' ? 'Empresa' : 'Tercero'}</Typography>
-    <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mt: 1 }}>{organization.roles.map(role => <Chip key={role} label={getRoleLabel(role)} />)}</Stack>
-  </CardContent><CardActions><Button  onClick={select} aria-label={`Seleccionar ${organization.organizationName}`}>Seleccionar</Button></CardActions></Card>;
+    <Typography color="text.secondary">Contexto de {organization.organizationType === 'COMPANY' ? 'empresa' : 'tercero'}</Typography>
+    <Typography variant="body2" sx={{ mt: 1 }}>Roles disponibles</Typography>
+    <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mt: 1 }}>{organization.roles.map(role => <Chip key={role} size="small" label={getRoleLabel(role)} />)}</Stack>
+  </CardContent><CardActions sx={{ px: 2, pb: 2 }}><Button fullWidth variant="outlined" onClick={select} aria-label={`Seleccionar ${organization.organizationName}`}>Usar este contexto</Button></CardActions></Card>;
 }
 export function OrganizationSelectionPage({ store, authentication, invitationsAvailable = false }: { store: ContextStore; authentication: AuthenticationStore; invitationsAvailable?: boolean }) {
   const state = useStore(store); const auth = useStore(authentication);
@@ -35,11 +36,13 @@ export function OrganizationSelectionPage({ store, authentication, invitationsAv
     </>}
     {state.status === 'error' && <Alert severity="error">{errorMessage(state.error)}</Alert>}
     {state.status === 'selecting' && <Stack spacing={2}>
-      {state.availableContexts.globalAvailable && <Button variant="outlined"  onClick={() => void state.select({ kind: 'GLOBAL' })}>Administración GLOBAL</Button>}
-      {state.availableContexts.organizations.map(org => <OrganizationCard key={org.organizationId} organization={org} select={() => void state.select({ kind: 'ORGANIZATION', ...org })} />)}
+      <Typography color="text.secondary">Elige el espacio de trabajo que vas a administrar.</Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+        {state.availableContexts.globalAvailable && <Card variant="outlined" sx={{ minHeight: 190, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}><CardContent><Typography component="h2" variant="h6">Administración global</Typography><Typography color="text.secondary">Contexto de toda la aplicación</Typography><Stack direction="row" sx={{ mt: 2 }}><Chip size="small" label="APP_ADMIN" /></Stack></CardContent><CardActions sx={{ px: 2, pb: 2 }}><Button fullWidth variant="contained" onClick={() => void state.select({ kind: 'GLOBAL' })}>Usar este contexto</Button></CardActions></Card>}
+        {state.availableContexts.organizations.map(org => <OrganizationCard key={org.organizationId} organization={org} select={() => void state.select({ kind: 'ORGANIZATION', ...org })} />)}
+      </Box>
     </Stack>}
     {['error', 'empty'].includes(state.status) && <Button  onClick={() => void state.openSelector()}>Reintentar</Button>}
-    <Button sx={{ alignSelf: 'flex-start' }} onClick={() => void auth.logout()}>Cerrar sesión</Button>
   </Stack></Paper>;
 }
 export function ActiveOrganizationIndicator({ store }: { store: ContextStore }) {

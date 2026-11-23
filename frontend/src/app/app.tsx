@@ -1,4 +1,4 @@
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router';
 import { useStore } from 'zustand';
 import type { ReactNode } from 'react';
 import { Alert, Box, Button, CssBaseline, Stack, ThemeProvider, Typography } from '@mui/material';
@@ -6,8 +6,10 @@ import { theme } from '@/shared/theme/theme';
 import { AppLayout } from '@/shared/components/app-layout';
 import { ErrorBoundary } from '@/shared/components/error-boundary';
 import { HomePage } from '@/modules/home/presentation/home-page';
+import { LandingPage } from '@/modules/home/presentation/landing-page';
 import type { HealthStore } from '@/modules/home/presentation/health-store';
 import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
+import type { SessionStatus } from '@/modules/authentication/application/session-ports';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import { AccountMenu, AuthenticationActions, AuthenticationCallback, PrivateRoute, SessionPage } from '@/modules/authentication/presentation/session-page';
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
@@ -79,8 +81,8 @@ function MarkerModuleContext({ module, context, children }: { module: MarkerModu
 }
 
 function ShellNavigation({ authorization, context, invitationsAvailable, roleManagementAvailable }: { authorization?: AuthorizationStore; context?: ContextStore; invitationsAvailable: boolean; roleManagementAvailable: boolean }) {
-  const { pathname } = useLocation(); const home = pathname === '/';
-  return <Stack spacing={.5}><Typography variant="overline" sx={{ px: 1.5, fontWeight: 700 }}>Inicio</Typography><Button variant="text" component={Link} to="/" aria-current={home ? 'page' : undefined} sx={{ justifyContent: 'flex-start', px: 1.5, minHeight: 42, borderColor: 'transparent', bgcolor: home ? '#e8effe' : 'transparent', color: home ? '#153d8e' : 'text.primary', fontWeight: home ? 700 : 400 }}>Inicio</Button>
+  const { pathname } = useLocation(); const home = pathname === '/home';
+  return <Stack spacing={.5}><Typography variant="overline" sx={{ px: 1.5, fontWeight: 700 }}>Inicio</Typography><Button variant="text" component={Link} to="/home" aria-current={home ? 'page' : undefined} sx={{ justifyContent: 'flex-start', px: 1.5, minHeight: 42, borderColor: 'transparent', bgcolor: home ? '#e8effe' : 'transparent', color: home ? '#153d8e' : 'text.primary', fontWeight: home ? 700 : 400 }}>Inicio</Button>
     {authorization && context && <OrganizationManagementNavigation authorization={authorization} context={context} invitationsAvailable={invitationsAvailable} roleManagementAvailable={roleManagementAvailable} />}
   </Stack>;
 }
@@ -94,16 +96,24 @@ function ShellAccountWithContext({ authentication, context }: { authentication: 
   return <AccountMenu store={authentication} context={{ activeContext: current.activeContext, openSelector: current.openSelector }} />;
 }
 
+function RouteAppFrame({ authenticated, sessionStatus, navigation, account, children }: { authenticated: boolean; sessionStatus: SessionStatus; navigation: ReactNode; account: ReactNode; children: ReactNode }) {
+  const { pathname } = useLocation();
+  // Keep the shell only while a reloaded Home is checking for an existing OIDC session.
+  if (authenticated || ((pathname === '/' || pathname === '/home') && sessionStatus === 'initializing')) return <AppLayout navigation={navigation} account={authenticated ? account : undefined}>{children}</AppLayout>;
+  return <Box component="main" sx={{ minHeight: '100dvh', px: { xs: 2, sm: 3, md: 6 }, py: { xs: 3, md: 6 } }}>{children}</Box>;
+}
+
 export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, assignmentApi, invoices, notificationDeliveries, rolePolicy, parameters }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; assignmentApi?: AssignmentApi; invoices?: InvoiceApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi; parameters?: ParameterApi }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const content = <><RouteHeadingFocus /><AuthenticationActions store={authentication} authorization={authorization} />
     {organizationContext && <ContextSessionBootstrap authentication={authentication} />}
     <Routes>
-    <Route path="/" element={<HomePage store={store} authorization={authorization} />} />
+    <Route path="/" element={authenticated ? <Navigate to="/home" replace /> : session.status === 'initializing' ? <HomePage store={store} authorization={authorization} authentication={authentication} /> : <LandingPage authentication={authentication} />} />
+    <Route path="/home" element={authenticated || session.status === 'initializing' ? <HomePage store={store} authorization={authorization} authentication={authentication} /> : <Navigate to="/" replace />} />
     <Route path="/login" element={<AuthenticationLoginPage authentication={authentication} />} />
     {companies && authorization && organizationContext && (['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={mode} path={mode === 'list' ? '/companies' : mode === 'create' ? '/companies/new' : mode === 'detail' ? '/companies/:id' : '/companies/:id/edit'} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={mode === 'create' ? 'companies:create' : mode === 'edit' ? 'companies:update' : 'companies:read'}><OrganizationContextGuard store={organizationContext} authorization={authorization}><CompanyPage key={mode} api={companies} context={organizationContext} authorization={authorization} mode={mode} /></OrganizationContextGuard></ProtectedRoute>} />)}
-    {thirdParties && authorization && organizationContext && (['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={`third-party-${mode}`} path={mode === 'list' ? '/third-parties' : mode === 'create' ? '/third-parties/new' : mode === 'detail' ? '/third-parties/:id' : '/third-parties/:id/edit'} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={mode === 'create' ? 'third-parties:create' : mode === 'edit' ? 'third-parties:update' : 'third-parties:read'}><OrganizationContextGuard store={organizationContext} authorization={authorization}><ThirdPartyPage key={mode} api={thirdParties} context={organizationContext} authorization={authorization} mode={mode} /></OrganizationContextGuard></ProtectedRoute>} />)}
+    {thirdParties && authorization && organizationContext && (['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={`third-party-${mode}`} path={mode === 'list' ? '/third-parties' : mode === 'create' ? '/third-parties/new' : mode === 'detail' ? '/third-parties/:id' : '/third-parties/:id/edit'} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={mode === 'create' ? 'third-parties:create' : mode === 'edit' ? 'third-parties:update' : 'third-parties:read'}><OrganizationContextGuard store={organizationContext} authorization={authorization}><ThirdPartyPage key={mode} api={thirdParties} context={organizationContext} authorization={authorization} companies={companies} mode={mode} /></OrganizationContextGuard></ProtectedRoute>} />)}
     {invitations && authorization && organizationContext && <Route path="/invitations" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><InvitationPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
     {invitations && <Route path="/invitations/received" element={<PrivateRoute store={authentication}><ReceivedInvitationsPage api={invitations} context={organizationContext} /></PrivateRoute>} />}
     {invitations && authorization && organizationContext && <Route path="/organization-memberships" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MembershipPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
@@ -137,7 +147,7 @@ export function App({ store, authentication, authorization, organizationContext,
     {organizationContext && <Route path="/organizations/select" element={<PrivateRoute store={authentication}><OrganizationSelectionPage store={organizationContext} authentication={authentication} invitationsAvailable={Boolean(invitations)} /></PrivateRoute>} />}
     <Route path="*" element={<Stack spacing={2}><Typography variant="h4" component="h1">Página no encontrada</Typography><Button component={Link} to="/">Volver al inicio</Button></Stack>} />
     </Routes></>;
-  return <ThemeProvider theme={theme}><CssBaseline /><ErrorBoundary><BrowserRouter>{authenticated
-    ? <AppLayout navigation={<ShellNavigation authorization={authorization} context={organizationContext} invitationsAvailable={Boolean(invitations)} roleManagementAvailable={Boolean(rolePolicy)} />} account={<ShellAccount authentication={authentication} context={organizationContext} />}>{content}</AppLayout>
-    : <Box component="main" sx={{ minHeight: '100dvh', px: { xs: 2, sm: 3, md: 6 }, py: { xs: 3, md: 6 } }}>{content}</Box>}</BrowserRouter></ErrorBoundary></ThemeProvider>;
+  return <ThemeProvider theme={theme}><CssBaseline /><ErrorBoundary><BrowserRouter><RouteAppFrame authenticated={authenticated} sessionStatus={session.status}
+    navigation={<ShellNavigation authorization={authorization} context={organizationContext} invitationsAvailable={Boolean(invitations)} roleManagementAvailable={Boolean(rolePolicy)} />}
+    account={<ShellAccount authentication={authentication} context={organizationContext} />}>{content}</RouteAppFrame></BrowserRouter></ErrorBoundary></ThemeProvider>;
 }

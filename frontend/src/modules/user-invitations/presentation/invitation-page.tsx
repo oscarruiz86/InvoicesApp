@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useStore } from 'zustand';
-import { Alert, Autocomplete, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, MenuItem, Paper, Skeleton, Stack, SvgIcon, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, SvgIcon, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
 import type { CompanyApi } from '@/modules/company-management/application/company-api';
@@ -11,8 +11,18 @@ import { RequestError } from '@/shared/application/request-error';
 import { errorMessage } from '@/shared/components/error-messages';
 import { DataPagination } from '@/shared/components/data-pagination';
 import { DataTable, DataTableAction, DataTableSortHeader, DataTableSurface } from '@/shared/components/data-table';
+import { PageHeader } from '@/shared/components/page-header';
 import { SuccessNotice } from '@/shared/components/success-notice';
 import { TableLoadingState } from '@/shared/components/table-loading-state';
+import { AppliedFilters } from '@/shared/components/applied-filters';
+import { ListFilterDialog } from '@/shared/components/list-filter-dialog';
+import { MobileSortControl } from '@/shared/components/mobile-sort-control';
+import { StatusChip } from '@/shared/components/status-chip';
+import { FormDialog } from '@/shared/components/form-dialog';
+import { ListFeedback } from '@/shared/components/list-feedback';
+import { CompanySelectionField } from '@/shared/components/company-selection-field';
+import { CompanyPickerDialog } from '@/shared/components/company-picker-dialog';
+import type { CompanyRecord } from '@/modules/company-management/domain/company';
 import { getRoleLabel } from '@shared/role-labels';
 import type { IdentityCandidate, InvitationApi, InvitationListTarget, InvitationRecord, InvitationRole, InvitationStatus, OrganizationTarget } from '../application/invitation-api';
 
@@ -20,7 +30,7 @@ type InvitationSortKey = 'email' | 'role' | 'status' | 'delivery' | 'created' | 
 type InvitationAction = { kind: 'cancel' | 'resend'; invitation: InvitationRecord } | null;
 const deliveryStatusLabel: Record<InvitationRecord['deliveryStatus'], string> = { UNKNOWN: 'Pendiente', LOGGED: 'Completada', FAILED: 'Fallida' };
 const invitationStatusLabel: Record<InvitationStatus, string> = { PENDING: 'Pendiente', ACCEPTED: 'Aceptada', REJECTED: 'Rechazada', CANCELLED: 'Cancelada', EXPIRED: 'Vencida' };
-const invitationStatusColor: Record<InvitationStatus, 'warning' | 'success' | 'error' | 'default'> = { PENDING: 'warning', ACCEPTED: 'success', REJECTED: 'error', CANCELLED: 'default', EXPIRED: 'warning' };
+const invitationStatusTone: Record<InvitationStatus, 'warning' | 'success' | 'danger' | 'neutral'> = { PENDING: 'warning', ACCEPTED: 'success', REJECTED: 'danger', CANCELLED: 'neutral', EXPIRED: 'warning' };
 const statusDate = (invitation: InvitationRecord) => invitation.status === 'EXPIRED' || invitation.status === 'PENDING' ? null : invitation.resolvedAt ?? invitation.createdAt;
 const formatStatusDate = (value: string) => new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' }).format(new Date(value));
 
@@ -34,7 +44,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('es-CO', { dateSty
 function InvitationStatusView({ invitation }: { invitation: InvitationRecord }) {
   const date = statusDate(invitation);
   return <Stack spacing={0.25} sx={{ alignItems: 'flex-start' }}>
-    <Chip size="small" label={invitationStatusLabel[invitation.status]} color={invitationStatusColor[invitation.status]} />
+    <StatusChip label={invitationStatusLabel[invitation.status]} tone={invitationStatusTone[invitation.status]} />
     {date && <Typography component="time" dateTime={date} variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', lineHeight: 1.2, fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{formatStatusDate(date)}</Typography>}
   </Stack>;
 }
@@ -50,6 +60,7 @@ export function InvitationPage({ api, context, authorization, companies }: { api
   const [organizationId, setOrganizationId] = useState(active?.kind === 'ORGANIZATION' && !active.roles.includes('COMPANY_ADMIN') ? active.organizationId : '');
   const [companyId, setCompanyId] = useState(active?.kind === 'ORGANIZATION' ? active.organizationType === 'COMPANY' ? active.organizationId : auth.scope.companyId ?? '' : auth.scope.companyId ?? '');
   const [companyName, setCompanyName] = useState(active?.kind === 'ORGANIZATION' && active.organizationType === 'COMPANY' ? active.organizationName : '');
+  const [draftCompanyId, setDraftCompanyId] = useState(companyId); const [draftCompanyName, setDraftCompanyName] = useState(active?.kind === 'ORGANIZATION' && active.organizationType === 'COMPANY' ? active.organizationName : '');
   const [thirdPartyName, setThirdPartyName] = useState(active?.kind === 'ORGANIZATION' && active.organizationType === 'THIRD_PARTY' ? active.organizationName : '');
   const [status, setStatus] = useState<InvitationStatus | ''>(''); const [draftStatus, setDraftStatus] = useState<InvitationStatus | ''>('');
   const [emailFilter, setEmailFilter] = useState(''); const [draftEmailFilter, setDraftEmailFilter] = useState('');
@@ -65,10 +76,11 @@ export function InvitationPage({ api, context, authorization, companies }: { api
   const [filtersOpen, setFiltersOpen] = useState(false); const [createOpen, setCreateOpen] = useState(false);
   const [createTargetType, setCreateTargetType] = useState<'COMPANY' | 'THIRD_PARTY'>(roles.includes('COMPANY_ADMIN') ? 'THIRD_PARTY' : 'COMPANY');
   const [createTargetOrganizationId, setCreateTargetOrganizationId] = useState(''); const [createTargetThirdPartyName, setCreateTargetThirdPartyName] = useState('');
+  const [createCompanyId, setCreateCompanyId] = useState(''); const [createCompanyName, setCreateCompanyName] = useState(''); const [companyPickerForCreate, setCompanyPickerForCreate] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState(''); const [selectedRole, setSelectedRole] = useState<InvitationRole>('COMPANY_ADMIN');
   const [identityCandidates, setIdentityCandidates] = useState<readonly IdentityCandidate[]>([]); const [identitySearchBusy, setIdentitySearchBusy] = useState(false); const [identitySearchError, setIdentitySearchError] = useState<string | null>(null);
-  const [companyPickerOpen, setCompanyPickerOpen] = useState(false); const [companyQuery, setCompanyQuery] = useState(''); const [companyPage, setCompanyPage] = useState(1); const [companyPageSize, setCompanyPageSize] = useState(5);
-  const [companyResults, setCompanyResults] = useState<Awaited<ReturnType<CompanyApi['list']>> | null>(null); const [companyPickerError, setCompanyPickerError] = useState<string | null>(null); const [companyPickerLoading, setCompanyPickerLoading] = useState(false);
+  const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
+  const [companyPickerForFilters, setCompanyPickerForFilters] = useState(false);
   const [thirdPartyPickerOpen, setThirdPartyPickerOpen] = useState(false);
   const [createThirdPartyPickerOpen, setCreateThirdPartyPickerOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<InvitationAction>(null);
@@ -96,17 +108,18 @@ export function InvitationPage({ api, context, authorization, companies }: { api
     companyId: organizationType === 'THIRD_PARTY' ? companyId.trim() || auth.scope.companyId : null,
   } : null, [organizationId, organizationType, companyId, auth.scope.companyId]);
   const listTarget = useMemo<OrganizationTarget | InvitationListTarget | null>(() => organizationType === 'ALL'
-    ? companyId.trim() ? { organizationId: companyId.trim(), organizationType: 'ALL', companyId: companyId.trim() } : null
-    : target, [companyId, organizationType, target]);
+    ? canChooseCompany || companyId.trim() ? { organizationId: companyId.trim() || 'all', organizationType: 'ALL', companyId: companyId.trim() || null } : null
+    : target, [canChooseCompany, companyId, organizationType, target]);
+  const canFilterInvitations = Boolean(listTarget || canChooseCompany);
   const createTarget = useMemo<OrganizationTarget | null>(() => {
-    if (createTargetType === 'COMPANY') return companyId.trim() ? { organizationId: companyId.trim(), organizationType: 'COMPANY', companyId: null } : null;
+    if (createTargetType === 'COMPANY') { const selectedCompanyId = createCompanyId || companyId; return selectedCompanyId.trim() ? { organizationId: selectedCompanyId.trim(), organizationType: 'COMPANY', companyId: null } : null; }
     const selectedThirdPartyId = createTargetOrganizationId.trim();
     const selectedCompanyId = companyId.trim();
     const activeThirdParty = active?.kind === 'ORGANIZATION' && active.organizationType === 'THIRD_PARTY' && active.organizationId === selectedThirdPartyId;
     return selectedThirdPartyId && (selectedCompanyId || activeThirdParty)
       ? { organizationId: selectedThirdPartyId, organizationType: 'THIRD_PARTY', companyId: selectedCompanyId || null }
       : null;
-  }, [active, companyId, createTargetOrganizationId, createTargetType]);
+  }, [active, companyId, createCompanyId, createTargetOrganizationId, createTargetType]);
   const createRoleOptions = useMemo<InvitationRole[]>(() => !createTarget ? [] : createTarget.organizationType === 'COMPANY'
     ? roles.includes('APP_ADMIN') ? ['COMPANY_ADMIN'] : []
     : roles.includes('COMPANY_ADMIN') ? ['THIRD_PARTY_ADMIN'] : roles.includes('THIRD_PARTY_ADMIN') ? ['DRIVER'] : [], [createTarget, roles]);
@@ -128,16 +141,6 @@ export function InvitationPage({ api, context, authorization, companies }: { api
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { if (createRoleOptions.length && !createRoleOptions.includes(selectedRole)) setSelectedRole(createRoleOptions[0]); }, [createRoleOptions, selectedRole]);
 
-  useEffect(() => {
-    if (!companies || !companyPickerOpen || !authorizationAvailable) return;
-    const controller = new AbortController(); setCompanyPickerError(null); setCompanyPickerLoading(true);
-    const query = companyQuery.trim();
-    void companies.list(auth.scope, { page: String(companyPage), pageSize: String(companyPageSize), sort: 'businessName', direction: 'asc', ...(query ? { q: query } : {}) }, controller.signal)
-      .then(value => { if (!controller.signal.aborted) { setCompanyResults(value); setCompanyPickerError(null); } })
-      .catch(() => { if (!controller.signal.aborted) setCompanyPickerError('No fue posible consultar empresas.'); })
-      .finally(() => { if (!controller.signal.aborted) setCompanyPickerLoading(false); });
-    return () => controller.abort();
-  }, [companies, auth.scope, authorizationAvailable, companyPickerOpen, companyQuery, companyPage, companyPageSize]);
   useEffect(() => {
     const request = ++identityGeneration.current; const query = recipientEmail.trim();
     if (!createOpen || !createTarget || query.length < 3) { setIdentityCandidates([]); setIdentitySearchBusy(false); setIdentitySearchError(null); return; }
@@ -161,16 +164,18 @@ export function InvitationPage({ api, context, authorization, companies }: { api
     catch (failure) { setError(failureMessage(failure)); return false; }
     finally { capture?.release(); if (mounted.current) setBusy(false); }
   };
-  const openCompanyPicker = () => { setCompanyQuery(''); setCompanyPage(1); setCompanyResults(null); setCompanyPickerError(null); setCompanyPickerLoading(true); setCompanyPickerOpen(true); };
-  const chooseCompany = (record: NonNullable<typeof companyResults>['items'][number]) => {
+  const openCompanyPicker = useCallback(() => setCompanyPickerOpen(true), []);
+  const chooseCompany = (record: CompanyRecord) => {
     const name = record.company.businessName ?? record.company.tradeName ?? record.company.id;
+    if (companyPickerForFilters) { setDraftCompanyId(record.company.id); setDraftCompanyName(name); setDraftOrganizationId(''); setDraftThirdPartyName(''); setCompanyPickerForFilters(false); setCompanyPickerOpen(false); return; }
+    if (companyPickerForCreate) { setCreateCompanyId(record.company.id); setCreateCompanyName(name); setCreateTargetType('COMPANY'); setCompanyPickerForCreate(false); setCompanyPickerOpen(false); setCreateOpen(true); return; }
     setCompanyId(record.company.id); setCompanyName(name); setOrganizationType('ALL'); setOrganizationId(record.company.id); setThirdPartyName('');
     setCreateTargetType('COMPANY'); setCreateTargetOrganizationId(''); setCreateTargetThirdPartyName(''); setRecipientEmail(''); setIdentityCandidates([]);
     setStatus(''); setPage(1); setError(null); setCompanyPickerOpen(false);
   };
   const chooseOrganizationType = (next: 'COMPANY' | 'THIRD_PARTY' | 'ALL') => {
     setDraftOrganizationType(next); setDraftThirdPartyName('');
-    setDraftOrganizationId(next === 'COMPANY' || next === 'ALL' ? companyId : '');
+    setDraftOrganizationId(next === 'COMPANY' || next === 'ALL' ? draftCompanyId : '');
   };
   const openThirdPartyPicker = () => { setThirdPartyPickerOpen(true); };
   const chooseThirdParty = (record: ThirdPartyOption) => {
@@ -181,14 +186,25 @@ export function InvitationPage({ api, context, authorization, companies }: { api
   const clearEmailFilter = () => { setEmailFilter(''); setPage(1); };
   const clearRoleFilter = () => { setRoleFilter(''); setPage(1); };
   const clearDeliveryFilter = () => { setDeliveryFilter(''); setPage(1); };
+  const clearCompanyFilter = () => { if (!canChooseCompany) return; setCompanyId(''); setCompanyName(''); setOrganizationType('ALL'); setOrganizationId('all'); setPage(1); };
   const openFilters = () => {
     setDraftStatus(status); setDraftEmailFilter(emailFilter); setDraftRoleFilter(roleFilter); setDraftDeliveryFilter(deliveryFilter);
-    setDraftOrganizationType(organizationType); setDraftOrganizationId(organizationId); setDraftThirdPartyName(thirdPartyName); setFiltersOpen(true);
+    setDraftOrganizationType(organizationType); setDraftOrganizationId(organizationId); setDraftThirdPartyName(thirdPartyName); setDraftCompanyId(companyId); setDraftCompanyName(companyName); setFiltersOpen(true);
   };
   const applyFilters = () => {
-    const nextOrganizationId = draftOrganizationType === 'COMPANY' || draftOrganizationType === 'ALL' ? companyId : draftOrganizationId;
+    const nextOrganizationId = draftOrganizationType === 'COMPANY' || draftOrganizationType === 'ALL' ? draftCompanyId || (canChooseCompany ? 'all' : '') : draftOrganizationId;
+    const nextEmail = draftEmailFilter.trim();
+    const changed = draftCompanyId !== companyId || draftOrganizationType !== organizationType || nextOrganizationId !== organizationId || draftStatus !== status || nextEmail !== emailFilter || draftRoleFilter !== roleFilter || draftDeliveryFilter !== deliveryFilter;
+    if (!changed) { setFiltersOpen(false); return; }
+    if (draftCompanyId !== companyId) { setCompanyId(draftCompanyId); setCompanyName(draftCompanyName); }
     setOrganizationType(draftOrganizationType); setOrganizationId(nextOrganizationId); setThirdPartyName(draftOrganizationType === 'THIRD_PARTY' ? draftThirdPartyName : '');
-    setStatus(draftStatus); setEmailFilter(draftEmailFilter.trim()); setRoleFilter(draftRoleFilter); setDeliveryFilter(draftDeliveryFilter); setPage(1); setFiltersOpen(false);
+    setStatus(draftStatus); setEmailFilter(nextEmail); setRoleFilter(draftRoleFilter); setDeliveryFilter(draftDeliveryFilter); setPage(1); setFiltersOpen(false);
+  };
+  const resetDraftFilters = () => {
+    const defaultType: 'COMPANY' | 'THIRD_PARTY' | 'ALL' = canChangeOrganizationType ? 'ALL' : initialType;
+    setDraftStatus(''); setDraftEmailFilter(''); setDraftRoleFilter(''); setDraftDeliveryFilter(''); setDraftOrganizationType(defaultType);
+    setDraftOrganizationId(defaultType === 'THIRD_PARTY' ? active?.kind === 'ORGANIZATION' ? active.organizationId : '' : draftCompanyId);
+    setDraftThirdPartyName(defaultType === 'THIRD_PARTY' && active?.kind === 'ORGANIZATION' ? active.organizationName : '');
   };
   const clearFilters = () => {
     const defaultType: 'COMPANY' | 'THIRD_PARTY' | 'ALL' = canChangeOrganizationType ? 'ALL' : initialType;
@@ -202,6 +218,7 @@ export function InvitationPage({ api, context, authorization, companies }: { api
   };
   const openCreateInvitation = useCallback(() => {
     const activeThirdParty = active?.kind === 'ORGANIZATION' && active.organizationType === 'THIRD_PARTY';
+    if (roles.includes('APP_ADMIN') && !companyId && !activeThirdParty) { setCompanyPickerForCreate(true); openCompanyPicker(); return; }
     if (!companyId && !activeThirdParty) return;
     const companyAdmin = roles.includes('COMPANY_ADMIN') || active?.kind === 'ORGANIZATION' && active.roles.includes('COMPANY_ADMIN');
     const nextType = target?.organizationType ?? (companyAdmin ? 'THIRD_PARTY' : 'COMPANY');
@@ -211,7 +228,7 @@ export function InvitationPage({ api, context, authorization, companies }: { api
     setRecipientEmail(''); setIdentityCandidates([]); setIdentitySearchError(null);
     setSelectedRole(nextType === 'COMPANY' ? 'COMPANY_ADMIN' : roles.includes('COMPANY_ADMIN') ? 'THIRD_PARTY_ADMIN' : 'DRIVER');
     setError(null); setCreateOpen(true);
-  }, [active, companyId, roles, target, thirdPartyName]);
+  }, [active, companyId, roles, target, thirdPartyName, openCompanyPicker]);
   useEffect(() => {
     const state = location.state as { readonly openCreateInvitation?: boolean } | null;
     if (!state?.openCreateInvitation) return;
@@ -257,60 +274,67 @@ export function InvitationPage({ api, context, authorization, companies }: { api
   const canCreate = Boolean(createTarget && createRoleOptions.includes(selectedRole) && !busy);
   const canCreateForCompany = roles.includes('APP_ADMIN');
   const canCreateForThirdParty = roles.includes('COMPANY_ADMIN') || active?.kind === 'ORGANIZATION' && active.roles.includes('COMPANY_ADMIN');
-  const canCreateAction = target ? Boolean((target.organizationType === 'COMPANY' ? roles.includes('APP_ADMIN') : roles.includes('COMPANY_ADMIN') || roles.includes('THIRD_PARTY_ADMIN')) && !busy) : Boolean(companyId && (canCreateForCompany || canCreateForThirdParty) && !busy);
-  const showTable = Boolean(listTarget && (loading || items?.total));
+  const canCreateAction = roles.includes('APP_ADMIN') || (target ? Boolean(target.organizationType === 'THIRD_PARTY' && (roles.includes('COMPANY_ADMIN') || roles.includes('THIRD_PARTY_ADMIN')) && !busy) : Boolean(companyId && canCreateForThirdParty && !busy));
+  const showTable = Boolean((listTarget && (loading || items)) || (canFilterInvitations && !listTarget));
 
   return <Stack spacing={2} sx={{ minWidth: 0 }}>
-    <Typography variant="h4" component="h1">Invitaciones</Typography>
-    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap sx={{ alignItems: { sm: 'center' }, flexWrap: 'wrap' }}>
-      {canChooseCompany ? <Button variant="outlined" onClick={openCompanyPicker}>Empresa: {companyName || 'Seleccionar empresa'}</Button>
-        : companyId ? <Chip variant="outlined" label={`Empresa: ${companyName || (active?.kind === 'ORGANIZATION' && active.organizationType === 'COMPANY' ? active.organizationName : 'Empresa seleccionada')}`} /> : null}
-    </Stack>
-    {(emailFilter || roleFilter || deliveryFilter || status) && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-      {emailFilter && <Chip label={`Correo: ${emailFilter}`} onDelete={clearEmailFilter} />}
-      {roleFilter && <Chip label={`Rol: ${getRoleLabel(roleFilter)}`} onDelete={clearRoleFilter} />}
-      {deliveryFilter && <Chip label={`Entrega: ${deliveryStatusLabel[deliveryFilter]}`} onDelete={clearDeliveryFilter} />}
-      {status && <Chip label={`Estado: ${invitationStatusLabel[status]}`} onDelete={clearStatusFilter} />}
-    </Stack>}
+    <PageHeader title="Invitaciones" />
+    <AppliedFilters filters={[
+      ...(canChooseCompany && companyId ? [{ key: 'company', label: `Empresa: ${companyName || companyId}` }] : []),
+      ...(emailFilter ? [{ key: 'email', label: `Correo: ${emailFilter}` }] : []),
+      ...(roleFilter ? [{ key: 'role', label: `Rol: ${getRoleLabel(roleFilter)}` }] : []),
+      ...(deliveryFilter ? [{ key: 'delivery', label: `Entrega: ${deliveryStatusLabel[deliveryFilter]}` }] : []),
+      ...(status ? [{ key: 'status', label: `Estado: ${invitationStatusLabel[status]}` }] : []),
+    ]} onRemove={key => { if (key === 'company') clearCompanyFilter(); else if (key === 'email') clearEmailFilter(); else if (key === 'role') clearRoleFilter(); else if (key === 'delivery') clearDeliveryFilter(); else if (key === 'status') clearStatusFilter(); }} onClear={clearFilters} />
     {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
     {notice && <SuccessNotice onClose={() => setNotice(null)}>{notice}</SuccessNotice>}
-    {!listTarget && <Alert severity="info">{organizationType === 'THIRD_PARTY' ? companyId ? 'Selecciona un tercero para consultar sus invitaciones.' : 'Selecciona una empresa y un tercero para consultar sus invitaciones.' : 'Selecciona una empresa para consultar sus invitaciones.'}</Alert>}
-    {listTarget && <DataTable loading={loading}
-      toolbar={!loading ? <>
-        {items && items.total > 0 && <DataTableAction label="Filtrar invitaciones" onClick={openFilters} disabled={busy}><SvgIcon fontSize="small" aria-hidden="true"><path d="M3 5h18l-7.5 8.2V19l-3 1.7v-7.5L3 5z" /></SvgIcon></DataTableAction>}
-        {canCreateAction && <DataTableAction label="Crear invitación" primary onClick={openCreateInvitation} disabled={busy}><SvgIcon fontSize="small" aria-hidden="true"><path d="M15 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4ZM7 12a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 2c-2.67 0-8 1.34-8 4v2h12v-2c0-2.66-5.33-4-8-4ZM7 14c-.34 0-.73.02-1.15.06C3.63 14.36 0 15.54 0 18v2h5v-2c0-1.72.91-3.02 2.4-3.94L7 14Zm14-6V5h-2v3h-3v2h3v3h2v-3h3V8h-3Z" /></SvgIcon></DataTableAction>}
-      </> : undefined}
+    {!listTarget && <Alert severity="info">Selecciona una empresa desde los filtros para consultar sus invitaciones.</Alert>}
+    {canFilterInvitations && <DataTable loading={loading} mobileSortAction={<MobileSortControl fields={[
+      { key: 'email', label: 'Correo' }, { key: 'role', label: 'Rol' }, { key: 'status', label: 'Estado' }, { key: 'delivery', label: 'Entrega' }, { key: 'created', label: 'Fecha de creación' }, { key: 'expires', label: 'Vencimiento' },
+    ]} sortBy={sortBy} direction={sortDirection} onChange={(key, direction) => { setSortBy(key as InvitationSortKey); setSortDirection(direction); setPage(1); }} />} toolbar={<>
+        {canCreateAction && <DataTableAction label="Crear invitación" primary onClick={openCreateInvitation} disabled={busy || loading}><SvgIcon fontSize="small" aria-hidden="true"><path d="M15 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4ZM7 12a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 2c-2.67 0-8 1.34-8 4v2h12v-2c0-2.66-5.33-4-8-4ZM7 14c-.34 0-.73.02-1.15.06C3.63 14.36 0 15.54 0 18v2h5v-2c0-1.72.91-3.02 2.4-3.94L7 14Zm14-6V5h-2v3h-3v2h3v3h2v-3h3V8h-3Z" /></SvgIcon></DataTableAction>}
+        <DataTableAction label="Filtrar invitaciones" onClick={openFilters} disabled={busy}><SvgIcon fontSize="small" aria-hidden="true"><path d="M3 5h18l-7.5 8.2V19l-3 1.7v-7.5L3 5z" /></SvgIcon></DataTableAction>
+      </>}
       pagination={items && items.total > 0 ? <DataPagination page={page} pageSize={items.pageSize} total={items.total} disabled={loading} label="Páginas de invitaciones"
         onPageChange={setPage} onPageSizeChange={value => { setPageSize(value); setPage(1); }} onRefresh={() => void load()} refreshLabel="Actualizar invitaciones" refreshDisabled={busy} /> : undefined}>
       {listTarget && loading && <Alert severity="info" role="status" sx={{ display: { xs: 'block', md: 'none' } }}>Cargando invitaciones…</Alert>}
-      {items && !loading && items.total === 0 && <>
-        <Alert severity="info">No hay invitaciones para este filtro.</Alert>
-      </>}
+      {listTarget && items && !loading && sortedItems.length === 0 && <ListFeedback kind="empty" title="No hay empresas que coincidan con la consulta.">Ajusta la búsqueda o limpia los filtros.</ListFeedback>}
       {showTable && <DataTableSurface loading={loading} sx={{ display: { xs: 'none', md: 'block' } }}>
-        <Table size="small" aria-label="Invitaciones enviadas" sx={{ width: '100%', tableLayout: 'fixed', minWidth: { md: 0, lg: 900 } }}>
+        <Table size="small" aria-label="Invitaciones enviadas" sx={{ width: '100%', tableLayout: 'fixed', minWidth: 0 }}>
           <TableHead><TableRow>
-            <TableCell sx={{ width: organizationType === 'ALL' ? { xs: '32%', lg: '14%' } : { xs: '34%', lg: '18%' } }} sortDirection={sortBy === 'email' ? sortDirection : false}>{sortHeader('email', 'Correo')}</TableCell>
-            {organizationType === 'ALL' && <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, width: '10%' }}>Organización</TableCell>}
-            <TableCell sx={{ width: organizationType === 'ALL' ? { xs: '29%', lg: '13%' } : { xs: '28%', lg: '19%' } }} sortDirection={sortBy === 'role' ? sortDirection : false}>{sortHeader('role', 'Rol')}</TableCell>
-            <TableCell sx={{ width: organizationType === 'ALL' ? { xs: '18%', lg: '10%' } : { xs: '18%', lg: '14%' } }} sortDirection={sortBy === 'status' ? sortDirection : false}>{sortHeader('status', 'Estado')}</TableCell>
-            <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, width: '11%' }} sortDirection={sortBy === 'delivery' ? sortDirection : false}>{sortHeader('delivery', 'Entrega')}</TableCell>
-            <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, width: '11%' }} sortDirection={sortBy === 'created' ? sortDirection : false}>{sortHeader('created', 'Creada')}</TableCell>
-            <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, width: '11%' }} sortDirection={sortBy === 'expires' ? sortDirection : false}>{sortHeader('expires', 'Vence')}</TableCell>
-            <TableCell sx={{ width: organizationType === 'ALL' ? { xs: '21%', lg: '19%' } : { xs: '20%', lg: '18%' } }}>Acciones</TableCell>
+            <TableCell sx={{ width: organizationType === 'ALL' ? { md: '34%', lg: '26%', xl: '15%' } : { md: '34%', lg: '26%', xl: '17%' } }} sortDirection={sortBy === 'email' ? sortDirection : false}>{sortHeader('email', 'Correo')}</TableCell>
+            <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, width: organizationType === 'ALL' ? { lg: '16%', xl: '10%' } : { lg: '16%', xl: '11%' } }}>Empresa</TableCell>
+            {organizationType === 'ALL' && <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' }, width: '11%' }}>Organización</TableCell>}
+            <TableCell sx={{ width: organizationType === 'ALL' ? { md: '28%', lg: '22%', xl: '13%' } : { md: '28%', lg: '22%', xl: '14%' } }} sortDirection={sortBy === 'role' ? sortDirection : false}>{sortHeader('role', 'Rol')}</TableCell>
+            <TableCell sx={{ width: organizationType === 'ALL' ? { md: '18%', lg: '16%', xl: '11%' } : { md: '18%', lg: '16%', xl: '12%' } }} sortDirection={sortBy === 'status' ? sortDirection : false}>{sortHeader('status', 'Estado')}</TableCell>
+            <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' }, width: organizationType === 'ALL' ? '10%' : '11%' }} sortDirection={sortBy === 'delivery' ? sortDirection : false}>{sortHeader('delivery', 'Entrega')}</TableCell>
+            <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' }, width: organizationType === 'ALL' ? '10%' : '11%' }} sortDirection={sortBy === 'created' ? sortDirection : false}>{sortHeader('created', 'Creada')}</TableCell>
+            <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' }, width: organizationType === 'ALL' ? '10%' : '11%' }} sortDirection={sortBy === 'expires' ? sortDirection : false}>{sortHeader('expires', 'Vence')}</TableCell>
+            <TableCell sx={{ width: organizationType === 'ALL' ? { md: '20%', lg: '20%', xl: '10%' } : { md: '20%', lg: '20%', xl: '13%' } }}>Acciones</TableCell>
           </TableRow></TableHead>
-          <TableBody>{loading ? <TableLoadingState columns={organizationType === 'ALL' ? 8 : 7} rows={5} label="Cargando invitaciones" /> : sortedItems.map(invitation => {
+          <TableBody>{loading ? <TableLoadingState columns={organizationType === 'ALL' ? 9 : 8} rows={5} label="Cargando invitaciones" responsiveLayouts={organizationType === 'ALL'
+            ? [
+              { columns: 4, rowSx: { display: { xs: 'none', md: 'table-row', lg: 'none' } } },
+              { columns: 5, rowSx: { display: { xs: 'none', lg: 'table-row', xl: 'none' } } },
+              { columns: 9, rowSx: { display: { xs: 'none', xl: 'table-row' } } },
+            ]
+            : [
+              { columns: 4, rowSx: { display: { xs: 'none', md: 'table-row', lg: 'none' } } },
+              { columns: 5, rowSx: { display: { xs: 'none', lg: 'table-row', xl: 'none' } } },
+              { columns: 8, rowSx: { display: { xs: 'none', xl: 'table-row' } } },
+            ]} /> : sortedItems.length === 0 ? null : sortedItems.map(invitation => {
             const current = invitation.status === 'PENDING' && Date.parse(invitation.expiresAt) > Date.now();
             return <TableRow key={invitation.id} hover>
               <TableCell sx={{ overflowWrap: 'anywhere' }}>{invitation.recipientEmail}</TableCell>
-              {organizationType === 'ALL' && <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, overflowWrap: 'anywhere' }}>{invitation.organizationName ?? (invitation.organizationType === 'COMPANY' ? companyName || 'Empresa' : 'Tercero')}</TableCell>}
+              <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' }, overflowWrap: 'anywhere' }}>{invitation.companyName ?? (invitation.organizationType === 'COMPANY' ? invitation.organizationName ?? companyName ?? 'Empresa' : '—')}</TableCell>{organizationType === 'ALL' && <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' }, overflowWrap: 'anywhere' }}>{invitation.organizationName ?? (invitation.organizationType === 'COMPANY' ? companyName || 'Empresa' : 'Tercero')}</TableCell>}
               <TableCell>{invitation.roles.map(getRoleLabel).join(', ')}</TableCell>
-              <TableCell><InvitationStatusView invitation={invitation} /></TableCell>
-              <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>{deliveryStatusLabel[invitation.deliveryStatus]}</TableCell>
-              <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>{formatDate(invitation.createdAt)}</TableCell>
-              <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>{formatDate(invitation.expiresAt)}</TableCell>
-              <TableCell>{current && <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
-                <Button size="small" disabled={busy} onClick={() => setPendingAction({ kind: 'resend', invitation })}>Reenviar</Button>
-                <Button size="small" color="warning" disabled={busy} onClick={() => setPendingAction({ kind: 'cancel', invitation })}>Cancelar</Button>
+              <TableCell sx={{ whiteSpace: 'nowrap', overflow: 'visible' }}><InvitationStatusView invitation={invitation} /></TableCell>
+              <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{deliveryStatusLabel[invitation.deliveryStatus]}</TableCell>
+              <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{formatDate(invitation.createdAt)}</TableCell>
+              <TableCell sx={{ display: { xs: 'none', xl: 'table-cell' } }}>{formatDate(invitation.expiresAt)}</TableCell>
+              <TableCell>{current && <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', justifyContent: 'flex-start', alignItems: 'center' }}>
+                <DataTableAction label="Reenviar invitación" disabled={busy} onClick={() => setPendingAction({ kind: 'resend', invitation })}><SvgIcon fontSize="small" aria-hidden="true"><path d="M12 5V1L7 6l5 5V7a5 5 0 0 1 4.9 6h2.02A7 7 0 0 0 12 5Zm-7 6v2a7 7 0 0 0 12 4.9V21l5-5-5-5v4a5 5 0 0 1-10-4Z" /></SvgIcon></DataTableAction>
+                <DataTableAction label="Cancelar invitación" disabled={busy} onClick={() => setPendingAction({ kind: 'cancel', invitation })}><SvgIcon fontSize="small" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 11H7v-2h10v2Z" /></SvgIcon></DataTableAction>
               </Stack>}</TableCell>
             </TableRow>;
           })}</TableBody>
@@ -320,6 +344,7 @@ export function InvitationPage({ api, context, authorization, companies }: { api
         const current = invitation.status === 'PENDING' && Date.parse(invitation.expiresAt) > Date.now();
         return <Paper variant="outlined" key={invitation.id} sx={{ p: 2, minWidth: 0 }}><Stack spacing={1}>
           <Typography variant="h6" sx={{ overflowWrap: 'anywhere' }}>{invitation.recipientEmail}</Typography>
+          <Typography>Empresa: {invitation.companyName ?? (invitation.organizationType === 'COMPANY' ? invitation.organizationName ?? companyName ?? 'Empresa' : '—')}</Typography>
           {organizationType === 'ALL' && <Typography>Organización: {invitation.organizationName ?? (invitation.organizationType === 'COMPANY' ? companyName || 'Empresa' : 'Tercero')}</Typography>}
           <Typography>Rol: {invitation.roles.map(getRoleLabel).join(', ')}</Typography>
           <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}><Typography>Estado:</Typography><InvitationStatusView invitation={invitation} /></Stack>
@@ -330,37 +355,38 @@ export function InvitationPage({ api, context, authorization, companies }: { api
       })}</Stack>}
     </DataTable>}
 
-    <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} fullWidth maxWidth="sm">
-      <DialogTitle>Filtros de invitaciones</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
-        <Typography>Elige la organización y los estados de invitación que quieres consultar.</Typography>
+    <ListFilterDialog open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={applyFilters} title="Filtros de invitaciones" maxWidth="sm" leadingAction={<Button onClick={resetDraftFilters}>Limpiar filtros</Button>}>
+      <Stack spacing={2} sx={{ pt: 1 }}>
+        <Typography>Elige la empresa, organización y estados de invitación que quieres consultar.</Typography>
+        {canChooseCompany && <CompanySelectionField value={draftCompanyName} onClick={() => { setCompanyPickerForFilters(true); setCompanyPickerForCreate(false); openCompanyPicker(); }} />}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
           <TextField label="Correo" value={draftEmailFilter} onChange={event => setDraftEmailFilter(event.target.value)} placeholder="Buscar por correo" />
           <TextField select label="Rol" value={draftRoleFilter} onChange={event => setDraftRoleFilter(event.target.value as InvitationRole | '')}>
             <MenuItem value="">Todos los roles</MenuItem>{(['COMPANY_ADMIN', 'THIRD_PARTY_ADMIN', 'DRIVER'] as const).map(role => <MenuItem key={role} value={role}>{getRoleLabel(role)}</MenuItem>)}
           </TextField>
+          <TextField select label="Estado" value={draftStatus} onChange={event => setDraftStatus(event.target.value as InvitationStatus | '')}>
+            <MenuItem value="">Todos los estados</MenuItem><MenuItem value="PENDING">Pendientes</MenuItem><MenuItem value="ACCEPTED">Aceptadas</MenuItem><MenuItem value="REJECTED">Rechazadas</MenuItem><MenuItem value="CANCELLED">Canceladas</MenuItem><MenuItem value="EXPIRED">Vencidas</MenuItem>
+          </TextField>
           <TextField select label="Entrega" value={draftDeliveryFilter} onChange={event => setDraftDeliveryFilter(event.target.value as InvitationRecord['deliveryStatus'] | '')}>
             <MenuItem value="">Todos los estados de entrega</MenuItem><MenuItem value="UNKNOWN">Pendiente</MenuItem><MenuItem value="LOGGED">Completada</MenuItem><MenuItem value="FAILED">Fallida</MenuItem>
           </TextField>
+          <TextField select label="Tipo de organización" value={draftOrganizationType} onChange={event => chooseOrganizationType(event.target.value as 'COMPANY' | 'THIRD_PARTY' | 'ALL')} disabled={!canChangeOrganizationType} sx={{ gridColumn: { sm: '1 / -1' } }}>
+            <MenuItem value="ALL" disabled={!draftCompanyId && !canChooseCompany}>Todas</MenuItem><MenuItem value="COMPANY" disabled={!draftCompanyId && !canChooseCompany}>Empresa</MenuItem><MenuItem value="THIRD_PARTY">Tercero</MenuItem>
+          </TextField>
+          {draftOrganizationType === 'THIRD_PARTY' && <Stack spacing={1} sx={{ gridColumn: { sm: '1 / -1' } }}>
+            <Button variant="outlined" onClick={openThirdPartyPicker} disabled={!draftCompanyId}>{draftThirdPartyName || 'Seleccionar tercero'}</Button>
+            {!draftCompanyId && <Alert severity="info">Selecciona una empresa para buscar sus terceros.</Alert>}
+          </Stack>}
         </Box>
-        <TextField select fullWidth label="Tipo de organización" value={draftOrganizationType} onChange={event => chooseOrganizationType(event.target.value as 'COMPANY' | 'THIRD_PARTY' | 'ALL')} disabled={!canChangeOrganizationType}>
-          <MenuItem value="ALL" disabled={!companyId}>Todas</MenuItem><MenuItem value="COMPANY" disabled={!companyId}>Empresa</MenuItem><MenuItem value="THIRD_PARTY" disabled={!companyId}>Tercero</MenuItem>
-        </TextField>
-        {draftOrganizationType === 'THIRD_PARTY' && <Stack spacing={1}>
-          <Button variant="outlined" onClick={openThirdPartyPicker} disabled={!companyId}>{draftThirdPartyName || 'Seleccionar tercero'}</Button>
-          {!companyId && <Alert severity="info">Selecciona una empresa para buscar sus terceros.</Alert>}
-        </Stack>}
-        <TextField select fullWidth label="Estado" value={draftStatus} onChange={event => setDraftStatus(event.target.value as InvitationStatus | '')}>
-          <MenuItem value="">Todos los estados</MenuItem><MenuItem value="PENDING">Pendientes</MenuItem><MenuItem value="ACCEPTED">Aceptadas</MenuItem><MenuItem value="REJECTED">Rechazadas</MenuItem><MenuItem value="CANCELLED">Canceladas</MenuItem><MenuItem value="EXPIRED">Vencidas</MenuItem>
-        </TextField>
-      </Stack></DialogContent><DialogActions>
-        <Button onClick={clearFilters}>Limpiar filtros</Button><Button onClick={() => setFiltersOpen(false)}>Cancelar</Button><Button variant="contained" onClick={applyFilters}>Aplicar filtros</Button>
-      </DialogActions>
-    </Dialog>
+      </Stack>
+    </ListFilterDialog>
 
-    <Dialog open={createOpen} onClose={() => !busy && setCreateOpen(false)} fullWidth maxWidth="sm">
-      <DialogTitle>Crear invitación</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+    <FormDialog open={createOpen} onClose={() => setCreateOpen(false)} busy={busy} maxWidth="sm" title="Crear invitación" actions={<>
+      <Button onClick={() => setCreateOpen(false)} disabled={busy}>Cancelar</Button><Button variant="contained" onClick={() => void createInvitation()} disabled={!canCreate || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim())}>{busy ? 'Enviando…' : 'Enviar invitación'}</Button>
+    </>}>
+      <Stack spacing={2} sx={{ pt: 1 }}>
         <Typography>Ingresa el correo de la persona y selecciona el destino de su asociación.</Typography>
-        {companyId && <Button variant="outlined" sx={{ justifyContent: 'flex-start' }} onClick={openCompanyPicker}>Empresa: {companyName || 'Seleccionar empresa'}</Button>}
+        {(roles.includes('APP_ADMIN') || companyId) && createTargetType === 'COMPANY' && <CompanySelectionField label="Empresa destino" value={createCompanyName || companyName} placeholder="Seleccionar empresa" onClick={() => { setCompanyPickerForCreate(true); setCompanyPickerForFilters(false); openCompanyPicker(); }} />}
         {(canCreateForCompany || canCreateForThirdParty || target?.organizationType === 'THIRD_PARTY' && roles.includes('THIRD_PARTY_ADMIN')) && <TextField select fullWidth label="Tipo de organización" value={createTargetType} disabled={!(canCreateForCompany && canCreateForThirdParty)} onChange={event => {
           setCreateTargetType(event.target.value as 'COMPANY' | 'THIRD_PARTY'); setCreateTargetOrganizationId(''); setCreateTargetThirdPartyName(''); setRecipientEmail(''); setIdentityCandidates([]);
         }}>
@@ -380,25 +406,13 @@ export function InvitationPage({ api, context, authorization, companies }: { api
         {!createTarget && createTargetType === 'THIRD_PARTY' && <Alert severity="info">Selecciona un tercero para continuar.</Alert>}
         {createTarget && !createRoleOptions.length && <Alert severity="info">Tu rol actual no puede delegar en esta organización.</Alert>}
         {error && <Alert severity="error">{error}</Alert>}
-      </Stack></DialogContent><DialogActions>
-        <Button onClick={() => setCreateOpen(false)} disabled={busy}>Cancelar</Button><Button variant="contained" onClick={() => void createInvitation()} disabled={!canCreate || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim())}>{busy ? 'Enviando…' : 'Enviar invitación'}</Button>
-      </DialogActions>
-    </Dialog>
+      </Stack>
+    </FormDialog>
 
-    <Dialog open={companyPickerOpen} onClose={() => setCompanyPickerOpen(false)} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { height: { xs: 'calc(100% - 32px)', sm: '640px' }, maxHeight: 'calc(100% - 32px)', display: 'flex', flexDirection: 'column' } } }}>
-      <DialogTitle>Seleccionar empresa</DialogTitle><DialogContent sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}><Stack spacing={2} sx={{ pt: 1, minHeight: 0, flex: 1 }}>
-        <TextField autoFocus label="Buscar empresa" value={companyQuery} onChange={event => { setCompanyQuery(event.target.value); setCompanyPage(1); }} placeholder="Nombre o NIT" />
-        {companyPickerLoading && <LinearProgress aria-label="Cargando empresas" sx={{ borderRadius: 1 }} />}{companyPickerError && <Alert severity="error">{companyPickerError}</Alert>}
-        <Stack spacing={1} aria-busy={companyPickerLoading} sx={{ minHeight: 0, flex: 1, overflowY: 'auto', pr: 0.5, opacity: companyPickerLoading || companyPickerError ? 0.55 : 1, transition: 'opacity 180ms ease' }}>
-          {companyPickerLoading && !companyResults ? Array.from({ length: 5 }, (_value, index) => <Skeleton key={index} variant="rounded" height={62} />) : companyResults?.items.map(record => <Button key={record.company.id} disabled={companyPickerLoading || Boolean(companyPickerError)} variant="outlined" sx={{ justifyContent: 'flex-start', textAlign: 'left', minHeight: 62 }} onClick={() => chooseCompany(record)}><Stack sx={{ alignItems: 'flex-start' }}><span>{record.company.businessName ?? record.company.tradeName ?? record.company.id}</span><Typography variant="caption">NIT {record.company.documentNumber}</Typography></Stack></Button>)}
-          {companyResults && !companyResults.items.length && !companyPickerLoading && <Alert severity="info">No encontramos empresas con esa búsqueda.</Alert>}
-        </Stack>
-        {companyResults && <DataPagination page={companyPage} pageSize={companyResults.pageSize} total={companyResults.total} disabled={companyPickerLoading} label="Páginas de empresas" onPageChange={setCompanyPage} onPageSizeChange={value => { setCompanyPageSize(value); setCompanyPage(1); }} compact />}
-      </Stack></DialogContent><DialogActions><Button onClick={() => setCompanyPickerOpen(false)}>Cancelar</Button></DialogActions>
-    </Dialog>
+    {companies && <CompanyPickerDialog open={companyPickerOpen} api={companies} scope={auth.scope} onChoose={chooseCompany} onClose={() => { setCompanyPickerForFilters(false); setCompanyPickerForCreate(false); setCompanyPickerOpen(false); }} />}
 
-    <ThirdPartyPicker open={thirdPartyPickerOpen} companyId={companyId} search={searchThirdParties} onChoose={chooseThirdParty} onClose={() => setThirdPartyPickerOpen(false)} />
-    <ThirdPartyPicker open={createThirdPartyPickerOpen} companyId={companyId} search={searchThirdParties} onChoose={chooseCreateThirdParty} onClose={() => setCreateThirdPartyPickerOpen(false)} />
+    <ThirdPartyPicker open={thirdPartyPickerOpen} companyId={draftCompanyId} search={searchThirdParties} onChoose={chooseThirdParty} onClose={() => setThirdPartyPickerOpen(false)} />
+    <ThirdPartyPicker open={createThirdPartyPickerOpen} companyId={createCompanyId || companyId} search={searchThirdParties} onChoose={chooseCreateThirdParty} onClose={() => setCreateThirdPartyPickerOpen(false)} />
 
     <Dialog open={pendingAction !== null} onClose={() => !busy && setPendingAction(null)}>
       <DialogTitle>{pendingAction?.kind === 'cancel' ? 'Cancelar invitación' : 'Reenviar invitación'}</DialogTitle>

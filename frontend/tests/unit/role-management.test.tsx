@@ -214,7 +214,7 @@ describe('role policy matrix', () => {
     const contextState = fixture.context.getState();
     act(() => fixture.context.setState({ ...contextState, activeContext: { kind: 'ORGANIZATION', organizationId: 'company', organizationType: 'COMPANY', organizationName: 'Example', roles: ['COMPANY_ADMIN'], authorization: snapshot } } as never));
     render(<RoleManagementPage api={api} authorization={fixture.authorization} context={fixture.context} />);
-    expect(await screen.findByText('Cargando la política…')).toBeInTheDocument();
+    expect(await screen.findByText('Cargando la matriz de permisos…')).toBeInTheDocument();
     expect(screen.getByText(/solo está disponible en el contexto GLOBAL/)).toBeInTheDocument();
     expect(api.read).not.toHaveBeenCalled();
   });

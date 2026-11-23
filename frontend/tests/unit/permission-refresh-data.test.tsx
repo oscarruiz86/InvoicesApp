@@ -77,7 +77,7 @@ it('clears data on changed authority without automatically restoring context or 
   const f = await setup();
   const generation = f.context.getState().generation;
   const capture = f.context.capture();
-  fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Editar vehículo' }));
   const dialog = await screen.findByRole('dialog', { name: 'Editar vehículo' });
   fireEvent.change(within(dialog).getByRole('textbox', { name: /^Número interno/ }), { target: { value: 'BORRADOR' } });
   f.read.mockResolvedValue({ ...snapshot(), policyVersion: '2', contextRevision: '2', roles: ['DRIVER'] });

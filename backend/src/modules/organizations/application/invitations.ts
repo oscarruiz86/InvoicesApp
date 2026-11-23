@@ -29,7 +29,7 @@ export interface InvitationNotificationRequest { readonly type: 'INVITATION_CREA
 
 export interface InvitationView {
   readonly id: string; readonly organizationId: string; readonly organizationType: Invitation['organizationType']; readonly companyId: string | null;
-  readonly organizationName?: string;
+  readonly organizationName?: string; readonly companyName?: string;
   readonly recipientEmail: string; readonly roles: Invitation['roles']; readonly status: Invitation['status']; readonly expiresAt: string;
   readonly version: number; readonly deliveryStatus: Invitation['deliveryStatus']; readonly createdAt: string; readonly resolvedAt: string | null;
 }
@@ -95,19 +95,27 @@ export function createInvitations(deps: {
       if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new InvitationUseCaseError('INVALID_REQUEST');
       if (input.organizationType === 'ALL') {
         const companyId = input.companyId;
-        if (!companyId || input.organizationId !== companyId) throw new InvitationUseCaseError('NOT_FOUND');
-        const company = await deps.organizations.find(companyId);
-        if (!company || company.type !== 'COMPANY') throw new InvitationUseCaseError('NOT_FOUND');
         const appAdmin = actor.roles.includes('APP_ADMIN');
-        const scope: OrganizationScope = appAdmin ? globalScope : { kind: 'organization', companyId, thirdPartyId: null };
+        if (companyId && input.organizationId !== companyId || !companyId && (!appAdmin || input.organizationId !== 'all')) throw new InvitationUseCaseError('NOT_FOUND');
+        if (companyId) {
+          const company = await deps.organizations.find(companyId);
+          if (!company || company.type !== 'COMPANY') throw new InvitationUseCaseError('NOT_FOUND');
+        }
+        const scope: OrganizationScope = appAdmin ? globalScope : { kind: 'organization', companyId: companyId!, thirdPartyId: null };
         try { await deps.authorization.requirePermission(actor, 'users:read', scope); } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
-        const result = await deps.repository.listInvitations({ organizationId: companyId, organizationType: appAdmin ? 'ALL' : 'THIRD_PARTY',
-          companyId, companyWide: true, ...(input.status ? { status: input.status } : {}), ...(input.email ? { email: input.email } : {}),
+        const result = await deps.repository.listInvitations({ organizationId: companyId ?? 'all', organizationType: 'ALL',
+          ...(companyId ? { companyId } : {}), companyWide: true, ...(input.status ? { status: input.status } : {}), ...(input.email ? { email: input.email } : {}),
           ...(input.role ? { role: input.role } : {}), ...(input.delivery ? { delivery: input.delivery } : {}), page: input.page, pageSize: input.pageSize, now: deps.now() });
         const organizationIds = [...new Set(result.items.map(invitation => invitation.organizationId))];
         const organizations = await Promise.all(organizationIds.map(async organizationId => [organizationId, await deps.organizations.find(organizationId)] as const));
         const names = new Map(organizations.map(([organizationId, organization]) => [organizationId, organization?.name ?? 'Organización no disponible']));
-        return { items: result.items.map(invitation => ({ ...invitationView(invitation), organizationName: names.get(invitation.organizationId) ?? 'Organización no disponible' })),
+        const companyNames = await Promise.all(result.items.map(async invitation => {
+          if (invitation.organizationType === 'COMPANY') return [invitation.id, names.get(invitation.organizationId) ?? 'Organización no disponible'] as const;
+          const company = invitation.companyId ? await deps.organizations.find(invitation.companyId) : null;
+          return [invitation.id, company?.type === 'COMPANY' ? company.name : '—'] as const;
+        }));
+        const companyNameByInvitation = new Map(companyNames);
+        return { items: result.items.map(invitation => ({ ...invitationView(invitation), organizationName: names.get(invitation.organizationId) ?? 'Organización no disponible', companyName: companyNameByInvitation.get(invitation.id) })),
           page: input.page, pageSize: input.pageSize, total: result.total };
       }
       const organization = await deps.organizations.find(input.organizationId);
@@ -121,7 +129,11 @@ export function createInvitations(deps: {
         ...(input.organizationType === 'THIRD_PARTY' && input.companyId ? { companyId: input.companyId } : {}),
         organizationType: input.organizationType, ...(input.status ? { status: input.status } : {}), ...(input.email ? { email: input.email } : {}),
         ...(input.role ? { role: input.role } : {}), ...(input.delivery ? { delivery: input.delivery } : {}), page: input.page, pageSize: input.pageSize, now: deps.now() });
-      return { items: result.items.map(invitationView), page: input.page, pageSize: input.pageSize, total: result.total };
+      const items = await Promise.all(result.items.map(async invitation => {
+        const company = invitation.organizationType === 'COMPANY' ? organization : invitation.companyId ? await deps.organizations.find(invitation.companyId) : null;
+        return { ...invitationView(invitation), companyName: company?.type === 'COMPANY' ? company.name : '—' };
+      }));
+      return { items, page: input.page, pageSize: input.pageSize, total: result.total };
     },
     async received(actor: AuthenticatedActor, input: { page: number; pageSize: number }) {
       if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new InvitationUseCaseError('INVALID_REQUEST');

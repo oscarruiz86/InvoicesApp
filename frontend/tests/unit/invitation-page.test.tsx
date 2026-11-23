@@ -32,8 +32,8 @@ it('shows history filters and exposes actions only for pending invitations that 
   render(<MemoryRouter><InvitationPage api={api} context={{ ...context, capture } as unknown as ContextStore} authorization={authorization as AuthorizationStore} /></MemoryRouter>);
   expect((await screen.findAllByText('active@example.invalid')).length).toBeGreaterThan(0);
   expect((await screen.findAllByText('expired@example.invalid')).length).toBeGreaterThan(0);
-  expect(screen.getAllByRole('button', { name: 'Reenviar' })).toHaveLength(1);
-  expect(screen.getAllByRole('button', { name: 'Cancelar' })).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Reenviar invitación' })).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Cancelar invitación' })).toHaveLength(1);
   expect(screen.getAllByText(/Entrega: Completada/i)).toHaveLength(2);
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'Filtrar invitaciones' }));

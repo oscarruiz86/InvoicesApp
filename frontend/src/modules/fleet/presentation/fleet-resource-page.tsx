@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { Link, useParams } from 'react-router';
-import { Alert, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, SvgIcon, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Alert, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, SvgIcon, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
 import { ApplicationError } from '@/shared/application/application-error';
@@ -10,7 +10,13 @@ import { errorMessage } from '@/shared/components/error-messages';
 import { DataPagination } from '@/shared/components/data-pagination';
 import { DataTable, DataTableAction, DataTableSortHeader, DataTableSurface } from '@/shared/components/data-table';
 import { TableLoadingState } from '@/shared/components/table-loading-state';
+import { PageHeader } from '@/shared/components/page-header';
 import { SuccessNotice } from '@/shared/components/success-notice';
+import { AppliedFilters } from '@/shared/components/applied-filters';
+import { MobileSortControl } from '@/shared/components/mobile-sort-control';
+import { StatusChip } from '@/shared/components/status-chip';
+import { RecordMetadata } from '@/shared/components/record-metadata';
+import { ListFilterDialog } from '@/shared/components/list-filter-dialog';
 import type { InvitationApi, OrganizationTarget } from '@/modules/user-invitations/application/invitation-api';
 import type { DriverApi, DriverDto, DriverListQuery, FleetPage, FleetStatus, VehicleApi, VehicleDto, VehicleListQuery } from '../application/fleet-api';
 
@@ -277,7 +283,7 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
 
   if (resource === 'drivers' && driverId) {
     return <Stack spacing={2} sx={{ minWidth: 0, maxWidth: 900 }}>
-      <Typography variant="h4" component="h1">{title}</Typography>
+      <PageHeader title={title} />
       <Button component={Link} to="/drivers" sx={{ alignSelf: 'flex-start' }}>Volver a conductores</Button>
       {notice && <SuccessNotice onClose={() => setNotice(null)}>{notice}</SuccessNotice>}
       {currentError && !statusRecord && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void load()}>Reintentar</Button>}>{currentError}</Alert>}
@@ -290,14 +296,13 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
                 <Typography variant="h5" component="h2" sx={{ overflowWrap: 'anywhere' }}>{currentDriver.identity?.name ?? 'Perfil no disponible'}</Typography>
                 <Typography color="text.secondary">Identidad canónica · solo lectura</Typography>
               </Stack>
-              <Chip label={currentDriver.driver.status === 'ACTIVE' ? 'Activo' : 'Inactivo'} color={currentDriver.driver.status === 'ACTIVE' ? 'success' : 'default'} />
+              <StatusChip label={currentDriver.driver.status === 'ACTIVE' ? 'Activo' : 'Inactivo'} tone={currentDriver.driver.status === 'ACTIVE' ? 'success' : 'danger'} />
             </Stack>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} useFlexGap sx={{ flexWrap: 'wrap' }}>
               <Stack spacing={0.5} sx={{ flex: '1 1 220px', minWidth: 0 }}><Typography variant="overline">Nombre</Typography><Typography sx={{ overflowWrap: 'anywhere' }}>{currentDriver.identity?.name ?? 'Perfil no disponible'}</Typography></Stack>
               <Stack spacing={0.5} sx={{ flex: '1 1 220px', minWidth: 0 }}><Typography variant="overline">Identificación</Typography><Typography sx={{ overflowWrap: 'anywhere' }}>{driverIdentification(currentDriver)}</Typography></Stack>
               <Stack spacing={0.5} sx={{ flex: '1 1 220px', minWidth: 0 }}><Typography variant="overline">Correo</Typography><Typography sx={{ overflowWrap: 'anywhere' }}>{currentDriver.identity?.email ?? '—'}</Typography></Stack>
-              <Stack spacing={0.5} sx={{ flex: '1 1 220px', minWidth: 0 }}><Typography variant="overline">Creado</Typography><Typography>{displayDate(currentDriver.driver.createdAt)}</Typography></Stack>
-              <Stack spacing={0.5} sx={{ flex: '1 1 220px', minWidth: 0 }}><Typography variant="overline">Última actualización</Typography><Typography>{displayDate(currentDriver.driver.updatedAt)}</Typography></Stack>
+              <RecordMetadata createdAt={currentDriver.driver.createdAt} updatedAt={currentDriver.driver.updatedAt} formatDate={displayDate} />
             </Stack>
           </Stack>
         </Paper>
@@ -308,16 +313,23 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
   }
 
   return <Stack spacing={2} sx={{ minWidth: 0 }}>
-    <Typography variant="h4" component="h1">{title}</Typography>
+    <PageHeader title={title} />
     {notice && <SuccessNotice onClose={() => setNotice(null)}>{notice}</SuccessNotice>}
     {currentError && !statusRecord && !edit && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void load()}>Reintentar</Button>}>{currentError}</Alert>}
-    {activeDriverFilters.length > 0 && <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>{activeDriverFilters.map(filter => <Chip key={filter.key} label={filter.label} onDelete={() => { if (filter.key === 'status') setDriverStatus(''); else setDriverSearch(''); setPage(1); }} />)}</Stack>}
-    <DataTable loading={loading} toolbar={<>
-      {resource === 'drivers' && !loading && currentResult && currentResult.total > 0 && <DataTableAction label="Filtrar conductores" onClick={() => { setDraftDriverStatus(driverStatus); setDraftDriverSearch(driverSearch); setFiltersOpen(true); }}><SvgIcon fontSize="small" aria-hidden="true"><path d="M3 5h18l-7.5 8.2V19l-3 1.7v-7.5L3 5z" /></SvgIcon></DataTableAction>}
+    <AppliedFilters filters={activeDriverFilters} onRemove={key => { if (key === 'status') setDriverStatus(''); else setDriverSearch(''); setPage(1); }} onClear={() => { setDriverStatus(''); setDriverSearch(''); setPage(1); }} />
+    <DataTable loading={loading} mobileSortAction={<MobileSortControl fields={resource === 'drivers' ? [
+      { key: 'name', label: 'Nombre' }, { key: 'identification', label: 'Identificación' }, { key: 'status', label: 'Estado' },
+    ] : [
+      { key: 'plate', label: 'Placa' }, { key: 'internalNumber', label: 'Número interno' }, { key: 'propertyCardNumber', label: 'Tarjeta de propiedad' }, { key: 'status', label: 'Estado' }, { key: 'createdAt', label: 'Fecha de creación' },
+    ]} sortBy={resource === 'drivers' ? driverSort : sort} direction={resource === 'drivers' ? driverDirection : direction} onChange={(key, order) => {
+      if (resource === 'drivers') { setDriverSort(key as DriverSortKey); setDriverDirection(order); }
+      else { setSort(key as FleetSort); setDirection(order); setPage(1); }
+    }} />} toolbar={<>
       {canInviteDriver && <DataTableAction label="Crear conductor" primary onClick={openDriverAssociation}><SvgIcon fontSize="small" aria-hidden="true"><path d="M15 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4ZM7 12a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm8 2c-2.67 0-8 1.34-8 4v2h12v-2c0-2.66-5.33-4-8-4ZM7 14c-.34 0-.73.02-1.15.06C3.63 14.36 0 15.54 0 18v2h5v-2c0-1.72.91-3.02 2.4-3.94L7 14Zm14-6V5h-2v3h-3v2h3v3h2v-3h3V8h-3Z" /></SvgIcon></DataTableAction>}
+      {resource === 'drivers' && !loading && currentResult && currentResult.total > 0 && <DataTableAction label="Filtrar conductores" onClick={() => { setDraftDriverStatus(driverStatus); setDraftDriverSearch(driverSearch); setFiltersOpen(true); }}><SvgIcon fontSize="small" aria-hidden="true"><path d="M3 5h18l-7.5 8.2V19l-3 1.7v-7.5L3 5z" /></SvgIcon></DataTableAction>}
     </>} pagination={currentResult && currentResult.total > 0 && !normalizedDriverSearch ? <DataPagination page={currentResult.page} pageSize={currentResult.pageSize} total={currentResult.total} label={`Paginación de ${title.toLowerCase()}`} onPageChange={setPage} onPageSizeChange={value => { setPageSize(value); setPage(1); }} onRefresh={() => void load()} refreshLabel={`Actualizar ${title.toLowerCase()}`} refreshDisabled={busy} /> : null}>
       {!loading && currentResult?.total === 0 && <Alert severity="info">No hay {title.toLowerCase()} para mostrar.</Alert>}
-      {!loading && resource === 'drivers' && currentResult && currentResult.total > 0 && normalizedDriverSearch && visibleDriverItems.length === 0 && <Alert severity="info">No hay conductores que coincidan con la búsqueda.</Alert>}
+      {!loading && resource === 'drivers' && currentResult && currentResult.total > 0 && normalizedDriverSearch && visibleDriverItems.length === 0 && <Alert severity="info">No hay empresas que coincidan con la consulta. Ajusta la búsqueda o limpia los filtros.</Alert>}
       {(currentResult || loading) && <>
       {!mobile && <DataTableSurface loading={loading}><Table size="medium" aria-label={title}><TableHead><TableRow>
         {resource === 'drivers' ? <><TableCell><DataTableSortHeader active={driverSort === 'name'} direction={driverSort === 'name' ? driverDirection : 'asc'} onClick={() => changeDriverSort('name')}>Nombre</DataTableSortHeader></TableCell><TableCell><DataTableSortHeader active={driverSort === 'identification'} direction={driverSort === 'identification' ? driverDirection : 'asc'} onClick={() => changeDriverSort('identification')}>Identificación</DataTableSortHeader></TableCell><TableCell>Correo electrónico</TableCell></> : <><TableCell><DataTableSortHeader active={sort === 'plate'} direction={sort === 'plate' ? direction : 'asc'} onClick={() => changeSort('plate')}>Placa</DataTableSortHeader></TableCell><TableCell>Conductor vigente</TableCell></>}
@@ -331,11 +343,11 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
         const label = driver ? driver.identity?.name ?? 'Conductor' : vehicle!.plate;
         return <TableRow key={id} hover>
           {driver ? <><TableCell><Typography component="span" sx={{ overflowWrap: 'anywhere' }}>{driver.identity?.name ?? 'Perfil no disponible'}</Typography></TableCell><TableCell>{driverIdentification(driver)}</TableCell><TableCell sx={{ overflowWrap: 'anywhere' }}>{driver.identity?.email ?? '—'}</TableCell></> : <><TableCell>{vehicle!.plate}</TableCell><TableCell>{vehicle!.currentDrivers.map(item => item.name).join(', ') || 'Sin conductor asignado'}</TableCell></>}
-          <TableCell><Chip size="small" label={status === 'ACTIVE' ? 'Activo' : 'Inactivo'} color={status === 'ACTIVE' ? 'success' : 'default'} /></TableCell>
-          <TableCell><Stack direction={{ xs: 'column', sm: 'row' }} spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap' }}>
-            {driver && <Button variant="outlined" size="small" onClick={() => setViewDriver(driver)}>Ver</Button>}
-            {canEditVehicle && vehicle && <Button size="small" onClick={() => openVehicleEdit(vehicle)}>Editar</Button>}
-            {canChangeStatus && <Button variant="outlined" size="small" color={status === 'ACTIVE' ? 'warning' : 'primary'} disabled={busy} onClick={() => setStatusRecord({ id, version, label, status })}>{status === 'ACTIVE' ? 'Desactivar' : 'Activar'}</Button>}
+          <TableCell><StatusChip label={status === 'ACTIVE' ? 'Activo' : 'Inactivo'} tone={status === 'ACTIVE' ? 'success' : 'danger'} /></TableCell>
+          <TableCell><Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-start' }}>
+            {driver && <DataTableAction label="Consultar conductor" onClick={() => setViewDriver(driver)}><SvgIcon fontSize="small" aria-hidden="true"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></SvgIcon></DataTableAction>}
+            {canEditVehicle && vehicle && <DataTableAction label="Editar vehículo" onClick={() => openVehicleEdit(vehicle)}><SvgIcon fontSize="small" aria-hidden="true"><path d="m3 17.25 11.06-11.06 3.75 3.75L6.75 21H3v-3.75ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z" /></SvgIcon></DataTableAction>}
+            {canChangeStatus && <DataTableAction label={`${status === 'ACTIVE' ? 'Desactivar' : 'Activar'} ${driver ? 'conductor' : 'vehículo'}`} onClick={() => setStatusRecord({ id, version, label, status })} disabled={busy}><SvgIcon fontSize="small" aria-hidden="true">{status === 'ACTIVE' ? <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm5 11H7v-2h10v2Z" /> : <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5v4h4v2h-4v4h-2v-4H7v-2h4V7h2Z" />}</SvgIcon></DataTableAction>}
           </Stack></TableCell>
         </TableRow>;
       })}</TableBody></Table></DataTableSurface>}
@@ -345,7 +357,7 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
           <Typography variant="h6" component="h2" sx={{ overflowWrap: 'anywhere' }}>{driver.identity?.name ?? 'Perfil no disponible'}</Typography>
           <Typography>Identificación: {driverIdentification(driver)}</Typography>
           <Typography sx={{ overflowWrap: 'anywhere' }}>Correo electrónico: {driver.identity?.email ?? '—'}</Typography>
-          <Chip size="small" label={status === 'ACTIVE' ? 'Activo' : 'Inactivo'} color={status === 'ACTIVE' ? 'success' : 'default'} sx={{ alignSelf: 'flex-start' }} />
+          <StatusChip label={status === 'ACTIVE' ? 'Activo' : 'Inactivo'} tone={status === 'ACTIVE' ? 'success' : 'danger'} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap sx={{ width: '100%', flexWrap: 'wrap' }}>
             <Button variant="outlined" size="small" onClick={() => setViewDriver(driver)} sx={{ width: { xs: '100%', sm: 'auto' } }}>Ver</Button>
             {canChangeStatus && <Button variant="outlined" size="small" color={status === 'ACTIVE' ? 'warning' : 'primary'} disabled={busy} onClick={() => setStatusRecord({ id: driver.driver.id, version: driver.driver.version, label: driver.identity?.name ?? 'Conductor', status })} sx={{ width: { xs: '100%', sm: 'auto' } }}>{status === 'ACTIVE' ? 'Desactivar' : 'Activar'}</Button>}
@@ -359,13 +371,12 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
           <Typography variant="h6" sx={{ overflowWrap: 'anywhere' }}>{viewDriver?.identity?.name ?? 'Perfil no disponible'}</Typography>
-          {viewDriver && <Chip size="small" label={viewDriver.driver.status === 'ACTIVE' ? 'Activo' : 'Inactivo'} color={viewDriver.driver.status === 'ACTIVE' ? 'success' : 'default'} />}
+          {viewDriver && <StatusChip label={viewDriver.driver.status === 'ACTIVE' ? 'Activo' : 'Inactivo'} tone={viewDriver.driver.status === 'ACTIVE' ? 'success' : 'danger'} />}
         </Stack>
         <Stack spacing={1.5}>
           <Typography><strong>Identificación:</strong> {viewDriver ? driverIdentification(viewDriver) : '—'}</Typography>
           <Typography sx={{ overflowWrap: 'anywhere' }}><strong>Correo:</strong> {viewDriver?.identity?.email ?? '—'}</Typography>
-          {viewDriver && <Typography><strong>Creado:</strong> {displayDate(viewDriver.driver.createdAt)}</Typography>}
-          {viewDriver && <Typography><strong>Última actualización:</strong> {displayDate(viewDriver.driver.updatedAt)}</Typography>}
+          {viewDriver && <RecordMetadata createdAt={viewDriver.driver.createdAt} updatedAt={viewDriver.driver.updatedAt} formatDate={displayDate} />}
         </Stack>
       </Stack></DialogContent>
       <DialogActions><Button onClick={() => setViewDriver(null)}>Cerrar</Button></DialogActions>
@@ -383,17 +394,15 @@ export function FleetResourcePage(props: FleetResourcePageProps) {
         <Button variant="contained" onClick={() => void createDriverAssociation()} disabled={associationBusy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(associationEmail.trim())}>{associationBusy ? 'Enviando…' : 'Enviar invitación'}</Button>
       </DialogActions>
     </Dialog>}
-    {resource === 'drivers' && <Dialog open={filtersOpen} onClose={() => setFiltersOpen(false)} fullWidth maxWidth="xs">
-      <DialogTitle>Filtros de conductores</DialogTitle>
-      <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+    {resource === 'drivers' && <ListFilterDialog open={filtersOpen} onClose={() => setFiltersOpen(false)} onApply={() => { setDriverStatus(draftDriverStatus); setDriverSearch(draftDriverSearch.trim()); setPage(1); setFiltersOpen(false); }} title="Filtros de conductores" maxWidth="sm" leadingAction={<Button onClick={() => { setDraftDriverStatus(''); setDraftDriverSearch(''); }}>Limpiar filtros</Button>}>
+      <Stack spacing={2} sx={{ pt: 1 }}>
         <Typography color="text.secondary">Busca por nombre, correo electrónico o número de documento.</Typography>
         <TextField label="Nombre, correo o documento" value={draftDriverSearch} onChange={event => setDraftDriverSearch(event.target.value)} fullWidth autoFocus />
         <TextField select label="Estado" value={draftDriverStatus} onChange={event => setDraftDriverStatus(event.target.value as FleetStatus | '')}>
           <MenuItem value="">Todos</MenuItem><MenuItem value="ACTIVE">Activo</MenuItem><MenuItem value="INACTIVE">Inactivo</MenuItem>
         </TextField>
-      </Stack></DialogContent>
-      <DialogActions><Button onClick={() => { setDraftDriverStatus(''); setDraftDriverSearch(''); }}>Limpiar filtros</Button><Button onClick={() => setFiltersOpen(false)}>Cancelar</Button><Button variant="contained" onClick={() => { setDriverStatus(draftDriverStatus); setDriverSearch(draftDriverSearch.trim()); setPage(1); setFiltersOpen(false); }}>Aplicar filtros</Button></DialogActions>
-    </Dialog>}
+      </Stack>
+    </ListFilterDialog>}
     <Dialog open={Boolean(edit)} onClose={() => !busy && setEdit(null)} fullWidth maxWidth="sm"><DialogTitle>Editar vehículo</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
       {currentError && <Alert severity="error">{currentError}</Alert>}
       <TextField label="Placa" value={plate} onChange={event => setPlate(event.target.value.toUpperCase())} required fullWidth />

@@ -61,9 +61,12 @@ export function PrivateRoute({ store, children }: { store: AuthenticationStore; 
 
 export function AuthenticationCallback({ store }: { store: AuthenticationStore }) {
   const status = useStore(store, state => state.status);
+  const error = useStore(store, state => state.error);
   const returnPath = useStore(store, state => state.returnPath);
   const destination = returnPath ?? '/session';
-  return status === 'authenticated' ? <Navigate to={destination} replace /> : <SessionFeedback store={store} />;
+  if (status === 'authenticated') return <Navigate to={destination} replace />;
+  if (status === 'anonymous' && !error) return <Navigate to={returnPath ?? '/'} replace />;
+  return <SessionFeedback store={store} />;
 }
 
 export function SessionPage({ store }: { store: AuthenticationStore }) {
@@ -74,7 +77,6 @@ export function SessionPage({ store }: { store: AuthenticationStore }) {
   if (!state.user || state.profileStatus !== 'success') return <SessionFeedback store={store} />;
   return <Paper variant="outlined" sx={{ p: { xs: 2, md: 4 }, overflowWrap: 'anywhere' }}><Stack spacing={2}>
     <Typography variant="h4" component="h1">Mi perfil</Typography>
-    <Typography>Identidad confirmada por Keycloak. Los datos personales pertenecen a tu cuenta y son independientes de tus organizaciones y roles.</Typography>
     <Typography>Usuario: {state.user.username ?? 'No disponible'}</Typography>
     <Typography>Nombre: {state.user.name ?? 'No disponible'}</Typography>
     <Typography>Correo: {state.user.email ?? 'No disponible'}</Typography>

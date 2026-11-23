@@ -152,7 +152,7 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
       try {
         const connection = await connect(); await ensureReady(connection);
         const filter = { thirdPartyId: input.thirdPartyId, ...(input.ownerSubject ? { ownerSubject: input.ownerSubject } : {}),
-          ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}),
+          ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}), ...(input.driverId ? { driverId: input.driverId } : {}),
           ...(input.dateFrom || input.dateTo ? { invoiceDate: { ...(input.dateFrom ? { $gte: input.dateFrom } : {}), ...(input.dateTo ? { $lte: input.dateTo } : {}) } } : {}),
           ...(input.q ? { $or: [{ invoiceNumber: safeRegex(input.q) }, { issuerNit: safeRegex(input.q) }] } : {}) };
         const direction: 1 | -1 = input.direction === 'asc' ? 1 : -1;
@@ -254,12 +254,16 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
       return transaction(async (connection, session, ports) => {
         await ports.policy.confirm(input.authority.policyVersion);
         await ports.authority.confirm({ ...input.authority, actorSubject: input.actorSubject, thirdPartyId: input.current.thirdPartyId,
-          requiredRole: input.authority.roles.includes('DRIVER') ? 'DRIVER' : 'THIRD_PARTY_ADMIN', transactionContext: { connection, session } });
-        await ports.editPolicy.confirm({ thirdPartyId: input.current.thirdPartyId, revision: input.editPolicy.revision,
+          requiredRole: input.authority.roles.includes('THIRD_PARTY_ADMIN') ? 'THIRD_PARTY_ADMIN' : 'DRIVER', transactionContext: { connection, session } });
+        const unrestrictedThirdPartyAdmin = input.authority.roles.includes('THIRD_PARTY_ADMIN');
+        if (!unrestrictedThirdPartyAdmin && input.editPolicy) await ports.editPolicy.confirm({ thirdPartyId: input.current.thirdPartyId, revision: input.editPolicy.revision,
           scope: input.editPolicy.scope, transactionContext: { connection, session } });
         const decisionAt = clock.now();
-        if (decisionAt < input.editPolicy.validFrom || (input.editPolicy.validUntil && decisionAt >= input.editPolicy.validUntil)) throw new InvoiceRepositoryError('EDIT_POLICY_UNAVAILABLE');
-        if (decisionAt.getTime() >= input.current.createdAt.getTime() + input.editPolicy.durationSeconds * 1000) throw new InvoiceRepositoryError('EDIT_WINDOW_CLOSED');
+        if (!unrestrictedThirdPartyAdmin) {
+          if (!input.editPolicy) throw new InvoiceRepositoryError('EDIT_POLICY_UNAVAILABLE');
+          if (decisionAt < input.editPolicy.validFrom || (input.editPolicy.validUntil && decisionAt >= input.editPolicy.validUntil)) throw new InvoiceRepositoryError('EDIT_POLICY_UNAVAILABLE');
+          if (decisionAt.getTime() >= input.current.createdAt.getTime() + input.editPolicy.durationSeconds * 1000) throw new InvoiceRepositoryError('EDIT_WINDOW_CLOSED');
+        }
         const filter = { _id: new Types.ObjectId(input.current.id), thirdPartyId: input.current.thirdPartyId, version: input.expectedVersion,
           ...(input.authority.roles.includes('DRIVER') ? { ownerSubject: input.actorSubject } : {}) };
         const committed = { ...input.next, updatedAt: decisionAt };

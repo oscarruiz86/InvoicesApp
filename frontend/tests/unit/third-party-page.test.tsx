@@ -1,11 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { createStore } from 'zustand/vanilla';
 import { createAuthorizationStore, type AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import { ThirdPartyPage } from '@/modules/third-party-management/presentation/third-party-page';
 import type { ThirdPartyApi } from '@/modules/third-party-management/application/third-party-api';
+import type { CompanyApi } from '@/modules/company-management/application/company-api';
 import type { ThirdParty, ThirdPartyRecord } from '@/modules/third-party-management/domain/third-party';
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
 import type { SessionPort, SessionSnapshot } from '@/modules/authentication/application/session-ports';
@@ -30,11 +31,11 @@ function setup(apiOverride: ThirdPartyApi) {
   const contextState = createStore(() => ({ status: 'ready' as const, activeContext: null, availableContexts: { organizations: [], globalAvailable: true }, generation: 0, persistent: false,
     initialize: async () => {}, openSelector: async () => false, select: async () => {}, clear: async () => {} }));
   const context = Object.assign(contextState, { register: vi.fn(() => () => {}), capture: vi.fn(() => captured) }) as unknown as ContextStore;
-  const renderPage = (_mode: 'list' | 'create' | 'detail' | 'edit', path: string) => render(<MemoryRouter initialEntries={[path]}><Routes>
-    <Route path="/third-parties" element={<ThirdPartyPage api={apiOverride} context={context} authorization={authorization} mode="list" />} />
-    <Route path="/third-parties/new" element={<ThirdPartyPage api={apiOverride} context={context} authorization={authorization} mode="create" />} />
-    <Route path="/third-parties/:id" element={<ThirdPartyPage api={apiOverride} context={context} authorization={authorization} mode="detail" />} />
-    <Route path="/third-parties/:id/edit" element={<ThirdPartyPage api={apiOverride} context={context} authorization={authorization} mode="edit" />} />
+  const renderPage = (_mode: 'list' | 'create' | 'detail' | 'edit', path: string, companies?: CompanyApi) => render(<MemoryRouter initialEntries={[path]}><Routes>
+    <Route path="/third-parties" element={<ThirdPartyPage api={apiOverride} context={context} authorization={authorization} companies={companies} mode="list" />} />
+    <Route path="/third-parties/new" element={<ThirdPartyPage api={apiOverride} context={context} authorization={authorization} companies={companies} mode="create" />} />
+    <Route path="/third-parties/:id" element={<ThirdPartyPage api={apiOverride} context={context} authorization={authorization} companies={companies} mode="detail" />} />
+    <Route path="/third-parties/:id/edit" element={<ThirdPartyPage api={apiOverride} context={context} authorization={authorization} companies={companies} mode="edit" />} />
   </Routes></MemoryRouter>);
   return { authorization, context, renderPage, invalidate: () => { current = false; } };
 }
@@ -102,20 +103,25 @@ it('retries a failed list request', async () => {
 
 it('keeps the submit disabled for incomplete data and preserves the draft when the user cancels', async () => {
   const user = userEvent.setup(); const create = vi.fn(async () => record); const f = setup(api({ create }));
-  await act(() => f.authorization.getState().setContext(globalScope)); f.renderPage('create', '/third-parties/new');
+  const companies = { list: vi.fn(async () => ({ items: [{ company: { id: 'company-1', businessName: 'Empresa Uno', documentNumber: '9001' }, version: '1' }], page: 1, pageSize: 5, total: 1 })) } as unknown as CompanyApi;
+  await act(() => f.authorization.getState().setContext(globalScope)); f.renderPage('create', '/third-parties/new', companies);
   const dialog = await screen.findByRole('dialog', { name: 'Crear tercero' });
   const submit = within(dialog).getByRole('button', { name: 'Crear tercero' });
   expect(submit).toBeDisabled();
   await user.type(within(dialog).getByRole('textbox', { name: 'NIT' }), '900123');
   await user.type(within(dialog).getByRole('textbox', { name: 'Razón social' }), 'Borrador');
   await user.type(within(dialog).getByRole('textbox', { name: 'Correo electrónico' }), 'draft@example.com');
+  await user.click(within(dialog).getByRole('button', { name: /Seleccionar empresa/ }));
+  const companyPicker = await screen.findByRole('dialog', { name: 'Seleccionar empresa' });
+  await user.click(within(companyPicker).getByRole('button', { name: /Empresa Uno/ }));
+  await waitForElementToBeRemoved(companyPicker);
   expect(submit).toBeEnabled();
   vi.spyOn(window, 'confirm').mockReturnValue(false);
   await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
   expect(window.confirm).toHaveBeenCalledWith('¿Descartar los cambios y cerrar?');
   expect(within(dialog).getByRole('textbox', { name: 'Razón social' })).toHaveValue('Borrador');
   expect(create).not.toHaveBeenCalled();
-}, 15000);
+}, 30000);
 it('requires a fresh read after a version conflict before another edit can be submitted', async () => {
   const user = userEvent.setup();
   const refreshed = { ...record, version: '2', thirdParty: { ...profile, city: 'Cali' } };

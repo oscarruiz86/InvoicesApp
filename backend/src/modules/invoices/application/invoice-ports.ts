@@ -33,6 +33,7 @@ export interface InvoiceListQuery {
   readonly ownerSubject?: string;
   readonly q?: string;
   readonly vehicleId?: string;
+  readonly driverId?: string;
   readonly dateFrom?: string;
   readonly dateTo?: string;
   readonly page: number;
@@ -61,7 +62,7 @@ export interface InvoiceRepositoryPort {
   find(input: { readonly id: string; readonly thirdPartyId: string; readonly ownerSubject?: string }): Promise<Invoice | null>;
   readImage(input: { readonly invoice: Invoice }): Promise<InvoiceImageContent | null>;
   create(input: { readonly invoice: Invoice; readonly image?: InvoiceImagePayload; readonly actorSubject: string; readonly idempotencyKey: string; readonly requestHash: string; readonly authority: InvoiceAuthorityReceipt; readonly assignment: InvoiceAssignmentFacts; readonly correlationId: string }): Promise<Invoice>;
-  edit(input: { readonly current: Invoice; readonly next: Invoice; readonly image?: InvoiceImagePayload; readonly editPolicy: InvoiceEditPolicy;
+  edit(input: { readonly current: Invoice; readonly next: Invoice; readonly image?: InvoiceImagePayload; readonly editPolicy?: InvoiceEditPolicy;
     readonly actorSubject: string; readonly expectedVersion: number; readonly authority: InvoiceAuthorityReceipt; readonly correlationId: string }): Promise<Invoice>;
 }
 export interface InvoiceAuditEvent {

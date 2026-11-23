@@ -12,7 +12,7 @@ export function AppLayout({ children, navigation, account }: { children: ReactNo
       if (event.target instanceof Element && event.target.closest('a[href]')) setOpen(false);
     } : undefined}
     sx={{ p: 1.5, bgcolor: '#f8fafc', minHeight: '100%' }}>{navigation}</Stack>;
-  return <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
+  return <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', bgcolor: 'background.default' }}>
     <Box component="a" href="#main-content" sx={{ position: 'absolute', left: -10000, top: 8, zIndex: 1400, p: 1.5, bgcolor: 'background.paper', color: 'primary.main', borderRadius: 1, '&:focus': { left: 8, outline: '3px solid #1d4ed8' } }}>Saltar al contenido</Box>
     <AppBar position="sticky" elevation={0} color="transparent" sx={{ bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
       <Toolbar sx={{ gap: 1, minHeight: { xs: 62, md: 66 }, px: { xs: 2, md: 2.5 }, py: { xs: 1.25, md: 1.5 }, boxSizing: 'border-box' }}>
@@ -23,15 +23,15 @@ export function AppLayout({ children, navigation, account }: { children: ReactNo
         {account}
       </Toolbar>
     </AppBar>
-      <Drawer variant="temporary" open={open && !desktop} onClose={() => setOpen(false)} ModalProps={{ keepMounted: true }} sx={{ display: { xs: 'block', md: 'none' }, '& .MuiDrawer-paper': { width: drawerWidth } }}>
+      <Drawer variant="temporary" open={open && !desktop} onClose={() => setOpen(false)} ModalProps={{ keepMounted: true }} sx={{ display: { xs: 'block', md: 'none' }, '& .MuiDrawer-paper': { width: drawerWidth, maxHeight: '100dvh', overflowY: 'auto', overscrollBehavior: 'contain' } }}>
       {navigationPanel(true)}
     </Drawer>
-    <Box sx={{ display: 'flex', alignItems: 'stretch' }}>
-      {open && desktop && <Drawer variant="permanent" sx={{ display: { xs: 'none', md: 'block' }, width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, position: 'relative', boxSizing: 'border-box', borderRight: '1px solid', borderColor: 'divider' } }}>
+    <Box sx={{ display: 'flex', flex: 1, alignItems: 'stretch', minHeight: { md: 'calc(100dvh - 114px)' } }}>
+      {open && desktop && <Drawer variant="permanent" sx={{ display: { xs: 'none', md: 'block' }, width: drawerWidth, flexShrink: 0, height: 'auto', alignSelf: 'stretch', bgcolor: '#f8fafc', '& .MuiDrawer-paper': { width: drawerWidth, position: 'sticky', top: 66, height: 'calc(100dvh - 114px)', maxHeight: 'calc(100dvh - 114px)', overflowY: 'auto', overscrollBehavior: 'contain', boxSizing: 'border-box', borderRight: '1px solid', borderColor: 'divider', bgcolor: '#f8fafc' } }}>
         {navigationPanel()}
       </Drawer>}
-      <Box id="main-content" component="main" sx={{ minWidth: 0, flexGrow: 1, px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2, md: 3 } }}>{children}</Box>
+      <Box id="main-content" component="main" sx={{ minWidth: 0, width: '100%', maxWidth: 1600, mx: 'auto', flexGrow: 1, px: { xs: 2, sm: 3, md: 4 }, py: { xs: 2, md: 3 } }}>{children}</Box>
     </Box>
-    <Box component="footer" sx={{ px: { xs: 2, md: 2.5 }, py: 1.5, mt: 2 }}><Typography variant="caption" color="text.secondary">Invoices App</Typography></Box>
+    <Box component="footer" sx={{ display: 'flex', alignItems: 'center', boxSizing: 'border-box', minHeight: 48, px: { xs: 2, md: 2.5 }, py: 1.5, mt: 'auto' }}><Typography variant="caption" color="text.secondary">Invoices App</Typography></Box>
   </Box>;
 }

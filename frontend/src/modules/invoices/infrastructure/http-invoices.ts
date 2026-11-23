@@ -16,13 +16,15 @@ const invoice = z.object({ id, origin: z.enum(['MANUAL', 'QR']), qrMetadata: qrM
   invoiceTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/), invoiceAtUtc: z.string().datetime(), invoiceNumber: z.string().min(1).max(64), issuerNit: z.string().regex(/^\d{1,20}$/),
   buyerDocument: z.string().min(1).max(40), amounts, version: z.number().int().positive(), createdAt: z.string().datetime(), updatedAt: z.string().datetime(),
   imageUrl: z.string().startsWith('/api/invoices/').nullable() }).strict();
-const page = z.object({ items: z.array(invoice), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive().max(100) }).strict();
-const details = z.object({ invoice, editability: z.object({ available: z.boolean(), reason: z.enum(['PERMISSION_INSUFFICIENT', 'EDIT_POLICY_UNAVAILABLE', 'EDIT_WINDOW_CLOSED', 'QR_IMMUTABLE']).nullable() }).strict() }).strict();
+const editability = z.object({ available: z.boolean(), reason: z.enum(['PERMISSION_INSUFFICIENT', 'EDIT_POLICY_UNAVAILABLE', 'EDIT_WINDOW_CLOSED', 'QR_IMMUTABLE']).nullable() }).strict();
+const listItem = invoice.extend({ editability });
+const page = z.object({ items: z.array(listItem), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive().max(100) }).strict();
+const details = z.object({ invoice, editability }).strict();
 function parse<T>(schema: z.ZodType<T>, value: unknown): T { const parsed = schema.safeParse(value); if (!parsed.success) throw new ApplicationError('INVALID_RESPONSE'); return parsed.data; }
 function queryParams(scope: PermissionScope, query?: InvoiceQuery) {
   if (scope.kind !== 'organization' || scope.companyId !== null || !id.safeParse(scope.thirdPartyId).success) throw new ApplicationError('FORBIDDEN');
   const params = new URLSearchParams({ scope: 'organization', thirdPartyId: scope.thirdPartyId! });
-  if (query) for (const key of ['page', 'pageSize', 'sort', 'direction', 'q', 'vehicleId', 'dateFrom', 'dateTo'] as const) {
+  if (query) for (const key of ['page', 'pageSize', 'sort', 'direction', 'q', 'vehicleId', 'driverId', 'dateFrom', 'dateTo'] as const) {
     const value = query[key]; if (value !== undefined) params.set(key, String(value));
   }
   return params.toString();
