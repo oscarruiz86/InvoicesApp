@@ -93,6 +93,10 @@ Antes de habilitar la nueva versión en desarrollo se limpiarán las colecciones
 
 README y `.env.example` documentarán capacidad, permisos, arranque, validación y recuperación. Para respaldar un entorno de desarrollo que se quiera conservar, se pausarán escrituras y se copiarán MongoDB y el volumen como un conjunto. Health seguirá expresando vida del proceso y no disponibilidad del storage.
 
+### 8. Diferencia entre importes QR durante edición administrativa
+
+La captura QR conserva los importes interpretados desde el origen, aunque el total no coincida aritméticamente con valor, IVA y otros impuestos. En edición por `THIRD_PARTY_ADMIN`, se conserva ese comportamiento: cada importe debe ser un decimal no negativo válido de hasta dos decimales, pero no se aplica una tolerancia de diferencia ni una validación de suma exacta. Por tanto, una diferencia de `$0,51` no es un umbral; se aceptan importes individualmente válidos aunque su suma no coincida. Las facturas manuales mantienen la validación de suma exacta.
+
 ## Risks / Trade-offs
 
 - [No hay transacción común entre MongoDB y filesystem] → saga objeto-primero, backups de reemplazo, journal y compensación idempotente.

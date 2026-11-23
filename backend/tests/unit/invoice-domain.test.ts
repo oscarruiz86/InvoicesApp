@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInvoice, createQrInvoice, normalizedInvoiceBusinessKey } from '@/modules/invoices/domain/invoice';
+import { createInvoice, createQrInvoice, normalizedInvoiceBusinessKey, reviseQrInvoice } from '@/modules/invoices/domain/invoice';
 
 const now = new Date('2026-11-20T12:00:00.000Z');
 const input = { id: 'a'.repeat(24), ownerSubject: 'driver-subject', thirdPartyId: 'b'.repeat(24), assignmentId: 'c'.repeat(24),
@@ -43,5 +43,14 @@ describe('invoice domain', () => {
     expect(Object.isFrozen(invoice.qrMetadata)).toBe(true);
     for (const invalid of [{ ...metadata, contentHash: 'raw-payload' }, { ...metadata, cufe: 'x' }, { ...metadata, sourceUrl: 'https://user:secret@dian.example/qr' },
       { ...metadata, sourceUrl: 'https://' }]) expect(() => createQrInvoice(input, invalid, '2026-11-20T17:30:00.000Z')).toThrow('INVALID_INVOICE');
+  });
+
+  it('revises QR invoices without imposing exact-total validation on source amounts', () => {
+    const metadata = { parserVersion: 'invoice-key-value-v1' as const, contentHash: 'a'.repeat(64), cufe: 'b'.repeat(96) };
+    const revised = reviseQrInvoice({ ...input, invoiceDate: '2026-05-06', invoiceTime: '05:23:51', invoiceNumber: 'AN021059808',
+      amount: '21571.00', vatAmount: '4098.49', otherTaxesAmount: '0.00', totalAmount: '25670.00', now: new Date('2026-11-23T16:00:00.000Z') }, metadata);
+    expect(revised).toMatchObject({ origin: 'QR', invoiceDate: '2026-05-06', invoiceTime: '05:23:51', invoiceNumber: 'AN021059808',
+      invoiceAtUtc: '2026-05-06T10:23:51.000Z', amounts: { amount: '21571.00', vatAmount: '4098.49', otherTaxesAmount: '0.00', totalAmount: '25670.00' },
+      qrMetadata: metadata });
   });
 });

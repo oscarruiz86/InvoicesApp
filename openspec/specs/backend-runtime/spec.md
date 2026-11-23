@@ -26,16 +26,20 @@ Con configuración válida, `GET /api/health` MUST devolver HTTP 200, JSON con `
 - **THEN** `/api/health` sigue respondiendo HTTP 200 sin afirmar disponibilidad de persistencia ni autenticación
 
 ### Requirement: Entorno de runtime validado y privado
-El backend MUST validar variables requeridas y formato de las opcionales antes de atender sus servicios técnicos. Una configuración inválida MUST producir un error HTTP 503 neutro con código `CONFIGURATION_ERROR`, sin revelar valores sensibles. La compilación MUST NOT requerir conexiones o credenciales reales.
+El backend MUST validar variables requeridas, dependencias condicionales y formato de las opcionales antes de atender sus servicios técnicos y operar rutas privadas. La selección de almacenamiento de imágenes MUST exigir un proveedor soportado y, para `local`, raíz absoluta y namespace válidos. Una configuración inválida MUST producir un error HTTP 503 neutro con código `CONFIGURATION_ERROR`, sin revelar valores ni rutas. La compilación MUST NOT requerir conexiones o credenciales reales ni realizar E/S sobre el storage.
 
 #### Scenario: Configuración inválida
-- **WHEN** falta la URI requerida o una variable tiene formato inválido en runtime
+- **WHEN** falta una variable requerida, una variable tiene formato inválido o la configuración condicional del proveedor está incompleta en runtime
 - **THEN** el servicio no afirma estado operativo y responde HTTP 503 con el envelope documentado
-- **AND** el diagnóstico identifica variables problemáticas sin mostrar sus valores
+- **AND** el diagnóstico identifica las variables problemáticas sin mostrar sus valores ni rutas
 
 #### Scenario: Build aislado de servicios
-- **WHEN** se compila con las dependencias instaladas y sin MongoDB o Keycloak activos
-- **THEN** el build puede completarse sin conexiones ni credenciales externas
+- **WHEN** se compila con las dependencias instaladas y sin MongoDB, Keycloak ni directorio de imágenes disponibles
+- **THEN** el build puede completarse sin conexiones, credenciales ni operaciones de lectura o escritura en el almacenamiento
+
+#### Scenario: Proveedor local completo
+- **WHEN** `INVOICE_IMAGE_STORAGE_PROVIDER` es `local` y la raíz absoluta y el namespace cumplen sus formatos
+- **THEN** la configuración se acepta sin crear directorios ni comprobar objetos durante el parseo
 
 ### Requirement: Conexión de datos perezosa y reutilizable
 La infraestructura de datos MUST abrir una conexión solo cuando se solicita explícitamente y reutilizar el pool y el intento en curso por proceso. MUST usar tiempos de espera finitos y permitir nuevos intentos después de un fallo, sin cerrar el pool por solicitud.

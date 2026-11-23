@@ -42,6 +42,18 @@ Las nuevas mutaciones MUST guardar en MongoDB proveedor, clave, tipo, tamaño, d
 
 ## MODIFIED Requirements
 
+### Requirement: Representación decimal y fechas verificables
+
+Los importes MUST ser decimales no negativos con máximo dos decimales. Para una factura MANUAL, la suma de valor, IVA y otros impuestos MUST coincidir exactamente con el total. Para facturas QR, el sistema MUST conservar los importes válidos interpretados del origen y MUST NOT aplicar una tolerancia monetaria ni exigir que su suma coincida con el total durante una edición autorizada de `THIRD_PARTY_ADMIN`. Fecha y hora comercial MUST conservarse separadas del instante UTC de registro. NIT, documento y número MUST tratarse como texto; MUST NOT validar identidad del adquiriente mediante Keycloak.
+
+#### Scenario: Total inconsistente
+- **WHEN** el total de una factura MANUAL no coincide con la suma exacta o algún importe no cumple el formato
+- **THEN** responde 400 sin redondear silenciosamente ni persistir la factura
+
+#### Scenario: Diferencia de importes en factura QR
+- **WHEN** un `THIRD_PARTY_ADMIN` autorizado edita una factura QR cuyos importes válidos suman una cantidad distinta del total conservado o editado
+- **THEN** se guardan los importes decimales válidos sin imponer tolerancia de centavos ni alterar silenciosamente el total
+
 ### Requirement: Adjuntos privados
 
 El sistema MUST aceptar como máximo una imagen JPEG o PNG de hasta 5 MiB después de normalizarla, validar contenido y dimensiones y servirla únicamente tras autorizar acceso a la factura. MUST NOT exponer la raíz, clave o ruta pública, ni aceptar URLs remotas. Agregar o reemplazar imagen después del alta MUST aplicar la política y versión de edición.

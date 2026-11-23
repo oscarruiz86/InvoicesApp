@@ -29,7 +29,7 @@ function setup(permissions: readonly string[] = ['invoices:read']) {
   const authorization = createStore(() => ({ status: 'ready' as const, scope, snapshot: { scope, permissions, roles: ['DRIVER'] }, expiresAt: Number.MAX_SAFE_INTEGER,
     has: (permission: string) => permissions.includes(permission) })) as unknown as AuthorizationStore;
   const list = vi.fn(async (_scope: PermissionScope, query: InvoiceQuery): Promise<InvoicePage> => ({ items: query.page === 1 ? [{ ...record, editability: { available: true, reason: null } }] : [], total: 1, page: query.page, pageSize: query.pageSize }));
-  const detail = vi.fn(async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' as const } }));
+  const detail = vi.fn<InvoiceApi['detail']>(async () => ({ invoice: record, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' } }));
   const create = vi.fn<InvoiceApi['create']>(async () => record), createQr = vi.fn<InvoiceApi['createQr']>(async () => ({ ...record, origin: 'QR' })),
     update = vi.fn<InvoiceApi['update']>(async () => record), image = vi.fn(async () => new Blob());
   const api = { list, detail, create, createQr, update, image } as unknown as InvoiceApi;
@@ -66,6 +66,18 @@ describe('invoices page', () => {
     await userEvent.click((await screen.findAllByRole('button', { name: 'Consultar factura' }))[0]);
     expect(await screen.findByText(/no se pudo confirmar una vigencia activa/i)).toBeInTheDocument();
     expect(deps.detail).toHaveBeenCalledWith(scope, record.id, expect.any(AbortSignal));
+  });
+  it('uses the configured editability after saving instead of showing a stale policy warning', async () => {
+    const deps = setup(['invoices:read', 'invoices:update']);
+    const detail = { invoice: record, editability: { available: true, reason: null } };
+    deps.detail.mockResolvedValue(detail);
+    renderPage(deps);
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Editar factura' }))[0]!);
+    const dialog = await screen.findByRole('dialog', { name: 'Editar factura' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Guardar factura' }));
+    expect(await screen.findByText('Factura actualizada.')).toBeInTheDocument();
+    await waitFor(() => expect(deps.detail).toHaveBeenCalledWith(scope, record.id, expect.any(AbortSignal)));
+    expect(screen.queryByText(/no se pudo confirmar una vigencia activa/i)).not.toBeInTheDocument();
   });
   it('keeps a create draft, attaches a preview and prevents duplicate submissions', async () => {
     const deps = setup(['invoices:read', 'invoices:create']); renderPage(deps);

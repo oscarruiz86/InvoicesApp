@@ -174,6 +174,37 @@ describe('invoice application', () => {
     expect(deps.editPolicy.read).not.toHaveBeenCalled(); expect(repo.edit).not.toHaveBeenCalled();
   });
 
+  it('allows a third-party administrator to edit a QR invoice without the edit-window policy', async () => {
+    const qr = { ...createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24),
+      driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-05-06', invoiceTime: '05:23:51', invoiceNumber: 'QR-1', issuerNit: '0001',
+      buyerDocument: '123', amount: '21571.00', vatAmount: '4098.49', otherTaxesAmount: '0.00', totalAmount: '25669.49', now: new Date('2026-11-20T11:59:00Z') }),
+      amounts: { amount: '21571.00', vatAmount: '4098.49', otherTaxesAmount: '0.00', totalAmount: '25670.00' },
+      origin: 'QR' as const, qrMetadata: { parserVersion: 'invoice-key-value-v1' as const, contentHash: 'a'.repeat(64), cufe: 'b'.repeat(96) } };
+    repo.find.mockResolvedValueOnce(qr as never); repo.edit.mockClear();
+    const deps = dependencies(['THIRD_PARTY_ADMIN']);
+    const result = await createInvoices(deps).edit(actor, { id: qr.id, thirdPartyId: query.thirdPartyId, expectedVersion: qr.version,
+      changes: { invoiceNumber: 'QR-1-CORREGIDA' } });
+    expect(result).toMatchObject({ origin: 'QR', invoiceNumber: 'QR-1-CORREGIDA', qrMetadata: qr.qrMetadata,
+      amounts: { totalAmount: '25670.00' } });
+    expect(repo.edit).toHaveBeenCalledWith(expect.objectContaining({ next: expect.objectContaining({ origin: 'QR', invoiceNumber: 'QR-1-CORREGIDA' }),
+      authority: expect.objectContaining({ roles: expect.arrayContaining(['THIRD_PARTY_ADMIN']) }) }));
+    expect(repo.edit.mock.calls[0][0]).not.toHaveProperty('editPolicy');
+    expect(deps.editPolicy.read).not.toHaveBeenCalled();
+  });
+
+  it('does not show an edit-window warning to a third-party administrator viewing a QR invoice', async () => {
+    const qr = { ...createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24),
+      driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-05-06', invoiceTime: '05:23:51', invoiceNumber: 'QR-1', issuerNit: '0001',
+      buyerDocument: '123', amount: '21571.00', vatAmount: '4098.49', otherTaxesAmount: '0.00', totalAmount: '25669.49', now: new Date('2026-11-20T11:59:00Z') }),
+      amounts: { amount: '21571.00', vatAmount: '4098.49', otherTaxesAmount: '0.00', totalAmount: '25670.00' },
+      origin: 'QR' as const, qrMetadata: { parserVersion: 'invoice-key-value-v1' as const, contentHash: 'a'.repeat(64) } };
+    repo.find.mockResolvedValueOnce(qr as never);
+    const deps = dependencies(['THIRD_PARTY_ADMIN']);
+    await expect(createInvoices(deps).detail(actor, { id: qr.id, thirdPartyId: query.thirdPartyId }))
+      .resolves.toMatchObject({ editability: { available: true, reason: null } });
+    expect(deps.editPolicy.read).not.toHaveBeenCalled();
+  });
+
   it('previews without writing and reparses QR content at creation instead of trusting client fields', async () => {
     repo.create.mockClear();
     const deps = dependencies(['DRIVER']); deps.assignments.readOwnActive = vi.fn(async () => ({ assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24),

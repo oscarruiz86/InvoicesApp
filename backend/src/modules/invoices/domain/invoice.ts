@@ -32,6 +32,19 @@ export interface Invoice {
 }
 
 export function createQrInvoice(input: CreateInvoiceInput, metadata: InvoiceQrMetadata, invoiceAtUtc: string): Invoice {
+  validateQrMetadata(metadata);
+  if (!Number.isFinite(Date.parse(invoiceAtUtc))) throw new InvoiceDomainError('INVALID_INVOICE');
+  const invoice = createInvoiceRecord(input, false);
+  return { ...invoice, origin: 'QR', qrMetadata: Object.freeze({ ...metadata }), invoiceAtUtc: new Date(invoiceAtUtc).toISOString() };
+}
+
+export function reviseQrInvoice(input: CreateInvoiceInput, metadata: InvoiceQrMetadata): Invoice {
+  validateQrMetadata(metadata);
+  const invoice = createInvoiceRecord(input, false);
+  return { ...invoice, origin: 'QR', qrMetadata: Object.freeze({ ...metadata }) };
+}
+
+function validateQrMetadata(metadata: InvoiceQrMetadata): void {
   let validSourceUrl = true;
   if (metadata?.sourceUrl !== undefined) {
     try { const url = new URL(metadata.sourceUrl); validSourceUrl = url.protocol === 'https:' && !url.username && !url.password && metadata.sourceUrl.length <= 2048; }
@@ -39,11 +52,9 @@ export function createQrInvoice(input: CreateInvoiceInput, metadata: InvoiceQrMe
   }
   if (!metadata || metadata.parserVersion !== 'invoice-key-value-v1' || !/^[a-f0-9]{64}$/.test(metadata.contentHash)
     || (metadata.cufe !== undefined && !/^[a-f0-9]{96}$/.test(metadata.cufe))
-    || !validSourceUrl || !Number.isFinite(Date.parse(invoiceAtUtc))) {
+    || !validSourceUrl) {
     throw new InvoiceDomainError('INVALID_INVOICE');
   }
-  const invoice = createInvoiceRecord(input, false);
-  return { ...invoice, origin: 'QR', qrMetadata: Object.freeze({ ...metadata }), invoiceAtUtc: new Date(invoiceAtUtc).toISOString() };
 }
 
 export interface CreateInvoiceInput {

@@ -1,5 +1,5 @@
 import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
-import { createInvoice, createQrInvoice, InvoiceDomainError, type Invoice } from '../domain/invoice';
+import { createInvoice, createQrInvoice, reviseQrInvoice, InvoiceDomainError, type Invoice } from '../domain/invoice';
 import { InvoiceQrError, parseInvoiceQr } from '../domain/invoice-qr';
 import { evaluateInvoiceEditWindow, type InvoiceEditPolicy } from '../domain/edit-window';
 import type { InvoiceAssignmentConfirmationPort, InvoiceAuthorizationPort, InvoiceClock, InvoiceCorrelationId,
@@ -238,10 +238,11 @@ export function createInvoices(deps: {
           otherTaxesAmount: current.amounts.otherTaxesAmount, totalAmount: current.amounts.totalAmount, imageId: current.imageId };
         const { image, ...changes } = input.changes;
         const imagePayload = image ? { ...image, id: deps.ids.next() } : undefined;
-        const updatedManual = createInvoice({ ...values, ...changes, id: current.id, ownerSubject: current.ownerSubject, thirdPartyId: current.thirdPartyId,
+        const revised = { ...values, ...changes, id: current.id, ownerSubject: current.ownerSubject, thirdPartyId: current.thirdPartyId,
           assignmentId: current.assignmentId, driverId: current.driverId, vehicleId: current.vehicleId, vehiclePlate: current.vehiclePlate,
-          imageId: imagePayload?.id ?? current.imageId, now });
-        const next: Invoice = current.origin === 'QR' ? { ...updatedManual, origin: 'QR', qrMetadata: current.qrMetadata } : updatedManual;
+          imageId: imagePayload?.id ?? current.imageId, now };
+        if (current.origin === 'QR' && !current.qrMetadata) throw new InvoiceUseCaseError('INVOICE_STORAGE_UNAVAILABLE');
+        const next: Invoice = current.origin === 'QR' ? reviseQrInvoice(revised, current.qrMetadata!) : createInvoice(revised);
         const changed = current.invoiceDate !== next.invoiceDate || current.invoiceTime !== next.invoiceTime || current.invoiceNumber !== next.invoiceNumber
           || current.issuerNit !== next.issuerNit || current.buyerDocument !== next.buyerDocument || current.imageId !== next.imageId
           || JSON.stringify(current.amounts) !== JSON.stringify(next.amounts);

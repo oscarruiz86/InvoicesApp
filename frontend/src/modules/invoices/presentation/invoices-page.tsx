@@ -182,8 +182,8 @@ export function InvoicesPage({ api, assignments, context, authorization, loadQrD
         return api.update(capture.scope, safeForm.invoice!.id, fields, AbortSignal.any([capture.signal, controller.signal])); })();
     void work.then(saved => {
       if (!capture.isCurrent() || controller.signal.aborted) return;
-      setForm(null); setNotice(safeForm.mode === 'create' ? 'Factura registrada.' : 'Factura actualizada.'); setDetail({ generation, value: { invoice: saved, editability: { available: false, reason: 'EDIT_POLICY_UNAVAILABLE' } } });
-      idempotency.current = null; void load();
+      setForm(null); setNotice(safeForm.mode === 'create' ? 'Factura registrada.' : 'Factura actualizada.');
+      idempotency.current = null; detailFor(saved); void load();
     }).catch(cause => { if (capture.isCurrent() && !controller.signal.aborted) setError({ generation, text: failure(cause) }); })
       .finally(() => { capture.release(); submitting.current = false; if (capture.isCurrent()) setBusy(false); });
   }
