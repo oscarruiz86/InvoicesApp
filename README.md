@@ -31,6 +31,9 @@ En el entorno preparado se usa `MONGO_PORT=27019`, porque 27017 ya estaba ocupad
 | frontend: `VITE_API_BASE_URL=/api` | Base pública relativa; también admite URL HTTP(S) sin credenciales. |
 | frontend: `API_PROXY_TARGET=http://localhost:3000` | Destino privado del servidor Vite en host. Compose lo reemplaza por `http://backend:3000`. |
 | backend: `MONGODB_URI` | URI requerida; en host apunta a `127.0.0.1:27017` y para el Compose local configura `replicaSet=invoices-rs`. |
+| backend: `INVOICE_IMAGE_STORAGE_PROVIDER=local` | Proveedor privado de imágenes de facturas; es configuración de servidor, nunca del frontend. |
+| backend: `INVOICE_IMAGE_STORAGE_LOCAL_ROOT` | Ruta absoluta privada escribible por el backend. En host, por ejemplo `C:/invoice-app/invoice-images`; Compose usa `/var/lib/invoices/images` en un volumen dedicado. |
+| backend: `INVOICE_IMAGE_STORAGE_COMPANY_ID` | Namespace técnico de 24 caracteres hexadecimales que ocupa el segmento `empresa` de la clave local. No determina permisos ni asociación empresarial. |
 | frontend: `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID` | Grupo público completo para login; no contiene secretos. |
 | backend: variables `KEYCLOAK_*` | Issuer/audiencia juntos; JWKS opcional. Obligatorios para `/api/auth/me`; técnicos públicos funcionan sin el grupo. |
 | raíz: `FRONTEND_PORT`, `BACKEND_PORT`, `MONGO_PORT` | Publicaciones locales de Compose; por defecto 5173, 3000 y 27017. |
@@ -50,6 +53,8 @@ docker compose up -d mongodb keycloak
 ```
 
 MongoDB usa un replica set local de un nodo; para el backend ejecutado en el host, configura `MONGODB_URI=mongodb://127.0.0.1:27017/invoices_app?replicaSet=invoices-rs&directConnection=true` (ajusta el puerto publicado si es necesario).
+
+En `backend/.env.local`, configura `INVOICE_IMAGE_STORAGE_PROVIDER=local`, una raíz absoluta privada escribible como `C:/invoice-app/invoice-images` y `INVOICE_IMAGE_STORAGE_COMPANY_ID=000000000000000000000000`. Crea la raíz antes de iniciar el backend y concede escritura solo a la cuenta que lo ejecuta. Las imágenes ocupan hasta 5 MiB cada una luego de normalización; dimensiona disco para el máximo esperado de adjuntos, temporales de reemplazo y margen operativo, y vigila el espacio libre.
 
 En dos terminales diferentes:
 
@@ -181,5 +186,22 @@ docker compose down
 La parada normal conserva datos y volúmenes. No ejecutar eliminación de volúmenes como rutina. Si un puerto está ocupado, detener la instancia anterior o cambiar su publicación en `.env`; no ejecutar host y Compose en los mismos puertos. Si npm informa archivos bloqueados en Windows, detener procesos que usen esa instalación antes de reintentar `npm ci`.
 
 El seguimiento de autenticación está en `openspec/changes/implement-authentication/tasks.md`; foundations está archivado. No se completan automáticamente tareas de `initial-invoices-app`. Los módulos de negocio requieren sus propios cambios y aprobación.
+
+## Imágenes de factura
+
+Las imágenes aceptadas son JPEG o PNG, hasta 5 MiB luego de normalización. El backend las guarda fuera de MongoDB; la clave local es `<empresa>/<tercero>/<vehiculo>/<factura>/imagen.<ext>`. La raíz no debe estar bajo `backend/public`, servirse por Nginx ni incluirse en Git. En host se crea con permisos de escritura solo para la cuenta que ejecuta el backend. En Compose únicamente el backend monta el volumen `invoice-images`; `docker compose down` lo conserva. Dimensiona el volumen según el número de facturas previsto multiplicado por hasta 5 MiB por imagen, más espacio temporal para reemplazos y margen de operación.
+
+El namespace inicial `000000000000000000000000` es técnico y estable para este entorno. Cambiarlo crea otro espacio de claves y deja de coincidir con las referencias existentes. No poner nombres de empresas, placas o datos ingresados por usuarios en la ruta.
+
+Los registros antiguos de facturas/imágenes no se convierten automáticamente; para este cambio de desarrollo las colecciones de facturas se vaciaron y los registros deben crearse de nuevo. No hay migración ni lectura legada. Para respaldo, detener escrituras antes de tomar ambas copias y conservarlas como un único juego:
+
+1. En Compose, detener el backend: `docker compose stop backend`.
+2. Crear un dump de la base `invoices_app` con `mongodump --uri="$env:MONGODB_URI" --db=invoices_app --archive=invoices.archive` desde PowerShell (usar una URI administrativa disponible en el entorno).
+3. Copiar a un archivo el contenido completo del volumen `invoice-images` —incluido `.journal`— con una herramienta de archivos/volúmenes Docker. Identifica el nombre concreto con `docker volume ls` porque incluye el nombre del proyecto Compose. En host, copiar la raíz indicada por `INVOICE_IMAGE_STORAGE_LOCAL_ROOT` conservando nombres y metadatos.
+4. Guardar el dump y la copia del storage juntos, y volver a iniciar el backend con `docker compose start backend`.
+
+Para restaurar, detener el backend, restaurar el dump MongoDB y el volumen/directorio local del mismo juego de respaldo, verificar que `INVOICE_IMAGE_STORAGE_COMPANY_ID` no cambió y después iniciar el backend. No mezclar una base restaurada con una copia del storage de otro momento. Las pruebas locales de facturas usan una raíz temporal. El proveedor local requiere una instancia de backend con su volumen asociado; no escalar varias réplicas con discos locales independientes.
+
+Si una operación se interrumpe entre la escritura local y la confirmación de MongoDB, ejecutar `npm --prefix backend run invoice-images:recover` con `.env.local` configurado. El comando compara el journal local con las referencias actuales de `invoice_images`; conserva objetos referenciados y revierte temporales/candidatos no referenciados. No borra facturas ni documentos MongoDB.
 
 El selector de empresa/tercero, contexto GLOBAL y restauración por pestaña se describen en [contexto organizacional](docs/organization-context.md). Consulta [su evidencia y dependencias](docs/organization-context-progress.md) antes de habilitar recursos operativos. Sin asociaciones autorizadas se muestra el estado vacío; no se crean asociaciones al iniciar sesión. La aceptación aislada se ejecuta con `node scripts/test-organization-context.mjs` y requiere Docker, MongoDB de pruebas y Playwright.

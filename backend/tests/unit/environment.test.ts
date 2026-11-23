@@ -10,6 +10,19 @@ describe('runtime environment and identity configuration', () => {
     expect(env.NODE_ENV).toBe('development');
     expect(keycloakConfiguration(env)).toBeNull();
   });
+  it('accepts a complete local invoice image storage configuration without touching the filesystem', () => {
+    const env = readServerEnvironment({ ...base, INVOICE_IMAGE_STORAGE_PROVIDER: 'local',
+      INVOICE_IMAGE_STORAGE_LOCAL_ROOT: 'C:\\private\\invoice-images', INVOICE_IMAGE_STORAGE_COMPANY_ID: 'a'.repeat(24) });
+    expect(env).toMatchObject({ INVOICE_IMAGE_STORAGE_PROVIDER: 'local', INVOICE_IMAGE_STORAGE_COMPANY_ID: 'a'.repeat(24) });
+  });
+  it.each([
+    { INVOICE_IMAGE_STORAGE_PROVIDER: 'remote' },
+    { INVOICE_IMAGE_STORAGE_PROVIDER: 'local' },
+    { INVOICE_IMAGE_STORAGE_PROVIDER: 'local', INVOICE_IMAGE_STORAGE_LOCAL_ROOT: 'relative/path', INVOICE_IMAGE_STORAGE_COMPANY_ID: 'a'.repeat(24) },
+    { INVOICE_IMAGE_STORAGE_PROVIDER: 'local', INVOICE_IMAGE_STORAGE_LOCAL_ROOT: 'C:\\private\\images', INVOICE_IMAGE_STORAGE_COMPANY_ID: '../secret' },
+  ])('rejects incomplete or unsafe invoice image storage configuration: %j', fields => {
+    expect(() => readServerEnvironment({ ...base, ...fields })).toThrow(ConfigurationError);
+  });
   it.each([{}, { MONGODB_URI: '' }, { MONGODB_URI: 'https://invalid' }])('rejects invalid MongoDB configuration: %j', env => {
     expect(() => readServerEnvironment(env)).toThrow(ConfigurationError);
   });

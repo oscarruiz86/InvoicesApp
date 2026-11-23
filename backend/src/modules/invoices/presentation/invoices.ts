@@ -17,6 +17,8 @@ export type InvoiceOperation = 'list' | 'detail' | 'create' | 'edit' | 'image' |
 type InvoiceUseCases = ReturnType<typeof createInvoices>;
 
 function message(error: InvoiceUseCaseError) {
+  if (error.code === 'CONFIGURATION_ERROR') return Response.json({ error: { code: error.code, message: 'El servicio de facturas no está configurado correctamente.' } },
+    { status: 503, headers: { 'Cache-Control': 'no-store' } });
   const status = ['INVALID_REQUEST', 'IMAGE_REQUIRED'].includes(error.code) ? 400 : error.code === 'FORBIDDEN' ? 403 : error.code === 'RESOURCE_NOT_FOUND' ? 404
     : ['INVOICE_DUPLICATE', 'IDEMPOTENCY_CONFLICT', 'INVOICE_VERSION_CONFLICT', 'ASSIGNMENT_NOT_ELIGIBLE'].includes(error.code) ? 409
     : ['EDIT_WINDOW_CLOSED', 'QR_IMMUTABLE'].includes(error.code) ? 403 : ['QR_INVALID', 'QR_INCOMPLETE', 'QR_UNSUPPORTED'].includes(error.code) ? 400 : 503;
