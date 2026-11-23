@@ -82,4 +82,13 @@ describe('invoice presentation contract', () => {
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([137, 80]);
   });
+  it('returns a neutral unavailable response when external image storage fails', async () => {
+    const { InvoiceUseCaseError } = await import('@/modules/invoices/application/invoices');
+    const svc = service({ image: vi.fn(async () => { throw new InvoiceUseCaseError('INVOICE_STORAGE_UNAVAILABLE'); }) });
+    const response = await invoiceResponse(svc, 'image', actor,
+      request(`http://localhost/api/invoices/${'a'.repeat(24)}/image?scope=organization&thirdPartyId=${'b'.repeat(24)}`, 'GET'), 'a'.repeat(24));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: { code: 'INVOICE_STORAGE_UNAVAILABLE', message: 'El servicio de facturas no está disponible.' } });
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+  });
 });

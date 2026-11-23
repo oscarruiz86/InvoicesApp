@@ -154,6 +154,9 @@ services:
       SCARF_ANALYTICS: "false"
       WATCHPACK_POLLING: "true"
       MONGODB_URI: mongodb://mongodb:27017/invoices_app?replicaSet=invoices-rs
+      INVOICE_IMAGE_STORAGE_PROVIDER: local
+      INVOICE_IMAGE_STORAGE_LOCAL_ROOT: /var/lib/invoices/images
+      INVOICE_IMAGE_STORAGE_COMPANY_ID: ${INVOICE_IMAGE_STORAGE_COMPANY_ID:-000000000000000000000000}
       INVITATION_PUBLIC_ORIGIN: ${INVITATION_PUBLIC_ORIGIN:-http://localhost:5173}
       SMTP_ENABLED: ${SMTP_ENABLED:-false}
       SMTP_HOST: ${SMTP_HOST:-}
@@ -184,6 +187,7 @@ services:
       - ${SMTP_SECRET_DIR:-./secrets}:/run/secrets:ro
       - backend-modules:/app/node_modules
       - backend-next:/app/.next
+      - invoice-images:/var/lib/invoices/images
     depends_on:
       authorization-init:
         condition: service_completed_successfully
@@ -289,3 +293,4 @@ volumes:
   frontend-modules:
   backend-modules:
   backend-next:
+  invoice-images:

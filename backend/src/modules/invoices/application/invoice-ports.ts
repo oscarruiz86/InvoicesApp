@@ -49,6 +49,21 @@ export interface InvoiceImageInput {
   readonly height: number;
   readonly sha256: string;
 }
+export interface InvoiceImageReference {
+  readonly provider: 'local'; readonly key: string; readonly contentType: 'image/jpeg' | 'image/png';
+  readonly size: number; readonly width: number; readonly height: number; readonly sha256: string;
+}
+export interface PreparedInvoiceImage { readonly reference: InvoiceImageReference; readonly operationId: string }
+export interface InvoiceImageStoragePort {
+  prepare(input: { readonly image: InvoiceImageInput; readonly companyId: string; readonly thirdPartyId: string; readonly vehicleId: string; readonly invoiceId: string;
+    readonly previousReference?: InvoiceImageReference }): Promise<PreparedInvoiceImage>;
+  read(reference: InvoiceImageReference): Promise<Buffer>;
+  commit(prepared: PreparedInvoiceImage): Promise<void>;
+  compensate(prepared: PreparedInvoiceImage): Promise<void>;
+  finalize(prepared: PreparedInvoiceImage): Promise<void>;
+  remove(reference: InvoiceImageReference): Promise<void>;
+}
+export interface InvoiceImageDocumentInput { readonly id: string; readonly reference: InvoiceImageReference }
 export interface InvoiceImagePayload extends InvoiceImageInput {
   readonly id: string;
 }
@@ -60,9 +75,9 @@ export interface InvoicePage { readonly items: readonly Invoice[]; readonly tota
 export interface InvoiceRepositoryPort {
   list(query: InvoiceListQuery): Promise<InvoicePage>;
   find(input: { readonly id: string; readonly thirdPartyId: string; readonly ownerSubject?: string }): Promise<Invoice | null>;
-  readImage(input: { readonly invoice: Invoice }): Promise<InvoiceImageContent | null>;
-  create(input: { readonly invoice: Invoice; readonly image?: InvoiceImagePayload; readonly actorSubject: string; readonly idempotencyKey: string; readonly requestHash: string; readonly authority: InvoiceAuthorityReceipt; readonly assignment: InvoiceAssignmentFacts; readonly correlationId: string }): Promise<Invoice>;
-  edit(input: { readonly current: Invoice; readonly next: Invoice; readonly image?: InvoiceImagePayload; readonly editPolicy?: InvoiceEditPolicy;
+  readImageReference(input: { readonly invoice: Invoice }): Promise<InvoiceImageReference | null>;
+  create(input: { readonly invoice: Invoice; readonly image?: InvoiceImageDocumentInput; readonly actorSubject: string; readonly idempotencyKey: string; readonly requestHash: string; readonly authority: InvoiceAuthorityReceipt; readonly assignment: InvoiceAssignmentFacts; readonly correlationId: string }): Promise<Invoice>;
+  edit(input: { readonly current: Invoice; readonly next: Invoice; readonly image?: InvoiceImageDocumentInput; readonly editPolicy?: InvoiceEditPolicy;
     readonly actorSubject: string; readonly expectedVersion: number; readonly authority: InvoiceAuthorityReceipt; readonly correlationId: string }): Promise<Invoice>;
 }
 export interface InvoiceAuditEvent {

@@ -2,12 +2,21 @@ import { describe, expect, it, vi } from 'vitest';
 import { createInvoices, validateInvoiceListQuery } from '@/modules/invoices/application/invoices';
 import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
 import { createInvoice } from '@/modules/invoices/domain/invoice';
+import type { InvoiceRepositoryPort, InvoiceImageStoragePort, InvoiceImageReference } from '@/modules/invoices/application/invoice-ports';
 
 const actor: AuthenticatedActor = { subject: 'driver-subject', username: null, name: null, email: null, roles: ['DRIVER'], permissions: [] };
 const query = { thirdPartyId: 'a'.repeat(24), page: 1, pageSize: 25, sort: 'createdAt' as const, direction: 'desc' as const };
-const repo = { list: vi.fn(async () => ({ items: [], total: 0 })), find: vi.fn(async () => null), readImage: vi.fn(async () => null), create: vi.fn(), edit: vi.fn() };
+const repo = { list: vi.fn(async () => ({ items: [], total: 0 })), find: vi.fn(async () => null),
+  readImageReference: vi.fn(async () => null as InvoiceImageReference | null),
+  create: vi.fn(async (input: Parameters<InvoiceRepositoryPort['create']>[0]) => input.invoice),
+  edit: vi.fn(async (input: Parameters<InvoiceRepositoryPort['edit']>[0]) => input.next) };
+const imageStorage = { prepare: vi.fn(async ({ image, companyId, thirdPartyId, vehicleId, invoiceId }: Parameters<InvoiceImageStoragePort['prepare']>[0]) => ({ operationId: 'op',
+    reference: { provider: 'local' as const, key: `${companyId}/${thirdPartyId}/${vehicleId}/${invoiceId}/imagen.${image.contentType === 'image/png' ? 'png' : 'jpg'}`,
+      contentType: image.contentType, size: image.size, width: image.width, height: image.height, sha256: image.sha256 } })),
+  read: vi.fn(async () => Buffer.from([1])), commit: vi.fn(async () => {}), compensate: vi.fn(async () => {}), finalize: vi.fn(async () => {}), remove: vi.fn(async () => {}) };
 const dependencies = (roles: readonly AuthenticatedActor['roles'][number][]) => ({
   repository: repo,
+  imageStorage, imageStorageCompanyId: () => 'a'.repeat(24),
   authorization: { authorize: vi.fn(async () => ({ roles, policyVersion: 'p1', contextRevision: 'c1' })) },
   assignments: { readOwnActive: vi.fn() }, editPolicy: { read: vi.fn() }, imageNormalizer: { normalize: vi.fn() },
   clock: { now: () => new Date('2026-11-20T12:00:00Z') }, ids: { next: () => 'b'.repeat(24) }, correlationId: { next: () => 'correlation' }, qrContentHasher: { sha256: () => 'a'.repeat(64) },
@@ -50,7 +59,7 @@ describe('invoice application', () => {
     const owned = createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId,
       assignmentId: 'c'.repeat(24), driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20', invoiceTime: '11:59:00',
       invoiceNumber: 'A-1', issuerNit: '0001', buyerDocument: '123', amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10', now: new Date() });
-    repo.find.mockClear(); repo.readImage.mockClear(); repo.find.mockResolvedValue(owned as never);
+    repo.find.mockClear(); repo.readImageReference.mockClear(); repo.find.mockResolvedValue(owned as never);
     const deps = dependencies(['DRIVER']); deps.editPolicy.read = vi.fn(async () => ({ state: 'UNAVAILABLE' as const }));
     const invoices = createInvoices(deps);
     const result = await invoices.detail(actor, { id: owned.id, thirdPartyId: query.thirdPartyId });
@@ -59,7 +68,68 @@ describe('invoice application', () => {
 
     repo.find.mockResolvedValueOnce(null);
     await expect(invoices.image(actor, { id: owned.id, thirdPartyId: query.thirdPartyId })).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
-    expect(repo.readImage).not.toHaveBeenCalled();
+    expect(repo.readImageReference).not.toHaveBeenCalled();
+  });
+
+  it('reads external image bytes only after the scoped invoice reference is authorized', async () => {
+    const imageId = '9'.repeat(24);
+    const owned = createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId,
+      assignmentId: 'c'.repeat(24), driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20', invoiceTime: '11:59:00',
+      invoiceNumber: 'A-IMAGE', issuerNit: '0001', buyerDocument: '123', amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10', imageId, now: new Date() });
+    const reference = { provider: 'local' as const, key: `${'a'.repeat(24)}/${query.thirdPartyId}/${owned.vehicleId}/${owned.id}/imagen.jpg`,
+      contentType: 'image/jpeg' as const, size: 3, width: 1, height: 1, sha256: 'b'.repeat(64) };
+    repo.find.mockResolvedValueOnce(owned as never); repo.readImageReference.mockResolvedValueOnce(reference);
+    imageStorage.read.mockResolvedValueOnce(Buffer.from('img'));
+    const deps = dependencies(['DRIVER']); deps.editPolicy.read = vi.fn(async () => ({ state: 'UNAVAILABLE' as const }));
+    const result = await createInvoices(deps).image(actor, { id: owned.id, thirdPartyId: query.thirdPartyId });
+    expect(repo.find).toHaveBeenCalledWith({ id: owned.id, thirdPartyId: query.thirdPartyId, ownerSubject: actor.subject });
+    expect(imageStorage.read).toHaveBeenCalledWith(reference);
+    expect(result).toMatchObject({ id: imageId, data: Buffer.from('img'), contentType: 'image/jpeg' });
+  });
+
+  it('compensates an activated image when invoice persistence fails', async () => {
+    const deps = dependencies(['DRIVER']);
+    deps.assignments.readOwnActive = vi.fn(async () => ({ assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), driverId: 'd'.repeat(24),
+      vehiclePlate: 'ABC123', thirdPartyId: query.thirdPartyId, status: 'ACTIVE' }));
+    repo.create.mockRejectedValueOnce(new Error('database unavailable'));
+    const image = { data: Buffer.from('image'), contentType: 'image/png' as const, size: 5, width: 1, height: 1, sha256: 'c'.repeat(64) };
+    await expect(createInvoices(deps).create(actor, { thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24),
+      invoiceDate: '2026-11-20', invoiceTime: '12:00:00', invoiceNumber: 'A-2', issuerNit: '0001', buyerDocument: '123',
+      amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10', image, idempotencyKey: 'image-rollback' }))
+      .rejects.toMatchObject({ code: 'INVOICE_STORAGE_UNAVAILABLE' });
+    expect(imageStorage.prepare).toHaveBeenCalledTimes(1); expect(imageStorage.commit).toHaveBeenCalledTimes(1);
+    expect(imageStorage.compensate).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports missing image storage configuration with the neutral configuration code', async () => {
+    const deps = dependencies(['DRIVER']);
+    deps.assignments.readOwnActive = vi.fn(async () => ({ assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), driverId: 'd'.repeat(24),
+      vehiclePlate: 'ABC123', thirdPartyId: query.thirdPartyId, status: 'ACTIVE' }));
+    deps.imageStorageCompanyId = () => { throw new Error('CONFIGURATION_ERROR'); };
+    const image = { data: Buffer.from('image'), contentType: 'image/png' as const, size: 5, width: 1, height: 1, sha256: 'c'.repeat(64) };
+    await expect(createInvoices(deps).create(actor, { thirdPartyId: query.thirdPartyId, assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24),
+      invoiceDate: '2026-11-20', invoiceTime: '12:00:00', invoiceNumber: 'A-3', issuerNit: '0001', buyerDocument: '123',
+      amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10', image, idempotencyKey: 'missing-storage-config' }))
+      .rejects.toMatchObject({ code: 'CONFIGURATION_ERROR' });
+    expect(imageStorage.prepare).not.toHaveBeenCalled();
+  });
+
+  it('activates and retires image versions around an authorized invoice replacement', async () => {
+    const current = createInvoice({ id: 'f'.repeat(24), ownerSubject: actor.subject, thirdPartyId: query.thirdPartyId,
+      assignmentId: 'c'.repeat(24), driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20', invoiceTime: '11:59:00',
+      invoiceNumber: 'A-OLD', issuerNit: '0001', buyerDocument: '123', amount: '10', vatAmount: '0', otherTaxesAmount: '0', totalAmount: '10',
+      imageId: '8'.repeat(24), now: new Date('2026-11-20T11:59:00Z') });
+    const previousReference = { provider: 'local' as const, key: `${'a'.repeat(24)}/${query.thirdPartyId}/${current.vehicleId}/${current.id}/imagen.jpg`,
+      contentType: 'image/jpeg' as const, size: 3, width: 1, height: 1, sha256: 'd'.repeat(64) };
+    repo.find.mockResolvedValueOnce(current as never); repo.readImageReference.mockResolvedValueOnce(previousReference);
+    const deps = dependencies(['THIRD_PARTY_ADMIN']);
+    const image = { data: Buffer.from('new image'), contentType: 'image/png' as const, size: 9, width: 1, height: 1, sha256: 'c'.repeat(64) };
+    const updated = await createInvoices(deps).edit(actor, { id: current.id, thirdPartyId: query.thirdPartyId, expectedVersion: current.version,
+      changes: { image } });
+    expect(imageStorage.prepare).toHaveBeenCalledWith(expect.objectContaining({ previousReference, image: expect.objectContaining(image), invoiceId: current.id }));
+    expect(repo.edit).toHaveBeenCalledWith(expect.objectContaining({ image: { id: expect.any(String), reference: expect.objectContaining({ contentType: 'image/png' }) } }));
+    expect(imageStorage.finalize).toHaveBeenCalledTimes(1); expect(imageStorage.remove).not.toHaveBeenCalled();
+    expect(updated.imageId).not.toBe(current.imageId);
   });
 
   it('does not grant application or company administrators implicit invoice access', async () => {
@@ -129,7 +199,7 @@ describe('invoice application', () => {
       qrContent: content, idempotencyKey: 'qr-1', image: attachment });
     expect(repo.create.mock.calls[1][0].requestHash).not.toBe(originalHash);
     expect(repo.create.mock.calls[2][0].requestHash).not.toBe(originalHash);
-    expect(repo.create.mock.calls[2][0].image).toMatchObject({ sha256: attachment.sha256, contentType: attachment.contentType });
+    expect(repo.create.mock.calls[2][0].image).toMatchObject({ reference: { sha256: attachment.sha256, contentType: attachment.contentType } });
   });
 
   it('computes a normalized SHA-256 fingerprint outside the pure QR parser', async () => {

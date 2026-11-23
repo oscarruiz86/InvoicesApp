@@ -3,7 +3,7 @@ import { Types, type ClientSession, type Connection } from 'mongoose';
 import { InvoiceDomainError, normalizedInvoiceBusinessKey, type Invoice } from '../../domain/invoice';
 import type { InvoiceAssignmentAuthority } from '@/modules/fleet/application/assignment-ports';
 import type { InvoiceAuditEvent, InvoiceAuditPort, InvoicePage, InvoiceRepositoryPort,
-  InvoiceImageContent, InvoiceImagePayload, InvoiceTransactionAuthorityPort, InvoiceEditPolicyConfirmationPort } from '../../application/invoice-ports';
+  InvoiceImageDocumentInput, InvoiceTransactionAuthorityPort, InvoiceEditPolicyConfirmationPort, InvoiceImageReference } from '../../application/invoice-ports';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
 import { inventoryInvoices } from './invoice-inventory';
 
@@ -15,7 +15,7 @@ type Row = Record<string, unknown>;
 
 export class InvoiceRepositoryError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'RESOURCE_NOT_FOUND' | 'INVOICE_VERSION_CONFLICT' | 'INVOICE_DUPLICATE'
-    | 'IDEMPOTENCY_CONFLICT' | 'INVOICE_MIGRATION_REQUIRED' | 'INVOICE_STORAGE_UNAVAILABLE' | 'INVOICE_AUDIT_UNAVAILABLE'
+    | 'IDEMPOTENCY_CONFLICT' | 'INVOICE_MIGRATION_REQUIRED' | 'INVOICE_STORAGE_UNAVAILABLE' | 'INVOICE_AUDIT_UNAVAILABLE' | 'CONFIGURATION_ERROR'
     | 'ASSIGNMENT_NOT_ELIGIBLE' | 'ASSIGNMENT_EVIDENCE_UNAVAILABLE' | 'AUTHORIZATION_UNAVAILABLE' | 'EDIT_POLICY_UNAVAILABLE' | 'EDIT_WINDOW_CLOSED' | 'FORBIDDEN') { super(code); }
 }
 
@@ -63,6 +63,14 @@ function decode(row: Row): Invoice {
 }
 
 function amountValue(value: string) { return Types.Decimal128.fromString(value); }
+function imageReference(row: Row): InvoiceImageReference {
+  const allowedFields = ['_id', 'invoiceId', 'schemaVersion', 'provider', 'key', 'contentType', 'size', 'width', 'height', 'sha256'];
+  if (Object.keys(row).some(key => !allowedFields.includes(key)) || row.schemaVersion !== 1 || row.provider !== 'local' || typeof row.key !== 'string' || !['image/jpeg', 'image/png'].includes(String(row.contentType))
+    || typeof row.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(row.sha256) || !Number.isSafeInteger(row.size)
+    || !Number.isSafeInteger(row.width) || !Number.isSafeInteger(row.height)) throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
+  return { provider: 'local', key: row.key, contentType: row.contentType as InvoiceImageReference['contentType'], size: Number(row.size),
+    width: Number(row.width), height: Number(row.height), sha256: row.sha256 };
+}
 function encode(invoice: Invoice): Row {
   const { id, amounts, ...fields } = invoice;
   return { _id: new Types.ObjectId(id), ...fields, amounts: { amount: amountValue(amounts.amount), vatAmount: amountValue(amounts.vatAmount),
@@ -71,6 +79,7 @@ function encode(invoice: Invoice): Row {
 
 function mapError(error: unknown): never {
   if (error instanceof InvoiceRepositoryError) throw error;
+  if (error instanceof Error && error.message === 'CONFIGURATION_ERROR') throw new InvoiceRepositoryError('CONFIGURATION_ERROR');
   if (error instanceof InvoiceDomainError) throw new InvoiceRepositoryError('INVALID_REQUEST');
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code)
     : error instanceof Error ? error.message : '';
@@ -126,17 +135,17 @@ export function createMongoInvoiceAudit(connection: Connection, session: ClientS
   } };
 }
 
-function imageDocument(invoice: Invoice, image: InvoiceImagePayload): Row {
-  if (!validId(image.id) || image.id !== invoice.imageId || image.size < 1 || image.size > 5 * 1024 * 1024
-    || image.data.byteLength !== image.size || !['image/jpeg', 'image/png'].includes(image.contentType)
-    || !Number.isSafeInteger(image.width) || !Number.isSafeInteger(image.height) || image.width < 1 || image.height < 1
-    || !/^[a-f0-9]{64}$/.test(image.sha256)) throw new InvoiceRepositoryError('INVALID_REQUEST');
-  return { _id: new Types.ObjectId(image.id), invoiceId: invoice.id, contentType: image.contentType, size: image.size,
-    width: image.width, height: image.height, sha256: image.sha256, data: Buffer.from(image.data) };
+function imageDocument(invoice: Invoice, image: InvoiceImageDocumentInput): Row {
+  const reference = image.reference;
+  if (!validId(image.id) || image.id !== invoice.imageId || reference.size < 1 || reference.size > 5 * 1024 * 1024
+    || !['image/jpeg', 'image/png'].includes(reference.contentType) || !Number.isSafeInteger(reference.width) || !Number.isSafeInteger(reference.height)
+    || reference.width < 1 || reference.height < 1 || !/^[a-f0-9]{64}$/.test(reference.sha256)) throw new InvoiceRepositoryError('INVALID_REQUEST');
+  return { _id: new Types.ObjectId(image.id), invoiceId: invoice.id, schemaVersion: 1, ...reference };
 }
 
 export function createMongoInvoiceRepository(connect: () => Promise<Connection>, participants: InvoiceTransactionParticipants,
-  clock: { now(): Date } = { now: () => new Date() }): InvoiceRepositoryPort {
+  options: { readonly clock?: { now(): Date } } = {}): InvoiceRepositoryPort {
+  const clock = options.clock ?? { now: () => new Date() };
   async function transaction<T>(fn: (connection: Connection, session: ClientSession, ports: InvoiceTransactionPorts) => Promise<T>): Promise<T> {
     try {
       const connection = await connect(); await ensureReady(connection); await requireTransactions(connection);
@@ -174,17 +183,13 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
         return row ? decode(row as Row) : null;
       } catch (error) { return mapError(error); }
     },
-    async readImage(input): Promise<InvoiceImageContent | null> {
+    async readImageReference(input): Promise<InvoiceImageReference | null> {
       if (!input.invoice.imageId) return null;
       try {
         const connection = await connect(); await ensureReady(connection);
         const row = await connection.collection(imageCollectionName).findOne({ _id: new Types.ObjectId(input.invoice.imageId), invoiceId: input.invoice.id });
-        if (!row || !Buffer.isBuffer(row.data) || !['image/jpeg', 'image/png'].includes(String(row.contentType))
-          || typeof row.sha256 !== 'string' || !Number.isSafeInteger(row.size) || row.data.byteLength !== row.size) {
-          throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
-        }
-        return { id: input.invoice.imageId, data: row.data, contentType: row.contentType as InvoiceImageContent['contentType'],
-          size: Number(row.size), width: Number(row.width), height: Number(row.height), sha256: row.sha256 };
+        if (!row) throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
+        return imageReference(row as Row);
       } catch (error) { return mapError(error); }
     },
     async create(input) {
@@ -194,7 +199,7 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
         throw new InvoiceRepositoryError('INVALID_REQUEST');
       }
       try {
-        return await transaction(async (connection, session, ports) => {
+        const created = await transaction(async (connection, session, ports) => {
           await ports.policy.confirm(input.authority.policyVersion);
           await ports.authority.confirm({ ...input.authority, actorSubject: input.actorSubject, thirdPartyId: input.invoice.thirdPartyId,
             requiredRole: 'DRIVER', transactionContext: { connection, session } });
@@ -223,10 +228,11 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
           try { await ports.audit.record({ eventId: randomUUID(), correlationId: input.correlationId, action: 'INVOICE_CREATED',
             actorSubject: input.actorSubject, invoiceId: input.invoice.id, thirdPartyId: input.invoice.thirdPartyId,
             at: input.invoice.createdAt.toISOString(), changedFields: ['origin', ...(input.invoice.origin === 'QR' ? ['qrMetadata'] : []),
-              'assignmentId', 'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amounts', 'imageId'] }); }
+            'assignmentId', 'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amounts', 'imageId'] }); }
           catch { throw new InvoiceRepositoryError('INVOICE_AUDIT_UNAVAILABLE'); }
           return input.invoice;
         });
+        return created;
       } catch (error) {
         if (error instanceof InvoiceRepositoryError && error.code === 'IDEMPOTENCY_CONFLICT') {
           try {
@@ -251,7 +257,8 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
     async edit(input) {
       if (!validId(input.current.id) || input.current.thirdPartyId !== input.next.thirdPartyId
         || input.current.version !== input.expectedVersion || input.next.version !== input.expectedVersion + 1) throw new InvoiceRepositoryError('INVALID_REQUEST');
-      return transaction(async (connection, session, ports) => {
+      try {
+      const edited = await transaction(async (connection, session, ports) => {
         await ports.policy.confirm(input.authority.policyVersion);
         await ports.authority.confirm({ ...input.authority, actorSubject: input.actorSubject, thirdPartyId: input.current.thirdPartyId,
           requiredRole: input.authority.roles.includes('THIRD_PARTY_ADMIN') ? 'THIRD_PARTY_ADMIN' : 'DRIVER', transactionContext: { connection, session } });
@@ -285,6 +292,10 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
         const row = await connection.collection(collectionName).findOne({ _id: new Types.ObjectId(input.current.id), thirdPartyId: input.current.thirdPartyId }, { session });
         return row ? decode(row as Row) : committed;
       });
+      return edited;
+      } catch (error) {
+        return mapError(error);
+      }
     },
   };
   return repo;
