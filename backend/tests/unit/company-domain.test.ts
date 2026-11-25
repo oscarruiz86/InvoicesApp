@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { companyId, companyProfile } from '@/modules/organizations/domain/company';
-const valid = { documentNumber: '00123', businessName: ' Example ', email: ' ADMIN@Example.COM ' };
+const valid = { documentNumber: '00123', verificationDigit: '3', businessName: ' Example ', email: ' ADMIN@Example.COM ' };
 describe('company domain', () => {
   it('normalizes and preserves identifiers without inferring optional data', () => {
-    expect(companyProfile(valid)).toEqual({ documentType: 'NIT', documentNumber: '00123', businessName: 'Example', email: 'admin@example.com', verificationDigit: null, tradeName: null, phone: null, address: null, country: null, department: null, city: null });
+    expect(companyProfile(valid)).toEqual({ documentType: 'NIT', documentNumber: '00123', businessName: 'Example', email: 'admin@example.com', verificationDigit: '3', tradeName: null, phone: null, address: null, country: null, department: null, city: null });
+  });
+  it('accepts identity cards without a tax verification digit', () => {
+    expect(companyProfile({ ...valid, documentType: 'CC', verificationDigit: null }).verificationDigit).toBeNull();
   });
   it.each(['documentNumber', 'businessName', 'email'])('rejects missing %s', field => {
     expect(() => companyProfile({ ...valid, [field]: null })).toThrow('INVALID_REQUEST');
