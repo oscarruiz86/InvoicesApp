@@ -32,19 +32,20 @@ export function AuthenticationActions({ store, authorization }: { store: Authent
   return state.error && location.pathname === '/' ? <Stack spacing={2} sx={{ mb: 4 }}><SessionFeedback store={store} /></Stack> : null;
 }
 
-export function AccountMenu({ store, context }: { store: AuthenticationStore; context?: { activeContext: { kind: 'GLOBAL'; roles: readonly string[] } | { kind: 'ORGANIZATION'; organizationName: string; organizationType: 'COMPANY' | 'THIRD_PARTY'; roles: readonly string[] } | null; openSelector(): Promise<boolean> } }) {
+export function AccountMenu({ store, context, beforeLogout }: { store: AuthenticationStore; context?: { activeContext: { kind: 'GLOBAL'; roles: readonly string[] } | { kind: 'ORGANIZATION'; organizationName: string; organizationType: 'COMPANY' | 'THIRD_PARTY'; roles: readonly string[] } | null; openSelector(): Promise<boolean> }; beforeLogout?: (subject: string | null) => Promise<boolean> }) {
   const state = useStore(store); const [anchor, setAnchor] = useState<HTMLElement | null>(null); const [accountError, setAccountError] = useState(false); const navigate = useNavigate();
   const initials = (state.user?.name ?? state.user?.username ?? 'Usuario').split(/\s+/).map(value => value[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
   const active = context?.activeContext;
   const contextLabel = !active ? 'Sin contexto seleccionado' : active.kind === 'GLOBAL' ? 'Administración global' : `${active.organizationName} · ${active.organizationType === 'COMPANY' ? 'Empresa' : 'Tercero'}`;
   const roles = active?.roles ?? [];
   const changeContext = async () => { setAnchor(null); if (context && await context.openSelector()) navigate('/organizations/select'); };
+  const logout = async () => { setAnchor(null); if (beforeLogout && !await beforeLogout(state.user?.id ?? null)) return; await state.logout(); };
   return <><Button variant="text" aria-label="Abrir menú de usuario" onClick={event => setAnchor(event.currentTarget)} sx={{ minWidth: 42, width: 42, height: 42, p: 0, borderRadius: '50%' }}><Avatar sx={{ width: 42, height: 42, bgcolor: 'primary.main' }}>{initials}</Avatar></Button>
     <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)} slotProps={{ paper: { sx: { minWidth: 270, p: 1 } } }}>
       <MenuItem disabled>{state.user?.name ?? state.user?.username ?? 'Usuario'}</MenuItem><Divider />
       <MenuItem disabled sx={{ opacity: '1 !important', alignItems: 'flex-start', flexDirection: 'column' }}><Typography variant="caption" color="text.secondary">Contexto actual</Typography><Typography variant="body2">{contextLabel}</Typography></MenuItem>
       <MenuItem disabled sx={{ opacity: '1 !important', alignItems: 'flex-start', flexDirection: 'column' }}><Typography variant="caption" color="text.secondary">Rol actual</Typography><Typography variant="body2">{roles.length ? roles.map(getRoleLabel).join(', ') : 'Sin rol asignado'}</Typography></MenuItem>
-      <Divider /><MenuItem onClick={() => void changeContext()}>Cambiar contexto</MenuItem><MenuItem onClick={() => { setAnchor(null); navigate('/session'); }}>Mi perfil</MenuItem><MenuItem onClick={() => { setAnchor(null); void state.openAccountManagement().catch(() => setAccountError(true)); }}>Cambiar contraseña</MenuItem><MenuItem onClick={() => { setAnchor(null); void state.logout(); }}>Cerrar sesión</MenuItem>
+      <Divider /><MenuItem onClick={() => void changeContext()}>Cambiar contexto</MenuItem><MenuItem onClick={() => { setAnchor(null); navigate('/session'); }}>Mi perfil</MenuItem><MenuItem onClick={() => { setAnchor(null); void state.openAccountManagement().catch(() => setAccountError(true)); }}>Cambiar contraseña</MenuItem><MenuItem onClick={() => void logout()}>Cerrar sesión</MenuItem>
     </Menu><Snackbar open={accountError} autoHideDuration={6000} onClose={() => setAccountError(false)}><Alert severity="error" onClose={() => setAccountError(false)}>No fue posible abrir la gestión de cuenta.</Alert></Snackbar></>;
 }
 

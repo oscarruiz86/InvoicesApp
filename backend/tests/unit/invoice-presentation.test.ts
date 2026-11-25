@@ -4,7 +4,7 @@ import { invoiceResponse } from '@/modules/invoices/presentation/invoices';
 const actor = { subject: 'driver-1', roles: ['DRIVER'] } as never;
 const invoice = { id: 'a'.repeat(24), origin: 'MANUAL', ownerSubject: 'driver-1', thirdPartyId: 'b'.repeat(24),
   assignmentId: 'c'.repeat(24), driverId: 'd'.repeat(24), vehicleId: 'e'.repeat(24), vehiclePlate: 'ABC123', invoiceDate: '2026-11-20',
-  invoiceTime: '12:00', invoiceAtUtc: '2026-11-20T17:00:00.000Z', invoiceNumber: 'INV-1', issuerNit: '900123456', buyerDocument: '900654321',
+  invoiceTime: '12:00:00', invoiceAtUtc: '2026-11-20T17:00:00.000Z', invoiceNumber: 'INV-1', issuerNit: '900123456', buyerDocument: '900654321',
   amounts: { amount: '100.00', vatAmount: '19.00', otherTaxesAmount: '0.00', totalAmount: '119.00' }, imageId: null, version: 1,
   createdAt: new Date(), updatedAt: new Date() };
 function request(url: string, method: string, body?: BodyInit, headers?: HeadersInit) {
@@ -21,7 +21,7 @@ describe('invoice presentation contract', () => {
   it('requires an explicit organization scope and strips private owner metadata', async () => {
     const svc = service();
     const form = new FormData(); form.set('payload', JSON.stringify({ assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20',
-      invoiceTime: '12:00', invoiceNumber: 'INV-1', issuerNit: '900123456', buyerDocument: '900654321', amount: '100.00', vatAmount: '19.00',
+      invoiceTime: '12:00:00', invoiceNumber: 'INV-1', issuerNit: '900123456', buyerDocument: '900654321', amount: '100.00', vatAmount: '19.00',
       otherTaxesAmount: '0.00', totalAmount: '119.00' }));
     const response = await invoiceResponse(svc, 'create', actor, request(`http://localhost/api/invoices?scope=organization&thirdPartyId=${'b'.repeat(24)}`,
       'POST', form, { 'Idempotency-Key': 'retry-1' }));
@@ -34,7 +34,7 @@ describe('invoice presentation contract', () => {
 
   it('rejects manipulated metadata and unknown multipart fields', async () => {
     const malformed = new FormData(); malformed.set('payload', JSON.stringify({ assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20',
-      invoiceTime: '12:00', invoiceNumber: 'INV-1', issuerNit: '900123456', buyerDocument: '900654321', amount: '100.00', vatAmount: '19.00',
+      invoiceTime: '12:00:00', invoiceNumber: 'INV-1', issuerNit: '900123456', buyerDocument: '900654321', amount: '100.00', vatAmount: '19.00',
       otherTaxesAmount: '0.00', totalAmount: '119.00', ownerSubject: 'attacker', origin: 'QR' }));
     const svc = service();
     const response = await invoiceResponse(svc, 'create', actor, request(`http://localhost/api/invoices?scope=organization&thirdPartyId=${'b'.repeat(24)}`, 'POST', malformed));
@@ -44,6 +44,18 @@ describe('invoice presentation contract', () => {
     const extra = new FormData(); extra.set('payload', '{}'); extra.set('admin', 'true');
     const extraResponse = await invoiceResponse(svc, 'create', actor, request(`http://localhost/api/invoices?scope=organization&thirdPartyId=${'b'.repeat(24)}`, 'POST', extra));
     expect(extraResponse.status).toBe(400);
+  });
+
+  it('returns a safe field-specific message for an invalid manual invoice time', async () => {
+    const form = new FormData(); form.set('payload', JSON.stringify({ assignmentId: 'c'.repeat(24), vehicleId: 'e'.repeat(24), invoiceDate: '2026-11-20',
+      invoiceTime: '15:51', invoiceNumber: 'INV-1', issuerNit: '900123456', buyerDocument: '900654321', amount: '100.00', vatAmount: '19.00',
+      otherTaxesAmount: '0.00', totalAmount: '119.00' }));
+    const svc = service();
+    const response = await invoiceResponse(svc, 'create', actor, request('http://localhost/api/invoices?scope=organization&thirdPartyId=' + 'b'.repeat(24), 'POST', form));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: { code: 'INVALID_REQUEST', message: 'La hora de factura debe tener el formato HH:mm:ss.', fields: ['invoiceTime'] } });
+    expect((svc as { create: ReturnType<typeof vi.fn> }).create).not.toHaveBeenCalled();
   });
 
   it('exposes a read-only QR preview and an autoritative, scoped QR create operation', async () => {

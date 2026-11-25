@@ -18,7 +18,13 @@ describe('public configuration and HTTP adapter', () => {
     }
   });
   it('uses a public relative base and excludes private configuration', () => {
-    expect(readClientEnvironment({ API_PROXY_TARGET: 'http://backend:3000', MONGODB_URI: 'private' })).toEqual({ apiBaseUrl: '/api' });
+    expect(readClientEnvironment({ API_PROXY_TARGET: 'http://backend:3000', MONGODB_URI: 'private' })).toEqual({ apiBaseUrl: '/api', offlineCredentialPublicJwks: [] });
+    expect(readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: '  ' })).toEqual({ apiBaseUrl: '/api', offlineCredentialPublicJwks: [] });
+    const key = { kty: 'EC', crv: 'P-256', x: 'x'.repeat(43), y: 'y'.repeat(43), kid: 'offline-v1', alg: 'ES256', use: 'sig' };
+    expect(readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: JSON.stringify({ keys: [key] }) }).offlineCredentialPublicJwks)
+      .toMatchObject([{ kty: 'EC', crv: 'P-256', kid: 'offline-v1' }]);
+    expect(() => readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: JSON.stringify({ keys: [{ ...key, d: 'private' }] }) })).toThrow('CONFIGURATION');
+    expect(() => readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: JSON.stringify({ keys: [key, key] }) })).toThrow('CONFIGURATION');
     expect(() => readClientEnvironment({ VITE_API_BASE_URL: 'not-a-url' })).toThrow('CONFIGURATION');
     expect(() => readClientEnvironment({ VITE_API_BASE_URL: 'https://user:secret@example.invalid' })).toThrow('CONFIGURATION');
   });

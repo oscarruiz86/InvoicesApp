@@ -138,11 +138,15 @@ export interface InvoiceAssignmentFacts {
   readonly vehicleVersion: number;
   readonly driverVersion: number;
   readonly vehiclePlate: string | null;
+  readonly assignmentStartedAt?: Date;
+  readonly assignmentEndedAt?: Date | null;
 }
 
 /** Read is advisory. confirmInTransaction must recheck and fence the same assignment and participants. */
 export interface InvoiceAssignmentAuthority {
   readOwnActive(input: { readonly actorSubject: string; readonly thirdPartyId: string; readonly assignmentId: string; readonly vehicleId: string }): Promise<InvoiceAssignmentFacts | null>;
+  readOwnForOfflineRetry?(input: { readonly actorSubject: string; readonly thirdPartyId: string; readonly assignmentId: string; readonly vehicleId: string }): Promise<InvoiceAssignmentFacts | null>;
   confirmInTransaction(input: InvoiceAssignmentFacts & { readonly actorSubject: string; readonly policyVersion: string;
     readonly contextRevision: string | null; readonly transactionContext: unknown }): Promise<void>;
+  confirmClosedInTransaction(input: InvoiceAssignmentFacts & { readonly actorSubject: string; readonly transactionContext: unknown }): Promise<void>;
 }

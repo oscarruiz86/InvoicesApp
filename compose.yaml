@@ -170,6 +170,9 @@ services:
       NOTIFICATION_PAYLOAD_KEY_FILE: ${NOTIFICATION_PAYLOAD_KEY_FILE:-/run/secrets/notification-payload-key}
       NOTIFICATION_PAYLOAD_KEY_FILES: ${NOTIFICATION_PAYLOAD_KEY_FILES:-}
       NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: ${NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION:-1}
+      OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: ${OFFLINE_CREDENTIAL_SIGNING_KEY_FILE:-/run/secrets/offline-credential-signing-key}
+      OFFLINE_CREDENTIAL_KEY_ID: ${OFFLINE_CREDENTIAL_KEY_ID:-offline-v1}
+      OFFLINE_CREDENTIAL_TTL_HOURS: ${OFFLINE_CREDENTIAL_TTL_HOURS:-8}
       KEYCLOAK_ISSUER_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}/realms/invoices
       KEYCLOAK_AUDIENCE: invoices-api
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/invoices/protocol/openid-connect/certs
@@ -237,6 +240,31 @@ services:
       mongodb:
         condition: service_healthy
     networks: [invoices]
+  invoice-sync-retention-worker:
+    image: invoices-backend:dev
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongodb:27017/invoices_app?replicaSet=invoices-rs
+      INVOICE_IMAGE_STORAGE_PROVIDER: local
+      INVOICE_IMAGE_STORAGE_LOCAL_ROOT: /var/lib/invoices/images
+      INVOICE_IMAGE_STORAGE_COMPANY_ID: ${INVOICE_IMAGE_STORAGE_COMPANY_ID:-000000000000000000000000}
+    command: ["npm", "run", "invoice-sync:retention"]
+    env_file:
+      - path: ./backend/.env.local
+        required: false
+    volumes:
+      - ./backend:/app
+      - ./shared:/shared
+      - backend-modules:/app/node_modules
+      - invoice-images:/var/lib/invoices/images
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks: [invoices]
   audit-outbox-worker:
     profiles: [audit]
     image: invoices-backend:dev
@@ -269,6 +297,7 @@ services:
       target: development
     environment:
       VITE_API_BASE_URL: /api
+      VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: ${VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS:-}
       API_PROXY_TARGET: http://backend:3000
       CONTAINER_POLLING: "true"
       VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}

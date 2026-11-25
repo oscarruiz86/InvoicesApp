@@ -29,7 +29,7 @@ function configuredStorage() {
   }
   return localStorageInstance;
 }
-const imageStorage: InvoiceImageStoragePort = {
+export const invoiceImageStorage: InvoiceImageStoragePort = {
   async prepare(input) { return configuredStorage().prepare(input); },
   async read(reference) { return configuredStorage().read(reference); },
   async commit(prepared) { return configuredStorage().commit(prepared); },
@@ -43,8 +43,10 @@ const repository = createMongoInvoiceRepository(connect, (connection, session) =
   editPolicy: { async confirm(input) { await parameterUseCases.confirm({ ...input, transactionContext: input.transactionContext }); } }, audit: createMongoInvoiceAudit(connection, session) }));
 const invoiceAuthorization = createInvoiceAuthorizationPort({ authorization, policies: policyRepository });
 
-export const invoices = createInvoices({ repository, authorization: invoiceAuthorization, assignments: assignmentAuthority, imageStorage,
-  imageStorageCompanyId: () => { const env = readServerEnvironment(); if (!env.INVOICE_IMAGE_STORAGE_COMPANY_ID) throw new Error('CONFIGURATION_ERROR'); return env.INVOICE_IMAGE_STORAGE_COMPANY_ID; },
+export function invoiceImageStorageCompanyId() { const env = readServerEnvironment(); if (!env.INVOICE_IMAGE_STORAGE_COMPANY_ID) throw new Error('CONFIGURATION_ERROR'); return env.INVOICE_IMAGE_STORAGE_COMPANY_ID; }
+
+export const invoices = createInvoices({ repository, authorization: invoiceAuthorization, assignments: assignmentAuthority, imageStorage: invoiceImageStorage,
+  imageStorageCompanyId: invoiceImageStorageCompanyId,
   editPolicy: { async read(input) { return parameterUseCases.readEffective(input.thirdPartyId); } }, imageNormalizer: { normalize: normalizeInvoiceImage }, clock: { now: () => new Date() },
   ids: { next: () => new Types.ObjectId().toString() }, correlationId: { next: randomUUID },
   qrContentHasher: { sha256: content => createHash('sha256').update(content, 'utf8').digest('hex') } });

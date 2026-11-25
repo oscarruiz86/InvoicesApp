@@ -162,6 +162,11 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
           publish({ status: 'authenticated', credentialRevision: ++credentialRevision });
           return instance.token;
         } catch {
+          if (epoch === generation && typeof navigator !== 'undefined' && !navigator.onLine) {
+            // A failed refresh while disconnected does not prove that the identity session expired.
+            // Keep pending offline work intact; the shell will request a normal reauthentication online.
+            throw new ApplicationError('NETWORK');
+          }
           if (epoch === generation) discard('SESSION_EXPIRED');
           throw new ApplicationError('UNAUTHENTICATED');
         } finally { if (epoch === generation) refresh = undefined; }

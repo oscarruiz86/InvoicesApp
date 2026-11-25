@@ -23,7 +23,7 @@ export function DataTableSurface({ children, loading = false, sx }: {
   readonly sx?: SxProps<Theme>;
 }) {
   return <TableContainer component={Paper} variant="outlined" aria-busy={loading} sx={[{
-    width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden',
+    width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'auto',
     '& table': { maxWidth: '100%' },
   }, ...(Array.isArray(sx) ? sx : [sx])]}>{children}</TableContainer>;
 }

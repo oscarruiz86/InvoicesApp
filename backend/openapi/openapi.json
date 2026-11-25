@@ -10164,10 +10164,266 @@
         "x-required-permissions": ["parameters:update"],
         "x-authorization-scope": "global"
       }
+    },
+    "/api/invoice-sync/offline-credential": {
+      "post": {
+        "operationId": "issueOfflineInvoiceCredential",
+        "summary": "Emitir credencial temporal de captura offline para conductor autenticado",
+        "tags": ["Invoice sync"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
+          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["assignments"], "properties": { "assignments": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "type": "object", "additionalProperties": false, "required": ["assignmentId", "vehicleId"], "properties": { "assignmentId": { "type": "string", "pattern": "^[a-f0-9]{24}$" }, "vehicleId": { "type": "string", "pattern": "^[a-f0-9]{24}$" } } } } } } } } },
+        "responses": {
+          "201": { "description": "Ticket ES256 de captura local válido por un máximo de 8 horas", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["credential", "expiresAt", "subject", "thirdPartyId", "assignmentIds"], "properties": { "credential": { "type": "string", "description": "JWS ES256 de alcance invoice:offline-capture; no es bearer de API" }, "expiresAt": { "type": "string", "format": "date-time" }, "subject": { "type": "string" }, "thirdPartyId": { "type": "string", "pattern": "^[a-f0-9]{24}$" }, "assignmentIds": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "type": "string", "pattern": "^[a-f0-9]{24}$" } } } } } } },
+          "400": { "description": "Solicitud o asignaciones inválidas", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "401": { "description": "No autenticado" },
+          "403": { "description": "No es DRIVER autorizado" },
+          "409": { "description": "Asignación ya no disponible" },
+          "503": { "description": "Servicio o clave de firma no disponible" }
+        },
+        "x-required-permissions": ["invoices:create"],
+        "x-authorization-scope": "Tercero activo explícito; solo el ticket firmado permite captura local y nunca llamadas de API"
+      }
+    },
+    "/api/invoice-sync/submissions": {
+      "get": {
+        "operationId": "listOfflineInvoiceSubmissionHistory",
+        "summary": "Consultar el historial paginado de envíos offline del tercero activo",
+        "tags": ["Invoice sync"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
+          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "pageSize", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Historial con resumen, estado y decisión administrativa si existe; DRIVER recibe solo sus envíos y THIRD_PARTY_ADMIN recibe los del tercero activo", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceSubmissionHistoryPage" } } } },
+          "401": { "description": "No autenticado" },
+          "403": { "description": "Requiere DRIVER o THIRD_PARTY_ADMIN autorizado para el tercero activo" },
+          "503": { "description": "Fallo temporal al consultar el historial" }
+        },
+        "x-required-permissions": ["invoices:read"],
+        "x-authorization-scope": "DRIVER ve sus propios envíos; THIRD_PARTY_ADMIN ve los envíos de su tercero activo. El tercero se valida contra el contexto autorizado y no se expone el sujeto propietario"
+      },
+      "post": {
+        "operationId": "submitOfflineInvoice",
+        "summary": "Presentar factura capturada offline de forma idempotente",
+        "tags": ["Invoice sync"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
+          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+          { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 128 } }
+        ],
+        "requestBody": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "additionalProperties": false, "required": ["payload"], "properties": { "payload": { "type": "string", "description": "JSON MANUAL o QR con asignación, vehículo y campos de factura o contenido QR original" }, "image": { "type": "string", "format": "binary", "description": "Imagen JPEG o PNG opcional para QR y obligatoria para MANUAL" } } } } } },
+        "responses": {
+          "201": { "description": "Resultado actual del envío; usa la misma identidad para reintentar respuestas inciertas", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceSubmission" } } } },
+          "400": { "description": "Solicitud, campos o imagen inválidos", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "401": { "description": "No autenticado" },
+          "403": { "description": "Sin permiso de creación" },
+          "409": { "description": "La misma clave se usó con un contenido diferente o hubo una actualización concurrente" },
+          "413": { "description": "Imagen demasiado grande" },
+          "503": { "description": "Fallo temporal; conserva el envío y reintenta con la misma clave" }
+        },
+        "x-required-permissions": ["invoices:create"],
+        "x-authorization-scope": "Tercero explícito; identidad DRIVER y tercero se validan nuevamente online"
+      }
+    },
+    "/api/invoice-sync/submissions/{id}": {
+      "get": {
+        "operationId": "readOwnOfflineInvoiceSubmission",
+        "summary": "Consultar el estado de un envío propio de factura",
+        "tags": ["Invoice sync"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
+          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } }
+        ],
+        "responses": {
+          "200": { "description": "Estado y resultado sin payload ni ubicación de imagen", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceSubmission" } } } },
+          "401": { "description": "No autenticado" },
+          "403": { "description": "Sin permiso" },
+          "404": { "description": "Envío ajeno o inexistente" },
+          "503": { "description": "Servicio no disponible" }
+        },
+        "x-required-permissions": ["invoices:read"],
+        "x-authorization-scope": "Solo sujeto propietario y tercero del envío"
+      }
+    },
+    "/api/invoice-sync/conflicts": {
+      "get": {
+        "operationId": "listOfflineInvoiceConflicts",
+        "summary": "Consultar conflictos de factura del tercero autorizado",
+        "tags": ["Invoice sync"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
+          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Conflictos vigentes y datos mínimos de comparación; nunca incluye el QR original", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceConflictPage" } } } },
+          "400": { "description": "Paginación o ámbito inválido", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "401": { "description": "No autenticado" },
+          "403": { "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero" },
+          "503": { "description": "Bandeja no disponible" }
+        },
+        "x-required-permissions": ["invoices:read"],
+        "x-authorization-scope": "Solo tercero activo explícito y rol THIRD_PARTY_ADMIN"
+      }
+    },
+    "/api/invoice-sync/submissions/{id}/image": {
+      "get": {
+        "operationId": "readOfflineInvoiceConflictImage",
+        "summary": "Consultar imagen temporal de un conflicto",
+        "tags": ["Invoice sync"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
+          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } }
+        ],
+        "responses": {
+          "200": { "description": "Imagen de conflicto con respuesta privada y sin caché", "content": { "image/jpeg": { "schema": { "type": "string", "format": "binary" } }, "image/png": { "schema": { "type": "string", "format": "binary" } } } },
+          "401": { "description": "No autenticado" },
+          "403": { "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero" },
+          "404": { "description": "Imagen inexistente o conflicto no vigente" },
+          "503": { "description": "Imagen no disponible" }
+        },
+        "x-required-permissions": ["invoices:read"],
+        "x-authorization-scope": "Solo conflicto del tercero activo y rol THIRD_PARTY_ADMIN"
+      }
+    },
+    "/api/invoice-sync/submissions/{id}/resolution": {
+      "post": {
+        "operationId": "resolveOfflineInvoiceConflict",
+        "summary": "Resolver un conflicto offline con control optimista de versión",
+        "tags": ["Invoice sync"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
+          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceResolution" } } } },
+        "responses": {
+          "200": { "description": "Conflicto resuelto o resultado original de un reintento idempotente", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceSubmission" } } } },
+          "400": { "description": "Acción, candidato, causa o motivo inválido", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "401": { "description": "No autenticado" },
+          "403": { "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero" },
+          "404": { "description": "Envío inexistente o ajeno al tercero" },
+          "409": { "description": "La versión cambió o la decisión no es compatible con las causas vigentes" },
+          "503": { "description": "No fue posible registrar la decisión" }
+        },
+        "x-required-permissions": ["invoices:update"],
+        "x-authorization-scope": "Vincular duplicado, aprobar asignación cerrada sin duplicidad o rechazar; decisión y auditoría atómicas"
+      }
     }
   },
   "components": {
     "schemas": {
+      "ApiError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "fields": { "type": "array", "items": { "type": "string" }, "description": "Campos permitidos con errores de validación; no incluye valores enviados ni detalles internos." }
+            }
+          }
+        }
+      },
+      "OfflineInvoiceSubmission": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "thirdPartyId", "origin", "assignmentId", "vehicleId", "causes", "candidateInvoiceIds", "status", "version", "createdAt", "expiresAt", "resultInvoiceId", "resolutionReason"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+          "thirdPartyId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+          "origin": { "type": "string", "enum": ["MANUAL", "QR"] },
+          "assignmentId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+          "vehicleId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+          "causes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["BUSINESS_DUPLICATE", "CUFE_DUPLICATE", "ASSIGNMENT_CLOSED"] } },
+          "candidateInvoiceIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
+          "status": { "type": "string", "enum": ["PENDING", "CONFLICT", "REQUIRES_CORRECTION", "SYNCHRONIZED", "LINKED", "REJECTED"] },
+          "version": { "type": "integer", "minimum": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": ["string", "null"], "format": "date-time" },
+          "resultInvoiceId": { "type": ["string", "null"], "pattern": "^[a-f0-9]{24}$" },
+          "resolutionReason": { "type": ["string", "null"], "maxLength": 500 }
+        }
+      },
+      "InvoiceConflictCandidate": {
+        "type": "object", "additionalProperties": false, "required": ["id", "invoiceNumber", "issuerNit", "invoiceDate", "cause"],
+        "properties": { "id": { "type": "string", "pattern": "^[a-f0-9]{24}$" }, "invoiceNumber": { "type": "string" }, "issuerNit": { "type": "string" },
+          "invoiceDate": { "type": "string", "format": "date" }, "cause": { "type": "string", "enum": ["BUSINESS_DUPLICATE", "CUFE_DUPLICATE"] } }
+      },
+      "OfflineInvoiceConflictItem": {
+        "type": "object", "additionalProperties": false, "required": ["submission", "reviewFields", "candidates", "imageAvailable"],
+        "properties": { "submission": { "$ref": "#/components/schemas/OfflineInvoiceSubmission" },
+          "reviewFields": { "type": "object", "additionalProperties": false, "properties": { "invoiceDate": { "type": "string", "format": "date" },
+            "invoiceTime": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$" },
+            "invoiceNumber": { "type": "string" }, "issuerNit": { "type": "string" }, "buyerDocument": { "type": "string" }, "amount": { "type": "string" },
+            "vatAmount": { "type": "string" }, "otherTaxesAmount": { "type": "string" }, "totalAmount": { "type": "string" } } },
+          "candidates": { "type": "array", "items": { "$ref": "#/components/schemas/InvoiceConflictCandidate" } }, "imageAvailable": { "type": "boolean" } }
+      },
+      "OfflineInvoiceConflictPage": {
+        "type": "object", "additionalProperties": false, "required": ["items", "total", "page", "pageSize"],
+        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/OfflineInvoiceConflictItem" } }, "total": { "type": "integer", "minimum": 0 },
+          "page": { "type": "integer", "minimum": 1 }, "pageSize": { "type": "integer", "minimum": 1, "maximum": 100 } }
+      },
+      "OfflineInvoiceSubmissionHistoryItem": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "thirdPartyId", "origin", "status", "createdAt", "updatedAt", "causes", "invoiceNumber", "invoiceDate", "issuerNit", "totalAmount", "resolutionReason", "resolution"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-f0-9]{24}$" }, "thirdPartyId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+          "origin": { "type": "string", "enum": ["MANUAL", "QR"] },
+          "status": { "type": "string", "enum": ["PENDING", "CONFLICT", "REQUIRES_CORRECTION", "SYNCHRONIZED", "LINKED", "REJECTED"] },
+          "driverName": { "type": ["string", "null"], "maxLength": 200 }, "vehiclePlate": { "type": ["string", "null"], "maxLength": 32 },
+          "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" },
+          "causes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["BUSINESS_DUPLICATE", "CUFE_DUPLICATE", "ASSIGNMENT_CLOSED"] } },
+          "invoiceNumber": { "type": ["string", "null"] }, "invoiceDate": { "type": ["string", "null"], "format": "date" },
+          "issuerNit": { "type": ["string", "null"] }, "totalAmount": { "type": ["string", "null"] },
+          "resolutionReason": { "type": ["string", "null"], "maxLength": 500 },
+          "resolution": { "oneOf": [{ "$ref": "#/components/schemas/OfflineInvoiceSubmissionDecision" }, { "type": "null" }] }
+        }
+      },
+      "OfflineInvoiceSubmissionDecision": {
+        "type": "object", "additionalProperties": false,
+        "required": ["action", "at", "reason", "resultInvoiceNumber", "resultInvoiceDate"],
+        "properties": {
+          "action": { "type": "string", "enum": ["LINK_DUPLICATE", "APPROVE_CLOSED_ASSIGNMENT", "REJECT"] },
+          "at": { "type": "string", "format": "date-time" }, "reason": { "type": "string", "maxLength": 500 },
+          "resultInvoiceNumber": { "type": ["string", "null"] }, "resultInvoiceDate": { "type": ["string", "null"], "format": "date" }
+        }
+      },
+      "OfflineInvoiceSubmissionHistoryPage": {
+        "type": "object", "additionalProperties": false, "required": ["items", "total", "page", "pageSize"],
+        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/OfflineInvoiceSubmissionHistoryItem" } },
+          "total": { "type": "integer", "minimum": 0 }, "page": { "type": "integer", "minimum": 1 }, "pageSize": { "type": "integer", "minimum": 1, "maximum": 100 } }
+      },
+      "OfflineInvoiceResolution": {
+        "oneOf": [
+          { "type": "object", "additionalProperties": false, "required": ["action", "expectedVersion", "reason", "resultInvoiceId"],
+            "properties": { "action": { "const": "LINK_DUPLICATE" }, "expectedVersion": { "type": "integer", "minimum": 1 }, "reason": { "type": "string", "minLength": 1, "maxLength": 500 }, "resultInvoiceId": { "type": "string", "pattern": "^[a-f0-9]{24}$" } } },
+          { "type": "object", "additionalProperties": false, "required": ["action", "expectedVersion", "reason"],
+            "properties": { "action": { "const": "APPROVE_CLOSED_ASSIGNMENT" }, "expectedVersion": { "type": "integer", "minimum": 1 }, "reason": { "type": "string", "minLength": 1, "maxLength": 500 } } },
+          { "type": "object", "additionalProperties": false, "required": ["action", "expectedVersion", "reason"],
+            "properties": { "action": { "const": "REJECT" }, "expectedVersion": { "type": "integer", "minimum": 1 }, "reason": { "type": "string", "minLength": 1, "maxLength": 500 } } }
+        ], "discriminator": { "propertyName": "action" }
+      },
       "Invitation": {
         "type": "object",
         "additionalProperties": false,
@@ -13310,6 +13566,7 @@
         "required": [
           "id",
           "origin",
+          "captureChannel",
           "thirdPartyId",
           "assignmentId",
           "driverId",
@@ -13340,6 +13597,7 @@
             ],
             "type": "string"
           },
+          "captureChannel": { "type": "string", "enum": ["ONLINE", "OFFLINE"], "description": "Canal por el que se capturó la factura, independiente del origen MANUAL o QR." },
           "thirdPartyId": {
             "type": "string",
             "pattern": "^[a-f0-9]{24}$"

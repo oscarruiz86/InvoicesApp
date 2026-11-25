@@ -6,11 +6,13 @@ import type { InvoiceAssignmentConfirmationPort, InvoiceAuthorizationPort, Invoi
   InvoiceEditPolicyReader, InvoiceIds, InvoiceImageInput, InvoiceListQuery, InvoiceRepositoryPort, InvoiceImageStoragePort,
   InvoiceImageReference, PreparedInvoiceImage, InvoiceImageContent } from './invoice-ports';
 import type { InvoiceImageNormalizer } from './invoice-ports';
+import type { InvoiceAssignmentFacts } from '@/modules/fleet/application/assignment-ports';
 
 export type InvoiceUseCaseErrorCode = 'INVALID_REQUEST' | 'FORBIDDEN' | 'RESOURCE_NOT_FOUND' | 'INVOICE_STORAGE_UNAVAILABLE' | 'CONFIGURATION_ERROR'
   | 'AUTHORIZATION_UNAVAILABLE' | 'ASSIGNMENT_NOT_ELIGIBLE' | 'ASSIGNMENT_EVIDENCE_UNAVAILABLE'
   | 'INVOICE_DUPLICATE' | 'IDEMPOTENCY_CONFLICT' | 'INVOICE_VERSION_CONFLICT' | 'EDIT_WINDOW_CLOSED'
-  | 'EDIT_POLICY_UNAVAILABLE' | 'INVOICE_AUDIT_UNAVAILABLE' | 'IMAGE_REQUIRED' | 'QR_INVALID' | 'QR_INCOMPLETE' | 'QR_UNSUPPORTED' | 'QR_IMMUTABLE';
+  | 'EDIT_POLICY_UNAVAILABLE' | 'INVOICE_AUDIT_UNAVAILABLE' | 'IMAGE_REQUIRED' | 'QR_INVALID' | 'QR_INCOMPLETE' | 'QR_UNSUPPORTED' | 'QR_IMMUTABLE'
+  | 'ASSIGNMENT_HISTORICAL_INTERVAL_INVALID';
 export class InvoiceUseCaseError extends Error {
   constructor(readonly code: InvoiceUseCaseErrorCode) { super(code); }
 }
@@ -49,6 +51,7 @@ function mapError(error: unknown): InvoiceUseCaseError {
   if (['FORBIDDEN', 'AUTHORIZATION_UNAVAILABLE', 'RESOURCE_NOT_FOUND', 'ASSIGNMENT_NOT_ELIGIBLE', 'ASSIGNMENT_EVIDENCE_UNAVAILABLE',
     'INVOICE_DUPLICATE', 'IDEMPOTENCY_CONFLICT', 'INVOICE_VERSION_CONFLICT', 'EDIT_WINDOW_CLOSED', 'EDIT_POLICY_UNAVAILABLE',
     'INVOICE_AUDIT_UNAVAILABLE', 'CONFIGURATION_ERROR'].includes(code)) return new InvoiceUseCaseError(code as InvoiceUseCaseErrorCode);
+  if (code === 'ASSIGNMENT_HISTORICAL_INTERVAL_INVALID') return new InvoiceUseCaseError('ASSIGNMENT_HISTORICAL_INTERVAL_INVALID');
   return new InvoiceUseCaseError('INVOICE_STORAGE_UNAVAILABLE');
 }
 function assertRole(roles: readonly string[], allowed: 'DRIVER' | 'THIRD_PARTY_ADMIN'): void {
@@ -147,7 +150,7 @@ export function createInvoices(deps: {
           width: reference.width, height: reference.height, sha256: reference.sha256 } satisfies InvoiceImageContent;
       } catch (error) { throw mapError(error); }
     },
-    async create(actor: AuthenticatedActor, input: CreateInvoiceCommand & { readonly idempotencyKey: string }) {
+    async create(actor: AuthenticatedActor, input: CreateInvoiceCommand & { readonly idempotencyKey: string }, offlineSubmission?: { readonly id: string; readonly expectedVersion: number }) {
       const { idempotencyKey, image, ...command } = input;
       const allowed = ['thirdPartyId', 'assignmentId', 'vehicleId', 'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit',
         'buyerDocument', 'amount', 'vatAmount', 'otherTaxesAmount', 'totalAmount', 'image', 'idempotencyKey'];
@@ -157,32 +160,82 @@ export function createInvoices(deps: {
       assertRole(receipt.roles, 'DRIVER');
       if (!image) throw new InvoiceUseCaseError('IMAGE_REQUIRED');
       try {
-        const assignment = await deps.assignments.readOwnActive({ actorSubject: actor.subject, thirdPartyId: command.thirdPartyId,
-          assignmentId: command.assignmentId, vehicleId: command.vehicleId });
+        const assignmentInput = { actorSubject: actor.subject, thirdPartyId: command.thirdPartyId, assignmentId: command.assignmentId, vehicleId: command.vehicleId };
+        const assignment = await deps.assignments.readOwnActive(assignmentInput)
+          ?? (offlineSubmission ? await deps.assignments.readOwnForOfflineRetry?.(assignmentInput) ?? null : null);
         if (!assignment) throw new InvoiceUseCaseError('ASSIGNMENT_NOT_ELIGIBLE');
         const imagePayload = image ? { ...image, id: deps.ids.next() } : undefined;
         const invoice = createInvoice({ ...command, id: deps.ids.next(), ownerSubject: actor.subject, driverId: assignment.driverId,
-          vehiclePlate: assignment.vehiclePlate, imageId: imagePayload?.id ?? null, now: deps.clock.now() });
+          vehiclePlate: assignment.vehiclePlate, imageId: imagePayload?.id ?? null, captureChannel: offlineSubmission ? 'OFFLINE' : 'ONLINE', now: deps.clock.now() });
         const requestHash = JSON.stringify({ thirdPartyId: invoice.thirdPartyId, ownerSubject: invoice.ownerSubject, assignmentId: invoice.assignmentId,
-          origin: invoice.origin, vehicleId: invoice.vehicleId, invoiceDate: invoice.invoiceDate, invoiceTime: invoice.invoiceTime, invoiceNumber: invoice.invoiceNumber,
+          origin: invoice.origin, captureChannel: invoice.captureChannel, vehicleId: invoice.vehicleId, invoiceDate: invoice.invoiceDate, invoiceTime: invoice.invoiceTime, invoiceNumber: invoice.invoiceNumber,
           issuerNit: invoice.issuerNit, buyerDocument: invoice.buyerDocument, amounts: invoice.amounts,
           image: imagePayload ? { sha256: imagePayload.sha256, contentType: imagePayload.contentType, size: imagePayload.size } : null });
         let prepared: PreparedInvoiceImage | undefined;
         try {
           if (imagePayload) prepared = await prepareImage(imagePayload, invoice);
           const created = await deps.repository.create({ invoice, ...(prepared && imagePayload ? { image: { id: imagePayload.id, reference: prepared.reference } } : {}),
-            actorSubject: actor.subject, idempotencyKey, requestHash, authority: receipt, assignment, correlationId: deps.correlationId.next() });
+            actorSubject: actor.subject, idempotencyKey, requestHash, authority: receipt, assignment, correlationId: deps.correlationId.next(),
+            ...(offlineSubmission ? { offlineSubmission } : {}) });
           await finishImage(prepared, created.id === invoice.id);
           return created;
         } catch (error) { await finishImage(prepared, false); throw mapError(error); }
       } catch (error) { throw mapError(error); }
+    },
+    async createFromOfflineSubmission(actor: AuthenticatedActor, input: CreateInvoiceCommand & { readonly idempotencyKey: string }, submission: { readonly id: string; readonly expectedVersion: number }) {
+      return this.create(actor, input, submission);
+    },
+    async createOfflineException(actor: AuthenticatedActor, input: (CreateInvoiceCommand | CreateQrInvoiceCommand) & { readonly idempotencyKey: string }, exception: {
+      readonly ownerSubject: string; readonly assignment: InvoiceAssignmentFacts; readonly submissionId: string; readonly expectedVersion: number; readonly reason: string;
+    }) {
+      const { idempotencyKey, image } = input;
+      if (!idempotencyKey || idempotencyKey.length > 128 || !exception.ownerSubject || exception.ownerSubject.length > 128
+        || !id(exception.submissionId) || !Number.isSafeInteger(exception.expectedVersion) || exception.expectedVersion < 1
+        || !exception.reason.trim() || exception.reason.length > 500 || !image) throw new InvoiceUseCaseError('INVALID_REQUEST');
+      const isQr = 'qrContent' in input;
+      const thirdPartyId = input.thirdPartyId;
+      const assignment = exception.assignment;
+      if (!id(thirdPartyId) || assignment.thirdPartyId !== thirdPartyId || assignment.subject !== exception.ownerSubject
+        || assignment.assignmentId !== input.assignmentId || assignment.vehicleId !== input.vehicleId
+        || !(assignment.assignmentStartedAt instanceof Date) || !(assignment.assignmentEndedAt instanceof Date)) throw new InvoiceUseCaseError('ASSIGNMENT_NOT_ELIGIBLE');
+      const receipt = await authorize(actor, thirdPartyId, 'invoices:update');
+      assertRole(receipt.roles, 'THIRD_PARTY_ADMIN');
+      const parsed = isQr ? parseQr(input.qrContent) : null;
+      const imagePayload = { ...image, id: deps.ids.next() };
+      const invoice = isQr
+        ? (() => { const { metadata, invoiceAtUtc, ...fields } = parsed!; return createQrInvoice({ ...fields, id: deps.ids.next(), ownerSubject: exception.ownerSubject,
+          thirdPartyId, assignmentId: assignment.assignmentId, driverId: assignment.driverId, vehicleId: assignment.vehicleId,
+          vehiclePlate: assignment.vehiclePlate, imageId: imagePayload.id, now: deps.clock.now() }, metadata, invoiceAtUtc); })()
+        : (() => { const fields = input as CreateInvoiceCommand & { readonly idempotencyKey: string };
+          return createInvoice({ thirdPartyId, assignmentId: fields.assignmentId, vehicleId: fields.vehicleId, invoiceDate: fields.invoiceDate,
+            invoiceTime: fields.invoiceTime, invoiceNumber: fields.invoiceNumber, issuerNit: fields.issuerNit, buyerDocument: fields.buyerDocument,
+            amount: fields.amount, vatAmount: fields.vatAmount, otherTaxesAmount: fields.otherTaxesAmount, totalAmount: fields.totalAmount,
+            id: deps.ids.next(), ownerSubject: exception.ownerSubject, driverId: assignment.driverId, captureChannel: 'OFFLINE',
+            vehiclePlate: assignment.vehiclePlate, imageId: imagePayload.id, now: deps.clock.now() }); })();
+      const invoiceInstant = Date.parse(invoice.invoiceAtUtc), assignmentStart = assignment.assignmentStartedAt.getTime(), assignmentEnd = assignment.assignmentEndedAt.getTime();
+      if (!Number.isFinite(invoiceInstant) || invoiceInstant < assignmentStart || invoiceInstant > assignmentEnd)
+        throw new InvoiceUseCaseError('ASSIGNMENT_HISTORICAL_INTERVAL_INVALID');
+      const requestHash = JSON.stringify({ offlineException: true, origin: invoice.origin, captureChannel: invoice.captureChannel, thirdPartyId, ownerSubject: invoice.ownerSubject,
+        assignmentId: invoice.assignmentId, vehicleId: invoice.vehicleId, invoiceDate: invoice.invoiceDate, invoiceTime: invoice.invoiceTime,
+        invoiceNumber: invoice.invoiceNumber, issuerNit: invoice.issuerNit, buyerDocument: invoice.buyerDocument, amounts: invoice.amounts,
+        qrMetadata: invoice.qrMetadata, image: { sha256: imagePayload.sha256, contentType: imagePayload.contentType, size: imagePayload.size } });
+      let prepared: PreparedInvoiceImage | undefined;
+      try {
+        prepared = await prepareImage(imagePayload, invoice);
+        const created = await deps.repository.create({ invoice, image: { id: imagePayload.id, reference: prepared.reference }, actorSubject: actor.subject,
+          idempotencyKey, requestHash, authority: receipt, assignment, correlationId: deps.correlationId.next(),
+          offlineSubmission: { id: exception.submissionId, expectedVersion: exception.expectedVersion,
+            resolution: { action: 'APPROVE_CLOSED_ASSIGNMENT', reason: exception.reason.trim() } } });
+        await finishImage(prepared, created.id === invoice.id);
+        return created;
+      } catch (error) { await finishImage(prepared, false); throw mapError(error); }
     },
     async previewQr(actor: AuthenticatedActor, input: { readonly thirdPartyId: string; readonly qrContent: string }) {
       if (Object.keys(input).some(key => !['thirdPartyId', 'qrContent'].includes(key))) throw new InvoiceUseCaseError('INVALID_REQUEST');
       const receipt = await authorize(actor, input.thirdPartyId, 'invoices:create'); assertRole(receipt.roles, 'DRIVER');
       try { return parseQr(input.qrContent); } catch (error) { if (error instanceof InvoiceQrError) throw new InvoiceUseCaseError(error.code as InvoiceUseCaseErrorCode); throw error; }
     },
-    async createQr(actor: AuthenticatedActor, input: CreateQrInvoiceCommand & { readonly idempotencyKey: string }) {
+    async createQr(actor: AuthenticatedActor, input: CreateQrInvoiceCommand & { readonly idempotencyKey: string }, offlineSubmission?: { readonly id: string; readonly expectedVersion: number }) {
       const { qrContent, idempotencyKey, image, ...refs } = input;
       if (Object.keys(input).some(key => !['thirdPartyId', 'assignmentId', 'vehicleId', 'qrContent', 'idempotencyKey', 'image'].includes(key))
         || typeof qrContent !== 'string' || !id(refs.assignmentId) || !id(refs.vehicleId) || !idempotencyKey || idempotencyKey.length > 128)
@@ -197,8 +250,8 @@ export function createInvoices(deps: {
         const { metadata, invoiceAtUtc, ...fields } = parsed;
         const invoice = createQrInvoice({ ...fields, id: deps.ids.next(), ownerSubject: actor.subject, thirdPartyId: refs.thirdPartyId,
           assignmentId: refs.assignmentId, driverId: assignment.driverId, vehicleId: refs.vehicleId, vehiclePlate: assignment.vehiclePlate,
-          imageId: imagePayload?.id ?? null, now: deps.clock.now() }, metadata, invoiceAtUtc);
-        const requestHash = JSON.stringify({ origin: 'QR', thirdPartyId: invoice.thirdPartyId, ownerSubject: invoice.ownerSubject,
+          imageId: imagePayload?.id ?? null, captureChannel: offlineSubmission ? 'OFFLINE' : 'ONLINE', now: deps.clock.now() }, metadata, invoiceAtUtc);
+        const requestHash = JSON.stringify({ origin: 'QR', captureChannel: invoice.captureChannel, thirdPartyId: invoice.thirdPartyId, ownerSubject: invoice.ownerSubject,
           assignmentId: invoice.assignmentId, vehicleId: invoice.vehicleId, invoiceDate: invoice.invoiceDate, invoiceTime: invoice.invoiceTime,
           invoiceNumber: invoice.invoiceNumber, issuerNit: invoice.issuerNit, buyerDocument: invoice.buyerDocument, amounts: invoice.amounts,
           qrMetadata: invoice.qrMetadata, image: imagePayload ? { sha256: imagePayload.sha256, contentType: imagePayload.contentType, size: imagePayload.size } : null });
@@ -206,11 +259,15 @@ export function createInvoices(deps: {
         try {
           if (imagePayload) prepared = await prepareImage(imagePayload, invoice);
           const created = await deps.repository.create({ invoice, ...(prepared && imagePayload ? { image: { id: imagePayload.id, reference: prepared.reference } } : {}),
-            actorSubject: actor.subject, idempotencyKey, requestHash, authority: receipt, assignment, correlationId: deps.correlationId.next() });
+            actorSubject: actor.subject, idempotencyKey, requestHash, authority: receipt, assignment, correlationId: deps.correlationId.next(),
+            ...(offlineSubmission ? { offlineSubmission } : {}) });
           await finishImage(prepared, created.id === invoice.id);
           return created;
         } catch (error) { await finishImage(prepared, false); throw mapError(error); }
       } catch (error) { if (error instanceof InvoiceQrError) throw new InvoiceUseCaseError(error.code as InvoiceUseCaseErrorCode); throw mapError(error); }
+    },
+    async createQrFromOfflineSubmission(actor: AuthenticatedActor, input: CreateQrInvoiceCommand & { readonly idempotencyKey: string }, submission: { readonly id: string; readonly expectedVersion: number }) {
+      return this.createQr(actor, input, submission);
     },
     async edit(actor: AuthenticatedActor, input: { readonly id: string; readonly thirdPartyId: string; readonly expectedVersion: number; readonly changes: Partial<CreateInvoiceCommand> }) {
       if (!id(input.id) || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) throw new InvoiceUseCaseError('INVALID_REQUEST');
@@ -240,7 +297,7 @@ export function createInvoices(deps: {
         const imagePayload = image ? { ...image, id: deps.ids.next() } : undefined;
         const revised = { ...values, ...changes, id: current.id, ownerSubject: current.ownerSubject, thirdPartyId: current.thirdPartyId,
           assignmentId: current.assignmentId, driverId: current.driverId, vehicleId: current.vehicleId, vehiclePlate: current.vehiclePlate,
-          imageId: imagePayload?.id ?? current.imageId, now };
+          imageId: imagePayload?.id ?? current.imageId, captureChannel: current.captureChannel, now };
         if (current.origin === 'QR' && !current.qrMetadata) throw new InvoiceUseCaseError('INVOICE_STORAGE_UNAVAILABLE');
         const next: Invoice = current.origin === 'QR' ? reviseQrInvoice(revised, current.qrMetadata!) : createInvoice(revised);
         const changed = current.invoiceDate !== next.invoiceDate || current.invoiceTime !== next.invoiceTime || current.invoiceNumber !== next.invoiceNumber

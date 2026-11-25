@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CatalogApi, CatalogName, CatalogOption } from '../application/catalog-api';
+import type { CatalogApi, CatalogOption } from '../application/catalog-api';
 import { RequestError } from '@/shared/application/request-error';
 
 const catalogName = z.enum(['document-types', 'countries', 'departments', 'municipalities', 'statuses']);

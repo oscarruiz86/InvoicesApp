@@ -1,4 +1,5 @@
 export type InvoiceOrigin = 'MANUAL' | 'QR';
+export type InvoiceCaptureChannel = 'ONLINE' | 'OFFLINE';
 export interface InvoiceQrMetadata { readonly parserVersion: 'invoice-key-value-v1'; readonly contentHash: string; readonly cufe?: string; readonly sourceUrl?: string }
 
 export interface InvoiceAmounts {
@@ -11,6 +12,7 @@ export interface InvoiceAmounts {
 export interface Invoice {
   readonly id: string;
   readonly origin: InvoiceOrigin;
+  readonly captureChannel: InvoiceCaptureChannel;
   readonly qrMetadata?: InvoiceQrMetadata;
   readonly ownerSubject: string;
   readonly thirdPartyId: string;
@@ -74,6 +76,7 @@ export interface CreateInvoiceInput {
   readonly vatAmount: string;
   readonly otherTaxesAmount: string;
   readonly totalAmount: string;
+  readonly captureChannel?: InvoiceCaptureChannel;
   readonly imageId?: string | null;
   readonly now: Date;
 }
@@ -137,12 +140,13 @@ function bogotaInstant(invoiceDate: string, invoiceTime: string): string {
 function createInvoiceRecord(input: CreateInvoiceInput, enforceTotalMatch: boolean): Invoice {
   const allowed = ['id', 'ownerSubject', 'thirdPartyId', 'assignmentId', 'driverId', 'vehicleId', 'vehiclePlate',
     'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amount', 'vatAmount',
-    'otherTaxesAmount', 'totalAmount', 'imageId', 'now'];
+    'otherTaxesAmount', 'totalAmount', 'imageId', 'captureChannel', 'now'];
   if (!input || typeof input !== 'object' || Object.keys(input).some(key => !allowed.includes(key))
     || !validId(input.id) || !validId(input.thirdPartyId) || !validId(input.assignmentId)
     || !validId(input.driverId) || !validId(input.vehicleId)
     || typeof input.ownerSubject !== 'string' || input.ownerSubject.length < 1 || input.ownerSubject.length > 128
     || !validDate(input.now) || !validCalendarDate(input.invoiceDate) || !validInvoiceTime(input.invoiceTime)
+    || input.captureChannel !== undefined && !['ONLINE', 'OFFLINE'].includes(input.captureChannel)
     || (input.vehiclePlate !== undefined && input.vehiclePlate !== null && (typeof input.vehiclePlate !== 'string' || input.vehiclePlate.length > 32))
     || (input.imageId !== undefined && input.imageId !== null && !validId(input.imageId))) {
     throw new InvoiceDomainError('INVALID_INVOICE');
@@ -159,7 +163,7 @@ function createInvoiceRecord(input: CreateInvoiceInput, enforceTotalMatch: boole
   if (enforceTotalMatch && amountMinor + vatMinor + otherTaxesMinor !== totalMinor) throw new InvoiceDomainError('INVOICE_TOTAL_MISMATCH');
 
   return {
-    id: input.id.toLowerCase(), origin: 'MANUAL', ownerSubject: input.ownerSubject,
+    id: input.id.toLowerCase(), origin: 'MANUAL', captureChannel: input.captureChannel ?? 'ONLINE', ownerSubject: input.ownerSubject,
     thirdPartyId: input.thirdPartyId.toLowerCase(), assignmentId: input.assignmentId.toLowerCase(),
     driverId: input.driverId.toLowerCase(), vehicleId: input.vehicleId.toLowerCase(),
     vehiclePlate: input.vehiclePlate?.normalize('NFC').trim() || null,

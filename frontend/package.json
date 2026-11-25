@@ -51,6 +51,11 @@
     "build": "tsc --noEmit && vite build",
     "start": "vite preview --host 0.0.0.0 --port 4173",
     "test:e2e": "playwright test",
+    "test:e2e:offline-invoice-sync": "playwright test tests/e2e/offline-invoice-sync.spec.ts tests/e2e/invoice-management-responsive.spec.ts",
+    "build:e2e:offline-shell": "vite build --mode offline-shell-e2e",
+    "start:e2e:offline-shell": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
+    "test:e2e:offline-shell": "playwright test --config=playwright.offline-shell.config.ts",
+    "test:e2e:install": "playwright install chromium",
     "test:e2e:prepared": "node ../scripts/test-vehicle-management-e2e.mjs"
   }
 }

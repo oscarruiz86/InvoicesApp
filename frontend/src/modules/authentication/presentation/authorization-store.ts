@@ -16,10 +16,11 @@ export function createAuthorizationStore(read: ReadPermissions, session: Session
   const visible = options.visible ?? (() => document.visibilityState !== 'hidden');
   let generation = 0; let active: AbortController | undefined; let disposed = false;
   let expiry: ReturnType<typeof setTimeout> | undefined;
+  let retryAttempt = 0;
   const store = createStore<AuthorizationState>((set, get) => ({
     status: 'idle', scope: { ...selfScope }, snapshot: null, expiresAt: 0, refreshing: false,
     invalidate() {
-      generation++; active?.abort(); active = undefined; clearTimeout(expiry);
+      generation++; active?.abort(); active = undefined; clearTimeout(expiry); retryAttempt = 0;
       set({ status: 'idle', snapshot: null, expiresAt: 0, refreshing: false, error: undefined });
     },
     async refresh() {
@@ -47,6 +48,7 @@ export function createAuthorizationStore(read: ReadPermissions, session: Session
         // Preserve semantic collection identity: fresh timestamps or ordering do not change grants.
         const stable = <T extends string>(previous: readonly T[] | undefined, next: readonly T[]): readonly T[] => previous && previous.length === next.length && next.every(value => previous.includes(value)) ? previous : next;
         const decision = retained ? { ...snapshot, scope: retained.scope, roles: stable(retained.roles, snapshot.roles), permissions: stable(retained.permissions, snapshot.permissions) } : snapshot;
+        retryAttempt = 0;
         set({ status: 'ready', refreshing: false, snapshot: decision, expiresAt });
         if (disposed || generation !== epoch || controller.signal.aborted) return;
         expiry = setTimeout(() => { void get().refresh(); }, expiresAt - now());
@@ -54,6 +56,14 @@ export function createAuthorizationStore(read: ReadPermissions, session: Session
         if (disposed || generation !== epoch || controller.signal.aborted) return;
         const code = error instanceof ApplicationError ? error.code : 'UNEXPECTED';
         if (code === 'UNAUTHENTICATED') { session.invalidate(); get().invalidate(); }
+        else if (retained && (code === 'NETWORK' || code === 'TIMEOUT')) {
+          // A transport failure cannot revoke a previously verified grant. Keep it
+          // in memory for this same scope, while making a bounded background retry.
+          // Backend authorization remains authoritative for every protected action.
+          const delay = Math.min(30_000, 2_000 * (2 ** retryAttempt++));
+          set({ status: 'ready', refreshing: true, snapshot: retained, expiresAt: previous.expiresAt, error: code });
+          expiry = setTimeout(() => { void get().refresh(); }, delay);
+        }
         else set({ status: code === 'FORBIDDEN' ? 'denied' : 'error', refreshing: false, snapshot: null, expiresAt: 0, error: code });
       } finally { if (active === controller) active = undefined; }
     },
@@ -79,7 +89,7 @@ export function createAuthorizationStore(read: ReadPermissions, session: Session
   });
   const focus = () => {
     const state = store.getState();
-    if (state.status === 'idle' || (state.status === 'ready' && state.expiresAt <= now())) void state.refresh();
+    if (state.status === 'idle' || state.refreshing || (state.status === 'ready' && state.expiresAt <= now())) void state.refresh();
   };
   const visibility = () => { if (visible()) focus(); };
   if (options.automatic !== false) {

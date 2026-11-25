@@ -11,6 +11,9 @@ const collectionName = 'invoices';
 const imageCollectionName = 'invoice_images';
 const idempotencyCollectionName = 'invoice_idempotency';
 const eventCollectionName = 'invoice_management_events';
+const offlineSubmissionCollectionName = 'invoice_sync_submissions';
+const offlineImageCleanupCollectionName = 'invoice_sync_image_cleanup';
+const offlineResolutionCollectionName = 'invoice_sync_resolution_events';
 type Row = Record<string, unknown>;
 
 export class InvoiceRepositoryError extends Error {
@@ -40,7 +43,8 @@ function decode(row: Row): Invoice {
   const amounts = row.amounts as Row | undefined;
   if (!(row._id instanceof Types.ObjectId) || typeof row.ownerSubject !== 'string' || !row.ownerSubject
     || ![row.thirdPartyId, row.assignmentId, row.driverId, row.vehicleId].every(value => typeof value === 'string' && validId(value))
-    || !['MANUAL', 'QR'].includes(String(row.origin)) || typeof row.invoiceDate !== 'string' || typeof row.invoiceTime !== 'string' || typeof row.invoiceAtUtc !== 'string'
+    || !['MANUAL', 'QR'].includes(String(row.origin)) || row.captureChannel !== undefined && !['ONLINE', 'OFFLINE'].includes(String(row.captureChannel))
+    || typeof row.invoiceDate !== 'string' || typeof row.invoiceTime !== 'string' || typeof row.invoiceAtUtc !== 'string'
     || typeof row.invoiceNumber !== 'string' || typeof row.issuerNit !== 'string' || typeof row.buyerDocument !== 'string'
     || !amounts || !Number.isSafeInteger(row.version) || Number(row.version) < 1
     || !(row.createdAt instanceof Date) || !(row.updatedAt instanceof Date)) throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
@@ -54,7 +58,8 @@ function decode(row: Row): Invoice {
     try { const url = new URL(String(qrMetadata.sourceUrl)); if (url.protocol !== 'https:' || url.username || url.password || String(qrMetadata.sourceUrl).length > 2048) throw new Error(); }
     catch { throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE'); }
   }
-  return { id: row._id.toString(), origin: row.origin as Invoice['origin'], ...(row.origin === 'QR' ? { qrMetadata: qrMetadata as unknown as NonNullable<Invoice['qrMetadata']> } : {}), ownerSubject: row.ownerSubject, thirdPartyId: String(row.thirdPartyId),
+  return { id: row._id.toString(), origin: row.origin as Invoice['origin'], captureChannel: (row.captureChannel === 'OFFLINE' ? 'OFFLINE' : 'ONLINE'),
+    ...(row.origin === 'QR' ? { qrMetadata: qrMetadata as unknown as NonNullable<Invoice['qrMetadata']> } : {}), ownerSubject: row.ownerSubject, thirdPartyId: String(row.thirdPartyId),
     assignmentId: String(row.assignmentId), driverId: String(row.driverId), vehicleId: String(row.vehicleId),
     vehiclePlate: typeof row.vehiclePlate === 'string' ? row.vehiclePlate : null, invoiceDate: row.invoiceDate, invoiceTime: row.invoiceTime, invoiceAtUtc: row.invoiceAtUtc,
     invoiceNumber: row.invoiceNumber, issuerNit: row.issuerNit, buyerDocument: row.buyerDocument,
@@ -123,6 +128,8 @@ function ensureReady(connection: Connection): Promise<void> {
       connection.collection(imageCollectionName).createIndex({ invoiceId: 1 }, { unique: true, name: 'invoice_images_invoice_unique' }),
       connection.collection(eventCollectionName).createIndex({ eventId: 1 }, { unique: true, name: 'invoice_events_event_id_unique' }),
       connection.collection(eventCollectionName).createIndex({ thirdPartyId: 1, at: 1, eventId: 1 }, { name: 'invoice_events_timeline' }),
+      connection.collection(offlineImageCleanupCollectionName).createIndex({ submissionId: 1 }, { unique: true, name: 'invoice_sync_image_cleanup_unique' }),
+      connection.collection(offlineResolutionCollectionName).createIndex({ eventId: 1 }, { unique: true, name: 'invoice_sync_resolution_event_unique' }),
     ]);
   })().catch(error => { initialized.delete(connection); throw error; });
   initialized.set(connection, pending);
@@ -152,6 +159,39 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
       return await connection.transaction(async session => fn(connection, session, participants(connection, session)),
         { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
     } catch (error) { return mapError(error); }
+  }
+  async function commitOfflineSubmission(connection: Connection, session: ClientSession, invoice: Invoice,
+    value: { readonly id: string; readonly expectedVersion: number; readonly resolution?: { readonly action: 'APPROVE_CLOSED_ASSIGNMENT'; readonly reason: string } } | undefined,
+    actorSubject?: string): Promise<void> {
+    if (!value) return;
+    if (!validId(value.id) || !Number.isSafeInteger(value.expectedVersion) || value.expectedVersion < 1) throw new InvoiceRepositoryError('INVALID_REQUEST');
+    const submissions = connection.collection(offlineSubmissionCollectionName);
+    const expectedStatus = value.resolution ? 'CONFLICT' : 'PENDING';
+    const current = await submissions.findOne({ _id: new Types.ObjectId(value.id), thirdPartyId: invoice.thirdPartyId,
+      ownerSubject: invoice.ownerSubject, status: expectedStatus, version: value.expectedVersion }, { session });
+    if (!current) {
+      const alreadyCommitted = await submissions.findOne({ _id: new Types.ObjectId(value.id), thirdPartyId: invoice.thirdPartyId,
+        ownerSubject: invoice.ownerSubject, status: 'SYNCHRONIZED', resultInvoiceId: invoice.id }, { session });
+      if (alreadyCommitted) return;
+      throw new InvoiceRepositoryError('INVOICE_VERSION_CONFLICT');
+    }
+    const reference = current.imageReference as InvoiceImageReference | undefined;
+    if (reference) {
+      await connection.collection(offlineImageCleanupCollectionName).updateOne({ submissionId: value.id }, { $setOnInsert: {
+        submissionId: value.id, thirdPartyId: invoice.thirdPartyId, ownerSubject: invoice.ownerSubject, reference, createdAt: clock.now(),
+      } }, { upsert: true, session });
+    }
+    const result = await submissions.updateOne({ _id: new Types.ObjectId(value.id), thirdPartyId: invoice.thirdPartyId,
+      ownerSubject: invoice.ownerSubject, status: expectedStatus, version: value.expectedVersion }, { $set: { status: 'SYNCHRONIZED', updatedAt: clock.now(),
+        resultInvoiceId: invoice.id, resolutionReason: value.resolution?.reason ?? 'Validación online completada.', expiresAt: null }, $inc: { version: 1 } }, { session });
+    if (result.modifiedCount !== 1) throw new InvoiceRepositoryError('INVOICE_VERSION_CONFLICT');
+    if (value.resolution) {
+      if (!actorSubject || value.resolution.action !== 'APPROVE_CLOSED_ASSIGNMENT') throw new InvoiceRepositoryError('INVALID_REQUEST');
+      await connection.collection(offlineResolutionCollectionName).insertOne({ eventId: `${value.id}:${value.expectedVersion + 1}`,
+        actorSubject, thirdPartyId: invoice.thirdPartyId, submissionId: value.id, action: value.resolution.action,
+        reason: value.resolution.reason, at: clock.now(), fromVersion: value.expectedVersion, toVersion: value.expectedVersion + 1,
+        resultInvoiceId: invoice.id }, { session });
+    }
   }
   const repo: InvoiceRepositoryPort = {
     async list(input): Promise<InvoicePage> {
@@ -200,20 +240,26 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
       }
       try {
         const created = await transaction(async (connection, session, ports) => {
+          const exceptionalApproval = input.offlineSubmission?.resolution;
+          if (exceptionalApproval && !input.authority.roles.includes('THIRD_PARTY_ADMIN')) throw new InvoiceRepositoryError('FORBIDDEN');
           await ports.policy.confirm(input.authority.policyVersion);
           await ports.authority.confirm({ ...input.authority, actorSubject: input.actorSubject, thirdPartyId: input.invoice.thirdPartyId,
-            requiredRole: 'DRIVER', transactionContext: { connection, session } });
+            requiredRole: exceptionalApproval ? 'THIRD_PARTY_ADMIN' : 'DRIVER', transactionContext: { connection, session } });
+          if (exceptionalApproval) await ports.assignments.confirmClosedInTransaction({ ...input.assignment, actorSubject: input.invoice.ownerSubject,
+            transactionContext: { connection, session } });
           const idempotent = await connection.collection(idempotencyCollectionName).findOne({ thirdPartyId: input.invoice.thirdPartyId,
-            actorSubject: input.actorSubject, key: input.idempotencyKey }, { session });
+            actorSubject: input.invoice.ownerSubject, key: input.idempotencyKey }, { session });
           if (idempotent) {
             if (idempotent.requestHash !== input.requestHash) throw new InvoiceRepositoryError('IDEMPOTENCY_CONFLICT');
             const existing = typeof idempotent.invoiceId === 'string' ? await connection.collection(collectionName).findOne({
               _id: new Types.ObjectId(idempotent.invoiceId), thirdPartyId: input.invoice.thirdPartyId,
-              ...(input.authority.roles.includes('DRIVER') ? { ownerSubject: input.actorSubject } : {}) }, { session }) : null;
+              ownerSubject: input.invoice.ownerSubject }, { session }) : null;
             if (!existing) throw new InvoiceRepositoryError('INVOICE_STORAGE_UNAVAILABLE');
-            return decode(existing as Row);
+            const invoice = decode(existing as Row);
+            await commitOfflineSubmission(connection, session, invoice, input.offlineSubmission, input.actorSubject);
+            return invoice;
           }
-          await ports.assignments.confirmInTransaction({ ...input.assignment, actorSubject: input.actorSubject,
+          if (!exceptionalApproval) await ports.assignments.confirmInTransaction({ ...input.assignment, actorSubject: input.actorSubject,
             policyVersion: input.authority.policyVersion, contextRevision: input.authority.contextRevision, transactionContext: { connection, session } });
           const businessKey = normalizedInvoiceBusinessKey(input.invoice.issuerNit, input.invoice.invoiceNumber);
           const candidate = await connection.collection(collectionName).findOne({ thirdPartyId: input.invoice.thirdPartyId,
@@ -223,13 +269,14 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
           else if (input.invoice.imageId) throw new InvoiceRepositoryError('INVALID_REQUEST');
           await connection.collection(collectionName).insertOne({ ...encode(input.invoice), businessKey }, { session });
           await connection.collection(idempotencyCollectionName).insertOne({ thirdPartyId: input.invoice.thirdPartyId,
-            actorSubject: input.actorSubject, key: input.idempotencyKey, requestHash: input.requestHash, invoiceId: input.invoice.id,
+            actorSubject: input.invoice.ownerSubject, key: input.idempotencyKey, requestHash: input.requestHash, invoiceId: input.invoice.id,
             createdAt: input.invoice.createdAt }, { session });
           try { await ports.audit.record({ eventId: randomUUID(), correlationId: input.correlationId, action: 'INVOICE_CREATED',
             actorSubject: input.actorSubject, invoiceId: input.invoice.id, thirdPartyId: input.invoice.thirdPartyId,
-            at: input.invoice.createdAt.toISOString(), changedFields: ['origin', ...(input.invoice.origin === 'QR' ? ['qrMetadata'] : []),
+            at: input.invoice.createdAt.toISOString(), changedFields: ['origin', 'captureChannel', ...(input.invoice.origin === 'QR' ? ['qrMetadata'] : []), ...(exceptionalApproval ? ['offlineException'] : []),
             'assignmentId', 'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amounts', 'imageId'] }); }
           catch { throw new InvoiceRepositoryError('INVOICE_AUDIT_UNAVAILABLE'); }
+          await commitOfflineSubmission(connection, session, input.invoice, input.offlineSubmission, input.actorSubject);
           return input.invoice;
         });
         return created;
@@ -239,15 +286,17 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
             return await transaction(async (connection, session, ports) => {
               await ports.policy.confirm(input.authority.policyVersion);
               await ports.authority.confirm({ ...input.authority, actorSubject: input.actorSubject, thirdPartyId: input.invoice.thirdPartyId,
-                requiredRole: 'DRIVER', transactionContext: { connection, session } });
+                requiredRole: input.offlineSubmission?.resolution ? 'THIRD_PARTY_ADMIN' : 'DRIVER', transactionContext: { connection, session } });
               const idempotent = await connection.collection(idempotencyCollectionName).findOne({ thirdPartyId: input.invoice.thirdPartyId,
-                actorSubject: input.actorSubject, key: input.idempotencyKey }, { session });
+                actorSubject: input.invoice.ownerSubject, key: input.idempotencyKey }, { session });
               if (!idempotent || idempotent.requestHash !== input.requestHash || typeof idempotent.invoiceId !== 'string')
                 throw new InvoiceRepositoryError('IDEMPOTENCY_CONFLICT');
               const existing = await connection.collection(collectionName).findOne({ _id: new Types.ObjectId(idempotent.invoiceId),
-                thirdPartyId: input.invoice.thirdPartyId, ownerSubject: input.actorSubject }, { session });
+                thirdPartyId: input.invoice.thirdPartyId, ownerSubject: input.invoice.ownerSubject }, { session });
               if (!existing) throw new InvoiceRepositoryError('IDEMPOTENCY_CONFLICT');
-              return decode(existing as Row);
+              const invoice = decode(existing as Row);
+              await commitOfflineSubmission(connection, session, invoice, input.offlineSubmission, input.actorSubject);
+              return invoice;
             });
           } catch (retryError) { return mapError(retryError); }
         }

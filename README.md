@@ -29,6 +29,8 @@ En el entorno preparado se usa `MONGO_PORT=27019`, porque 27017 ya estaba ocupad
 | Configuración | Uso |
 | --- | --- |
 | frontend: `VITE_API_BASE_URL=/api` | Base pública relativa; también admite URL HTTP(S) sin credenciales. |
+| frontend: `VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS` | JWKS JSON con claves públicas ES256 y `kid`, compilado en el frontend para verificar tickets offline; no incluir el campo privado `d`. Durante rotación, conserva la clave anterior hasta que caduquen todos sus tickets (máximo 8 horas). |
+| backend: `OFFLINE_CREDENTIAL_SIGNING_KEY_FILE`, `OFFLINE_CREDENTIAL_KEY_ID`, `OFFLINE_CREDENTIAL_TTL_HOURS` | Ticket offline firmado ES256; la clave privada se monta como archivo, el plazo máximo es 8 horas. |
 | frontend: `API_PROXY_TARGET=http://localhost:3000` | Destino privado del servidor Vite en host. Compose lo reemplaza por `http://backend:3000`. |
 | backend: `MONGODB_URI` | URI requerida; en host apunta a `127.0.0.1:27017` y para el Compose local configura `replicaSet=invoices-rs`. |
 | backend: `INVOICE_IMAGE_STORAGE_PROVIDER=local` | Proveedor privado de imágenes de facturas; es configuración de servidor, nunca del frontend. |
@@ -160,6 +162,8 @@ npm --prefix frontend run test:e2e
 ```
 
 Playwright arranca/reutiliza Vite en 5173. `E2E_BASE_URL` permite usar un frontend existente (por ejemplo una imagen final). Comprueba 360/1280 px, navegación y recarga, errores/reintento y Swagger/API por proxy. Las capturas se guardan en `.artifacts/`; los fallos conservan trazas en `frontend/test-results/`.
+
+Para ejecutar las pruebas focalizadas de captura offline, replica set MongoDB desechable y resolución administrativa, consulta [verificación de sincronización offline de facturas](docs/offline-invoice-sync-verification.md).
 
 ## Imágenes finales: verificación local, sin despliegue
 

@@ -121,6 +121,20 @@ describe('OIDC session lifecycle', () => {
     expect(session.snapshot()).toEqual({ status: 'error', error: 'SESSION_EXPIRED' });
     expect(client.token).toBeUndefined(); await expect(session.getAccessToken()).rejects.toThrow('UNAUTHENTICATED');
   });
+  it('keeps a failed token refresh from expiring the session while the browser is offline', async () => {
+    const onlineDescriptor = Object.getOwnPropertyDescriptor(navigator, 'onLine');
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    try {
+      const client = sdk(); client.isTokenExpired = () => true; client.updateToken = async () => { throw new Error('network unavailable'); };
+      const session = createKeycloakSession(configuration, { factory: () => client }); await session.initialize();
+      await expect(session.getAccessToken()).rejects.toMatchObject({ code: 'NETWORK' });
+      expect(session.snapshot().status).toBe('refreshing');
+      expect(client.token).toBe('access-in-memory');
+    } finally {
+      if (onlineDescriptor) Object.defineProperty(navigator, 'onLine', onlineDescriptor);
+      else Reflect.deleteProperty(navigator, 'onLine');
+    }
+  });
   it('checks freshness after a suspended tab returns and handles the SDK expiry event', async () => {
     vi.useFakeTimers();
     const client = sdk(); const expires = Date.now() + 60_000;

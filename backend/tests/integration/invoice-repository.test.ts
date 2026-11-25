@@ -178,6 +178,47 @@ it('deduplicates identical retries and rejects duplicate business keys and stale
     authority: owner.authority, correlationId: randomUUID() })).rejects.toMatchObject({ code: 'INVOICE_VERSION_CONFLICT' });
 });
 
+it('commits an offline submission result, invoice image reference and outbox in the invoice transaction', async () => {
+  const owner = await seed();
+  const submissionId = new mongoose.Types.ObjectId().toString();
+  const stagingReference = { provider: 'local', key: `${'0'.repeat(24)}/${owner.thirdPartyId}/${owner.vehicleId}/${submissionId}/imagen.jpg`,
+    contentType: 'image/jpeg', size: 3, width: 1, height: 1, sha256: createHash('sha256').update(Buffer.from([1, 2, 3])).digest('hex') };
+  await connection.collection('invoice_sync_submissions').insertOne({ _id: new mongoose.Types.ObjectId(submissionId), ownerSubject: owner.subject,
+    thirdPartyId: owner.thirdPartyId, status: 'PENDING', version: 1, imageReference: stagingReference });
+  const invoiceCommand = command(owner, { number: 'FAC-OFFLINE-ATOMIC', image: true, idempotencyKey: 'offline-atomic-key' });
+  const input = { ...invoiceCommand, invoice: { ...invoiceCommand.invoice, captureChannel: 'OFFLINE' as const },
+    offlineSubmission: { id: submissionId, expectedVersion: 1 } };
+  const invoice = await createWithImage(input);
+  const persisted = await connection.collection('invoices').findOne({ _id: new mongoose.Types.ObjectId(invoice.id), thirdPartyId: owner.thirdPartyId });
+  const submission = await connection.collection('invoice_sync_submissions').findOne({ _id: new mongoose.Types.ObjectId(submissionId) });
+  const cleanup = await connection.collection('invoice_sync_image_cleanup').findOne({ submissionId });
+  expect(persisted).toMatchObject({ ownerSubject: owner.subject, imageId: invoice.imageId, captureChannel: 'OFFLINE' });
+  expect(submission).toMatchObject({ status: 'SYNCHRONIZED', version: 2, resultInvoiceId: invoice.id, resolutionReason: 'Validación online completada.' });
+  expect(cleanup).toMatchObject({ submissionId, ownerSubject: owner.subject, reference: stagingReference });
+});
+
+it('defaults a legacy invoice without a capture channel to ONLINE', async () => {
+  const owner = await seed();
+  const created = await createWithImage(command(owner, { number: 'FAC-LEGACY-CAPTURE-CHANNEL' }));
+  await connection.collection('invoices').updateOne({ _id: new mongoose.Types.ObjectId(created.id) }, { $unset: { captureChannel: '' } });
+
+  await expect(repository.find({ id: created.id, thirdPartyId: owner.thirdPartyId }))
+    .resolves.toMatchObject({ captureChannel: 'ONLINE' });
+});
+
+it('rolls back invoice and image documents when the expected offline submission version is stale', async () => {
+  const owner = await seed();
+  const submissionId = new mongoose.Types.ObjectId().toString();
+  await connection.collection('invoice_sync_submissions').insertOne({ _id: new mongoose.Types.ObjectId(submissionId), ownerSubject: owner.subject,
+    thirdPartyId: owner.thirdPartyId, status: 'CONFLICT', version: 2 });
+  const input = { ...command(owner, { number: 'FAC-OFFLINE-STALE', image: true, idempotencyKey: 'offline-stale-key' }),
+    offlineSubmission: { id: submissionId, expectedVersion: 1 } };
+  await expect(createWithImage(input)).rejects.toMatchObject({ code: 'INVOICE_VERSION_CONFLICT' });
+  expect(await connection.collection('invoices').findOne({ thirdPartyId: owner.thirdPartyId, invoiceNumber: 'FAC-OFFLINE-STALE' })).toBeNull();
+  expect(await connection.collection('invoice_images').findOne({ invoiceId: input.invoice.id })).toBeNull();
+  expect(await connection.collection('invoice_sync_submissions').findOne({ _id: new mongoose.Types.ObjectId(submissionId) })).toMatchObject({ status: 'CONFLICT', version: 2 });
+});
+
 it('stores manual and QR images as external references and reads their bytes through storage', async () => {
   const owner = await seed();
   const manualInput = command(owner, { number: 'FAC-EXTERNAL-MANUAL', image: true });
