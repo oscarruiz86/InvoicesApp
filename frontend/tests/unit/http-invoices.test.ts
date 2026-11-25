@@ -30,4 +30,12 @@ describe('invoice protected HTTP transport', () => {
       .rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     http.dispose();
   });
+  it('allows the paginated offline submission history request', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ items: [], total: 0, page: 1, pageSize: 20 }));
+    const http = setup(fetcher);
+    await http.invoice('GET', 'invoice-sync/submissions', `scope=organization&thirdPartyId=${'b'.repeat(24)}&page=1&pageSize=20`);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher.mock.calls[0][0]).toBe('http://localhost:3000/api/invoice-sync/submissions?scope=organization&thirdPartyId=bbbbbbbbbbbbbbbbbbbbbbbb&page=1&pageSize=20');
+    http.dispose();
+  });
 });

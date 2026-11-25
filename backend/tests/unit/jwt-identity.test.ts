@@ -5,12 +5,13 @@ import { createJwtIdentityVerifier } from '@/modules/identity/infrastructure/key
 import { AuthenticationError } from '@/modules/identity/application/authentication-error';
 
 const configuration = { issuer: 'https://identity.example.invalid/realms/invoices', audience: 'invoices-api', jwksUrl: 'https://identity.example.invalid/certs' };
-let key: CryptoKey; let otherKey: CryptoKey; let jwk: JWK; let otherJwk: JWK;
+let key: CryptoKey; let otherKey: CryptoKey; let offlineKey: CryptoKey; let jwk: JWK; let otherJwk: JWK;
 const now = Math.floor(Date.now() / 1000);
 const claims = { iss: configuration.issuer, aud: configuration.audience, sub: 'subject-1', exp: now + 300, typ: 'Bearer' };
 beforeAll(async () => {
   const first = await generateKeyPair('RS256'); const second = await generateKeyPair('RS256');
-  key = first.privateKey; otherKey = second.privateKey;
+  const offline = await generateKeyPair('ES256');
+  key = first.privateKey; otherKey = second.privateKey; offlineKey = offline.privateKey;
   jwk = { ...await exportJWK(first.publicKey), kid: 'first', alg: 'RS256' };
   otherJwk = { ...await exportJWK(second.publicKey), kid: 'second', alg: 'RS256' };
 });
@@ -42,6 +43,13 @@ describe('verified access token', () => {
     const hs = await new SignJWT(claims).setProtectedHeader({ alg: 'HS256' }).sign(new Uint8Array(32));
     await expect(verifier().verify(hs)).rejects.toBeInstanceOf(AuthenticationError);
     await expect(verifier().verify(`${Buffer.from('{"alg":"none"}').toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.`)).rejects.toBeInstanceOf(AuthenticationError);
+  });
+  it('rejects an ES256 offline capture ticket as an API bearer credential', async () => {
+    const ticket = await new SignJWT({ scope: 'invoice:offline-capture', thirdPartyId: 'f'.repeat(24), assignmentIds: ['a'.repeat(24)] })
+      .setProtectedHeader({ alg: 'ES256', typ: 'JWT', kid: 'offline-v1' })
+      .setIssuer('invoice-app').setAudience('invoice-offline-capture').setSubject('subject-1')
+      .setIssuedAt(now).setExpirationTime(now + 8 * 3600).sign(offlineKey);
+    await expect(verifier().verify(ticket)).rejects.toBeInstanceOf(AuthenticationError);
   });
   it('does not use a jku or x5u supplied by a token', async () => {
     const token = await new SignJWT(claims).setProtectedHeader({ alg: 'RS256', kid: 'first', jku: 'https://untrusted.invalid/jwks', x5u: 'https://untrusted.invalid/key' }).sign(key);

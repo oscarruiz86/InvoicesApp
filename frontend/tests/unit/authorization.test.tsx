@@ -126,6 +126,22 @@ describe('authorization state and context generations', () => {
     await vi.advanceTimersByTimeAsync(0); expect(store.getState().status).toBe('ready'); expect(store.getState().refreshing).toBe(false);
     expect(read).toHaveBeenCalledTimes(3);
   });
+  it('keeps the last verified same-scope permissions during a network interruption and retries them', async () => {
+    vi.useFakeTimers();
+    const { store, read } = setup();
+    await store.getState().refresh();
+    const verified = store.getState().snapshot;
+    read.mockRejectedValueOnce(new ApplicationError('NETWORK'));
+    await store.getState().refresh();
+    expect(store.getState()).toMatchObject({ status: 'ready', refreshing: true, snapshot: verified });
+    expect(store.getState().has('invoices:read')).toBe(true);
+
+    read.mockResolvedValueOnce({ ...snapshot(), permissions: ['drivers:read'] });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(store.getState()).toMatchObject({ status: 'ready', refreshing: false });
+    expect(store.getState().has('invoices:read')).toBe(false);
+  });
   it('revalidates focus and background visibility without persisting grants', async () => {
     let visible = true; const { store, read } = setup(undefined, { automatic: true, visible: () => visible });
     await Promise.resolve(); await Promise.resolve(); await store.getState().refresh();

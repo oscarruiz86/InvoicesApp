@@ -43,6 +43,9 @@ Para aplicaciones en host, iniciar `npm --prefix backend run dev` y `npm --prefi
 | `VITE_KEYCLOAK_REALM` | frontend: `invoices` | Realm público. |
 | `VITE_KEYCLOAK_CLIENT_ID` | frontend: `invoices-web` | Cliente público, sin secreto. |
 | `VITE_API_BASE_URL` | frontend: `/api` | API por proxy del mismo origen. |
+| `VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS` | frontend: conjunto JSON de JWK públicas ES256 | Incluye `kid` para la clave actual y las anteriores aún vigentes; nunca incluir `d`. Retira una clave anterior después de 8 horas como mínimo desde que el servidor dejó de emitirla. |
+| `OFFLINE_CREDENTIAL_SIGNING_KEY_FILE` | backend: ruta al archivo PKCS#8 | Clave privada ES256 firmante, montada como archivo de solo lectura; no pasarla en texto plano. |
+| `OFFLINE_CREDENTIAL_KEY_ID`, `OFFLINE_CREDENTIAL_TTL_HOURS` | backend: `offline-v1`, `8` | Identifica la clave y limita el ticket; máximo 8 horas. El ticket solo autoriza captura local, no llamadas a la API. |
 | `API_PROXY_TARGET` | frontend host: `http://localhost:3000` | En Compose: `http://backend:3000`; no se publica. |
 | `KEYCLOAK_ISSUER_URL` | backend: `http://localhost:8080/realms/invoices` | Coincidencia exacta con `iss`, también en Compose. |
 | `KEYCLOAK_AUDIENCE` | backend: `invoices-api` | Audiencia exigida, distinta del ID de cliente frontend. |

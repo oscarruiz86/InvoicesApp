@@ -5,7 +5,7 @@ import type { InvoiceTransport } from '@/modules/invoices/infrastructure/http-in
 import type { PermissionScope } from '@/modules/authentication/domain/permissions';
 
 const scope: PermissionScope = { kind: 'organization', companyId: null, thirdPartyId: 'a'.repeat(24) };
-const invoice = { id: 'b'.repeat(24), origin: 'MANUAL', thirdPartyId: scope.thirdPartyId, assignmentId: 'c'.repeat(24), driverId: 'd'.repeat(24),
+const invoice = { id: 'b'.repeat(24), origin: 'MANUAL', captureChannel: 'ONLINE', thirdPartyId: scope.thirdPartyId, assignmentId: 'c'.repeat(24), driverId: 'd'.repeat(24),
   vehicleId: 'e'.repeat(24), vehiclePlate: 'ABC123', invoiceDate: '2026-11-20', invoiceTime: '12:30:00', invoiceAtUtc: '2026-11-20T17:30:00.000Z', invoiceNumber: 'FAC-1', issuerNit: '0001',
   buyerDocument: '0123', amounts: { amount: '10.00', vatAmount: '0.00', otherTaxesAmount: '0.00', totalAmount: '10.00' }, version: 1,
   createdAt: '2026-11-20T12:00:00.000Z', updatedAt: '2026-11-20T12:00:00.000Z', imageUrl: null };
@@ -50,5 +50,17 @@ describe('invoice HTTP adapter', () => {
     await expect(api.image(scope, invoice.id, new AbortController().signal)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(api.list({ kind: 'global', companyId: null, thirdPartyId: null }, { page: 1, pageSize: 20, sort: 'invoiceDate', direction: 'desc' }, new AbortController().signal))
       .rejects.toBeInstanceOf(ApplicationError);
+  });
+
+  it('loads a scoped and paginated driver history with administrative resolution details', async () => {
+    const item = { id: 'f'.repeat(24), thirdPartyId: scope.thirdPartyId, origin: 'MANUAL', status: 'REJECTED',
+      createdAt: '2026-11-20T12:00:00.000Z', updatedAt: '2026-11-20T12:10:00.000Z', causes: ['BUSINESS_DUPLICATE'],
+      invoiceNumber: 'FAC-1', invoiceDate: '2026-11-20', issuerNit: '0001', totalAmount: '10.00', resolutionReason: 'Duplicado confirmado.',
+      resolution: { action: 'REJECT', at: '2026-11-20T12:10:00.000Z', reason: 'Duplicado confirmado.', resultInvoiceNumber: null, resultInvoiceDate: null } };
+    const http: InvoiceTransport = { invoice: vi.fn(async () => ({ items: [item], total: 1, page: 2, pageSize: 10 })) };
+    const api = createInvoiceApi(http), signal = new AbortController().signal;
+
+    await expect(api.listOfflineSubmissionHistory(scope, 2, 10, signal)).resolves.toMatchObject({ items: [item], total: 1, page: 2 });
+    expect(http.invoice).toHaveBeenCalledWith('GET', 'invoice-sync/submissions', expect.stringContaining('page=2&pageSize=10'), undefined, { signal });
   });
 });

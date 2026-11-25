@@ -115,18 +115,30 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
       return request(path, query, signal, body, method);
     },
-    invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: FormData,
+    invoice(method: 'GET' | 'POST' | 'PATCH', path: string, query = '', body?: unknown,
       options: { readonly signal?: AbortSignal; readonly idempotencyKey?: string; readonly binary?: boolean } = {}): Promise<unknown> {
       const list = path === 'invoices', detail = /^invoices\/[a-f0-9]{24}$/.test(path), image = /^invoices\/[a-f0-9]{24}\/image$/.test(path);
       const qrCreate = path === 'invoices/qr';
-      const valid = method === 'GET' ? body === undefined && (list || detail || image)
+      const offlineCredential = path === 'invoice-sync/offline-credential';
+      const offlineSubmissionList = path === 'invoice-sync/submissions';
+      const offlineSubmissionDetail = /^invoice-sync\/submissions\/[a-f0-9]{24}$/.test(path);
+      const offlineConflictList = path === 'invoice-sync/conflicts';
+      const offlineConflictImage = /^invoice-sync\/submissions\/[a-f0-9]{24}\/image$/.test(path);
+      const offlineResolution = /^invoice-sync\/submissions\/[a-f0-9]{24}\/resolution$/.test(path);
+      const valid = method === 'GET' ? body === undefined && (list || detail || image || offlineSubmissionList || offlineConflictList || offlineConflictImage)
         : method === 'POST' ? (list && body instanceof FormData && Boolean(options.idempotencyKey))
           || (qrCreate && body instanceof FormData && Boolean(options.idempotencyKey))
+          || (offlineSubmissionList && body instanceof FormData && Boolean(options.idempotencyKey))
+          || (offlineResolution && body !== undefined && !(body instanceof FormData) && !options.idempotencyKey)
+          || (offlineCredential && body !== undefined && !(body instanceof FormData) && !options.idempotencyKey)
           : method === 'PATCH' && detail && body instanceof FormData;
+      const validMethod = valid || method === 'GET' && body === undefined && offlineSubmissionDetail;
       const params = new URLSearchParams(query);
-      const allowed = method === 'GET' && list ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'q', 'vehicleId', 'driverId', 'dateFrom', 'dateTo', 'sort', 'direction'] : ['scope', 'thirdPartyId'];
+      const allowed = method === 'GET' && (list || offlineConflictList) ? ['scope', 'thirdPartyId', 'page', 'pageSize', 'q', 'vehicleId', 'driverId', 'dateFrom', 'dateTo', 'sort', 'direction']
+        : method === 'GET' && offlineSubmissionList ? ['scope', 'thirdPartyId', 'page', 'pageSize'] : ['scope', 'thirdPartyId'];
       for (const [key] of params) if (!allowed.includes(key) || params.getAll(key).length !== 1) throw new ApplicationError('CONFIGURATION');
-      if (!valid || params.get('scope') !== 'organization' || !/^[a-f0-9]{24}$/.test(params.get('thirdPartyId') ?? '') || Boolean(options.binary) !== image)
+      if (!validMethod || params.get('scope') !== 'organization' || !/^[a-f0-9]{24}$/.test(params.get('thirdPartyId') ?? '')
+        || Boolean(options.binary) !== (image || offlineConflictImage))
         throw new ApplicationError('CONFIGURATION');
       if (params.has('page') && !/^[1-9]\d{0,6}$/.test(params.get('page')!)) throw new ApplicationError('CONFIGURATION');
       if (params.has('pageSize') && !/^(?:[1-9]|[1-9]\d|100)$/.test(params.get('pageSize')!)) throw new ApplicationError('CONFIGURATION');
@@ -134,6 +146,7 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
       if (params.has('direction') && !['asc', 'desc'].includes(params.get('direction')!)) throw new ApplicationError('CONFIGURATION');
       if (params.has('vehicleId') && !/^[a-f0-9]{24}$/.test(params.get('vehicleId')!)) throw new ApplicationError('CONFIGURATION');
       if (params.has('q') && (!params.get('q')!.trim() || params.get('q')!.length > 100)) throw new ApplicationError('CONFIGURATION');
+      if (offlineCredential && (params.getAll('scope').length !== 1 || params.getAll('thirdPartyId').length !== 1)) throw new ApplicationError('CONFIGURATION');
       return request(path, query, options.signal, body, method, true, options.idempotencyKey, options.binary, body instanceof FormData);
     },
     previewInvitation(token: string, signal?: AbortSignal): Promise<unknown> {
@@ -174,15 +187,16 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
           if (path === 'roles' && failure?.error?.code === 'POLICY_AUDIT_CAPACITY') throw new RequestError('POLICY_AUDIT_CAPACITY');
           if (path.startsWith('vehicles/') && failure?.error?.code === 'ASSIGNMENT_PROVIDER_UNAVAILABLE') throw new RequestError('ASSIGNMENT_PROVIDER_UNAVAILABLE');
           if (path.startsWith('assignments') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
-          if (path.startsWith('invoices') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
+          if ((path.startsWith('invoices') || path.startsWith('invoice-sync/')) && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           if (path.startsWith('parameters') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           if (path.startsWith('catalogs/') && typeof failure?.error?.code === 'string') throw new RequestError(failure.error.code);
           throw new ApplicationError('UNAVAILABLE');
         }
         if (response.status === 410) throw new RequestError('INVITATION_EXPIRED');
-        if (companyMethod && path !== 'roles' && [400, 409].includes(response.status)) {
+        if (companyMethod && (path.startsWith('vehicles') || path.startsWith('assignments') || path.startsWith('drivers')
+          || path.startsWith('invoices') || path.startsWith('invoice-sync/')) && [400, 409].includes(response.status)) {
           const failure = await response.json().catch(() => null);
-          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED', 'VEHICLE_VERSION_CONFLICT', 'VEHICLE_IDENTIFIER_CONFLICT', 'VEHICLE_HAS_OPEN_ASSIGNMENT', 'ACTIVE_ASSIGNMENT_CONFLICT', 'ASSIGNMENT_VERSION_CONFLICT', 'DRIVER_NOT_ELIGIBLE', 'VEHICLE_NOT_ELIGIBLE', 'INVOICE_DUPLICATE', 'IDEMPOTENCY_CONFLICT', 'INVOICE_VERSION_CONFLICT', 'ASSIGNMENT_NOT_ELIGIBLE'];
+          const codes = ['INVALID_REQUEST', 'INVALID_ADMINISTRATOR', 'COMPANY_DOCUMENT_CONFLICT', 'COMPANY_VERSION_CONFLICT', 'COMPANY_INACTIVE', 'THIRD_PARTY_DOCUMENT_CONFLICT', 'THIRD_PARTY_VERSION_CONFLICT', 'THIRD_PARTY_INACTIVE', 'RELATIONSHIP_INACTIVE', 'INVALID_ROLES', 'LAST_ROLE_REQUIRED', 'INVITATION_EXISTS', 'MEMBERSHIP_EXISTS', 'VERSION_CONFLICT', 'CONFLICT', 'LAST_ADMINISTRATOR_REQUIRED', 'VEHICLE_VERSION_CONFLICT', 'VEHICLE_IDENTIFIER_CONFLICT', 'VEHICLE_HAS_OPEN_ASSIGNMENT', 'ACTIVE_ASSIGNMENT_CONFLICT', 'ASSIGNMENT_VERSION_CONFLICT', 'DRIVER_NOT_ELIGIBLE', 'VEHICLE_NOT_ELIGIBLE', 'INVOICE_DUPLICATE', 'IDEMPOTENCY_CONFLICT', 'INVOICE_VERSION_CONFLICT', 'ASSIGNMENT_NOT_ELIGIBLE', 'SUBMISSION_VERSION_CONFLICT', 'SUBMISSION_TRANSITION_INVALID'];
           throw new RequestError(codes.includes(failure?.error?.code) ? failure.error.code : 'INVALID_REQUEST', Array.isArray(failure?.error?.fields) ? failure.error.fields.filter((field: unknown) => typeof field === 'string') : []);
         }
         if (path === 'roles' && [400, 409].includes(response.status)) {

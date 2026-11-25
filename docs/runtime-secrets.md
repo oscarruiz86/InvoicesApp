@@ -11,6 +11,7 @@ Los archivos deben contener UTF-8 válido, sin BOM, NUL, contenido vacío ni má
 - API y worker: define `MONGODB_URI_FILE=/run/secrets/mongodb-uri`; no definas `MONGODB_URI`.
 - API: define `KEYCLOAK_DIRECTORY_CLIENT_ID` y `KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE=/run/secrets/keycloak-directory-client-secret`; el archivo se lee cuando se consulta el directorio.
 - SMTP y cifrado de payload: consulta [notifications.md](notifications.md), que documenta `SMTP_PASSWORD_FILE` y el keyring montado.
+- Firma de credenciales offline: define `OFFLINE_CREDENTIAL_SIGNING_KEY_FILE` y `OFFLINE_CREDENTIAL_KEY_ID`; monta una clave privada PKCS#8 ES256 como archivo de solo lectura. Compila `VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS` con las claves públicas confiables y sus `kid`, sin el parámetro privado `d`. Para rotar, publica primero el JWKS que incluya la clave nueva y la anterior, cambia la clave emisora del servidor y conserva la anterior hasta 8 horas después de que deje de emitir tickets con ella. El ticket dura como máximo 8 horas y no es token de API.
 
 El worker de producción de notificaciones ya monta Mongo, SMTP y las claves de cifrado como archivos de solo lectura. El despliegue de la API debe montar también su URI Mongo y, si consulta perfiles/roles, el secreto de cliente Keycloak.
 

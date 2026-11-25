@@ -3,9 +3,48 @@ import type { QrCameraSession, QrDecoder } from '../application/qr-decoder';
 
 const maxImageBytes = 5 * 1024 * 1024;
 const maxImagePixels = 20_000_000;
+let qrWorkerReady: Promise<void> | undefined;
+
+function withinTimeout<T>(promise: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error('OFFLINE_SHELL_UNAVAILABLE')), 5000);
+    promise.then(value => { window.clearTimeout(timeout); resolve(value); }, error => { window.clearTimeout(timeout); reject(error); });
+  });
+}
+
+async function ensureOfflineShellControl(): Promise<void> {
+  if (!('serviceWorker' in navigator)) throw new Error('OFFLINE_SHELL_UNAVAILABLE');
+  const registration = await withinTimeout(navigator.serviceWorker.ready);
+  if (!registration.active) throw new Error('OFFLINE_SHELL_UNAVAILABLE');
+  if (navigator.serviceWorker.controller) return;
+  await new Promise<void>((resolve, reject) => {
+    function finish(error?: Error) {
+      window.clearTimeout(timeout);
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      if (error) reject(error); else resolve();
+    }
+    function onControllerChange() { if (navigator.serviceWorker.controller) finish(); }
+    const timeout = window.setTimeout(() => finish(new Error('OFFLINE_SHELL_UNAVAILABLE')), 5000);
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+  });
+}
 
 export function createQrScannerAdapter(): QrDecoder {
   return {
+    async preload() {
+      if (import.meta.env.PROD) await ensureOfflineShellControl();
+      qrWorkerReady ??= (async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        try { await QrScanner.scanImage(canvas, { returnDetailedScanResult: true }); }
+        catch (error) {
+          if ((error instanceof Error && error.message === QrScanner.NO_QR_CODE_FOUND) || error === QrScanner.NO_QR_CODE_FOUND) return;
+          throw new Error('QR_WORKER_UNAVAILABLE', { cause: error });
+        }
+      })().catch(error => { qrWorkerReady = undefined; throw error; });
+      await qrWorkerReady;
+    },
     async openCamera(video, onResult, onError): Promise<QrCameraSession> {
       const scanner = new QrScanner(video, result => onResult(result.data), {
         returnDetailedScanResult: true,

@@ -20,6 +20,7 @@ export interface InvoiceTransactionAuthorityPort {
 export type { InvoiceAssignmentFacts } from '@/modules/fleet/application/assignment-ports';
 export interface InvoiceAssignmentConfirmationPort {
   readOwnActive(input: { readonly actorSubject: string; readonly thirdPartyId: string; readonly assignmentId: string; readonly vehicleId: string }): Promise<InvoiceAssignmentFacts | null>;
+  readOwnForOfflineRetry?(input: { readonly actorSubject: string; readonly thirdPartyId: string; readonly assignmentId: string; readonly vehicleId: string }): Promise<InvoiceAssignmentFacts | null>;
 }
 
 export type InvoiceEditPolicyEvidence = { readonly state: 'UNAVAILABLE' } | { readonly state: 'AVAILABLE'; readonly policy: InvoiceEditPolicy };
@@ -76,7 +77,8 @@ export interface InvoiceRepositoryPort {
   list(query: InvoiceListQuery): Promise<InvoicePage>;
   find(input: { readonly id: string; readonly thirdPartyId: string; readonly ownerSubject?: string }): Promise<Invoice | null>;
   readImageReference(input: { readonly invoice: Invoice }): Promise<InvoiceImageReference | null>;
-  create(input: { readonly invoice: Invoice; readonly image?: InvoiceImageDocumentInput; readonly actorSubject: string; readonly idempotencyKey: string; readonly requestHash: string; readonly authority: InvoiceAuthorityReceipt; readonly assignment: InvoiceAssignmentFacts; readonly correlationId: string }): Promise<Invoice>;
+  create(input: { readonly invoice: Invoice; readonly image?: InvoiceImageDocumentInput; readonly actorSubject: string; readonly idempotencyKey: string; readonly requestHash: string; readonly authority: InvoiceAuthorityReceipt; readonly assignment: InvoiceAssignmentFacts; readonly correlationId: string;
+    readonly offlineSubmission?: { readonly id: string; readonly expectedVersion: number; readonly resolution?: { readonly action: 'APPROVE_CLOSED_ASSIGNMENT'; readonly reason: string } } }): Promise<Invoice>;
   edit(input: { readonly current: Invoice; readonly next: Invoice; readonly image?: InvoiceImageDocumentInput; readonly editPolicy?: InvoiceEditPolicy;
     readonly actorSubject: string; readonly expectedVersion: number; readonly authority: InvoiceAuthorityReceipt; readonly correlationId: string }): Promise<Invoice>;
 }

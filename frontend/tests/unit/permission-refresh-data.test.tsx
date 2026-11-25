@@ -73,6 +73,26 @@ it('does not reload business data during pending or successful same-context perm
   fireEvent.click(within(filters).getByRole('button', { name: 'Aplicar filtros' }));
   await waitFor(() => expect(f.listVehicles).toHaveBeenCalledTimes(f.initialRequests + 1));
 });
+it('keeps the active context and verified permissions when the permissions API loses network', async () => {
+  const f = await setup();
+  const capture = f.context.capture();
+  const generation = f.context.getState().generation;
+  f.read.mockRejectedValueOnce(new ApplicationError('NETWORK'));
+  await act(() => f.authorization.getState().refresh());
+
+  expect(screen.getByText('ABC123')).toBeInTheDocument();
+  expect(f.authorization.getState()).toMatchObject({ status: 'ready', refreshing: true });
+  expect(f.authorization.getState().has('vehicles:read')).toBe(true);
+  expect(f.context.getState()).toMatchObject({ status: 'ready', generation });
+  expect(capture.isCurrent()).toBe(true);
+
+  f.read.mockResolvedValueOnce({ ...snapshot(), permissions: ['drivers:read'] });
+  await act(() => f.authorization.getState().refresh());
+  expect(screen.queryByText('ABC123')).not.toBeInTheDocument();
+  expect(f.context.getState().status).toBe('selecting');
+  expect(capture.isCurrent()).toBe(false);
+  capture.release();
+});
 it('clears data on changed authority without automatically restoring context or refetching data', async () => {
   const f = await setup();
   const generation = f.context.getState().generation;

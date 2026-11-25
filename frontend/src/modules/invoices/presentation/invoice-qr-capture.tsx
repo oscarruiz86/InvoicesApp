@@ -6,18 +6,24 @@ import type { AssignmentApi } from '@/modules/fleet/application/fleet-api';
 import type { InvoiceApi, InvoiceQrPreview } from '../application/invoice-api';
 import type { QrCameraSession, QrDecoderLoader } from '../application/qr-decoder';
 import { RequestError } from '@/shared/application/request-error';
+import { ApplicationError } from '@/shared/application/application-error';
 import { InvoiceQrError, parseInvoiceQr } from '@shared/invoice-qr';
+import type { OfflineCredentialPublicJwk, OfflineCredentialVerifier, OfflineInvoiceQueuePort } from '../application/offline-invoice-ports';
 
 type Assignment = Awaited<ReturnType<AssignmentApi['listAssignments']>>['items'][number];
 function message(error: unknown): string {
   if (error instanceof InvoiceQrError) return ({ QR_INCOMPLETE: 'El QR no incluye todos los campos obligatorios. Escanea otro código; no puedes completar campos manualmente. ',
     QR_INVALID: 'El QR tiene datos inválidos. Comprueba la factura y vuelve a intentarlo.', QR_UNSUPPORTED: 'Este formato QR no está soportado. Puedes intentar otra lectura o registrar la factura manualmente.' } as const)[error.code];
-  if (error instanceof RequestError) return ({ QR_INCOMPLETE: 'El QR no incluye todos los campos obligatorios. Escanea otro código; no puedes completar campos manualmente. ',
+  if (error instanceof RequestError) {
+    if (error.businessCode === 'INVALID_REQUEST' && error.fields.includes('invoiceTime')) return 'La hora de factura debe tener el formato HH:mm:ss.';
+    if (error.businessCode === 'INVALID_REQUEST' && error.fields.includes('qrContent')) return 'El contenido del código QR no tiene un formato válido. Escanea otro código.';
+    return ({ QR_INCOMPLETE: 'El QR no incluye todos los campos obligatorios. Escanea otro código; no puedes completar campos manualmente. ',
     QR_INVALID: 'El QR tiene datos inválidos. Comprueba la factura y vuelve a intentarlo.', QR_UNSUPPORTED: 'Este formato QR no está soportado. Puedes intentar otra lectura o registrar la factura manualmente.',
     INVOICE_DUPLICATE: 'Ya existe una factura con ese NIT y número.', IDEMPOTENCY_CONFLICT: 'La solicitud cambió durante el reintento. Revisa el contexto antes de continuar.',
     ASSIGNMENT_NOT_ELIGIBLE: 'La asignación dejó de estar disponible. Actualiza la lista y vuelve a seleccionar.', IMAGE_TOO_LARGE: 'El adjunto supera el máximo de 5 MiB.',
     IMAGE_TYPE_UNSUPPORTED: 'El adjunto debe ser JPEG o PNG.', IMAGE_INVALID: 'El adjunto no es una imagen válida.' } as Record<string, string>)[error.businessCode]
-    ?? 'No se pudo completar la operación. Inténtalo de nuevo.';
+      ?? 'No se pudo completar la operación. Inténtalo de nuevo.';
+  }
   if (error instanceof Error && error.message === 'QR_IMAGE_UNSUPPORTED') return 'Selecciona una imagen JPEG o PNG de hasta 5 MiB.';
   if (error instanceof Error && error.message === 'QR_IMAGE_TOO_LARGE') return 'La imagen supera el límite de 20 megapíxeles.';
   if (error instanceof Error && error.message === 'QR_IMAGE_INVALID') return 'El archivo seleccionado no es una imagen válida.';
@@ -28,9 +34,11 @@ function message(error: unknown): string {
   return 'No se pudo leer el QR. Comprueba la cámara o selecciona una imagen local.';
 }
 
-export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context, onClose, onSaved }: {
+export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context, onClose, onSaved, offlineCredentialPublicJwks, offlineQueue, verifyCredential, initialAssignment }: {
   readonly open: boolean; readonly api: InvoiceApi; readonly loadDecoder: QrDecoderLoader; readonly assignments: readonly Assignment[];
-  readonly context: ContextStore; readonly onClose: () => void; readonly onSaved: () => void;
+  readonly context: ContextStore; readonly onClose: () => void; readonly onSaved: () => void; readonly offlineCredentialPublicJwks?: readonly OfflineCredentialPublicJwk[];
+  readonly offlineQueue: OfflineInvoiceQueuePort; readonly verifyCredential: OfflineCredentialVerifier;
+  readonly initialAssignment?: { readonly assignmentId: string; readonly vehicleId: string };
 }) {
   useStore(context);
   const video = useRef<HTMLVideoElement>(null), session = useRef<QrCameraSession | null>(null), operation = useRef<AbortController | null>(null);
@@ -48,6 +56,7 @@ export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context,
     setBusy(false); setError(null); setPreview(null); setQrContent(''); setAssignmentId(''); setVehicleId(''); setAttachment(undefined);
   }, [closeCamera]);
   useEffect(() => { if (!open) reset(); return () => { operation.current?.abort(); closeCamera(); }; }, [open, reset, closeCamera]);
+  useEffect(() => { if (open && initialAssignment) { setAssignmentId(initialAssignment.assignmentId); setVehicleId(initialAssignment.vehicleId); } }, [initialAssignment, open]);
 
   const reviewContent = useCallback(async (content: string) => {
     ++serial.current; const request = serial.current; operation.current?.abort();
@@ -57,7 +66,7 @@ export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context,
       void _canonicalContent;
       if (request === serial.current) { setQrContent(content); setPreview(result); idempotency.current = null; }
     } catch (cause) {
-      if (request === serial.current) setError(message(cause));
+      if (request === serial.current) { setQrContent(content); setPreview(null); idempotency.current = null; setError(`${message(cause)} El contenido se conserva sin validar y el servidor lo revisará al sincronizar.`); }
     } finally {
       if (request === serial.current) setBusy(false);
     }
@@ -90,16 +99,48 @@ export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context,
   }
 
   async function save() {
-    if (!preview || !assignmentId || !vehicleId || busy) return;
+    if (!qrContent || !assignmentId || !vehicleId || busy) return;
     let capture: ReturnType<ContextStore['capture']>;
     try { capture = context.capture(); } catch { setError('El contexto ya no está disponible. Vuelve a seleccionarlo.'); return; }
     const controller = new AbortController(); operation.current?.abort(); operation.current = controller;
     const request = ++serial.current; setBusy(true); setError(null); idempotency.current ??= crypto.randomUUID();
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const subject = context.getState().activeContext?.authorization.subject;
+      const thirdPartyId = capture.scope.thirdPartyId;
+      if (!subject || !thirdPartyId || !offlineCredentialPublicJwks?.length) { setError('Necesitas una credencial offline válida y contexto previamente cargado. Conéctate para habilitar la captura.'); capture.release(); setBusy(false); return; }
+      try {
+        const ticket = await offlineQueue.getCredential(subject, thirdPartyId);
+        const verified = ticket ? await verifyCredential(ticket, offlineCredentialPublicJwks) : null;
+        if (!verified || !verified.assignmentIds.includes(assignmentId)) throw new Error('OFFLINE_CREDENTIAL_REQUIRED');
+        await offlineQueue.save({ subject, thirdPartyId, origin: 'QR', assignmentId, vehicleId, idempotencyKey: idempotency.current!,
+          payload: { qrContent }, ...(attachment ? { image: attachment } : {}) });
+        if (request === serial.current && capture.isCurrent() && !controller.signal.aborted) { onSaved(); onClose(); reset(); }
+      } catch { if (request === serial.current) setError('No se pudo guardar el QR en este dispositivo.'); }
+      finally { capture.release(); if (request === serial.current) setBusy(false); }
+      return;
+    }
     try {
       await api.createQr(capture.scope, { qrContent, assignmentId, vehicleId, ...(attachment ? { image: attachment } : {}) }, idempotency.current,
         AbortSignal.any([capture.signal, controller.signal]));
       if (request === serial.current && capture.isCurrent() && !controller.signal.aborted) { onSaved(); onClose(); reset(); }
-    } catch (cause) { if (request === serial.current && capture.isCurrent() && !controller.signal.aborted) setError(message(cause)); }
+    } catch (cause) {
+      if (request === serial.current && capture.isCurrent() && !controller.signal.aborted) {
+        const transient = !navigator.onLine || cause instanceof ApplicationError && ['NETWORK', 'TIMEOUT'].includes(cause.code);
+        if (transient) {
+          try {
+            const subject = context.getState().activeContext?.authorization.subject, thirdPartyId = capture.scope.thirdPartyId;
+            const ticket = subject && thirdPartyId ? await offlineQueue.getCredential(subject, thirdPartyId) : null;
+            const verified = ticket && offlineCredentialPublicJwks?.length ? await verifyCredential(ticket, offlineCredentialPublicJwks) : null;
+            if (!subject || !thirdPartyId || !verified || !verified.assignmentIds.includes(assignmentId)) setError('La conexión falló y no se pudo guardar una copia offline segura. Mantén la lectura abierta y vuelve a intentarlo.');
+            else {
+              await offlineQueue.save({ subject, thirdPartyId, origin: 'QR', assignmentId, vehicleId, idempotencyKey: idempotency.current!,
+                payload: { qrContent }, ...(attachment ? { image: attachment } : {}) });
+              onSaved(); onClose(); reset();
+            }
+          } catch { setError('La conexión falló y no se pudo guardar una copia offline segura. Mantén la lectura abierta y vuelve a intentarlo.'); }
+        } else setError(message(cause));
+      }
+    }
     finally { capture.release(); if (request === serial.current) setBusy(false); }
   }
 
@@ -127,15 +168,18 @@ export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context,
           </Stack>
           {busy && <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}><CircularProgress size={20} /><Typography>Procesando lectura…</Typography></Stack>}
         </>}
+        {qrContent && <>
+        <Typography variant="h6">Revisa los datos leídos</Typography>
+        {!preview && <Alert severity="warning">El código no pudo interpretarse localmente. Puedes conservarlo para que el servidor lo revise al sincronizar.</Alert>}
         {preview && <>
-          <Typography variant="h6">Revisa los datos leídos</Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>{field('Número de factura', preview.invoiceNumber)}{field('NIT del emisor', preview.issuerNit)}</Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>{field('Documento del adquiriente', preview.buyerDocument)}{field('Fecha', preview.invoiceDate)}{field('Hora', preview.invoiceTime)}</Stack>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>{field('Valor de factura', money(preview.amount))}{field('IVA', money(preview.vatAmount))}{field('Otros impuestos', money(preview.otherTaxesAmount))}</Stack>
           {field('Total', money(preview.totalAmount))}
           {preview.metadata.cufe && field('CUFE', preview.metadata.cufe)}
           {preview.metadata.sourceUrl && field('URL incluida en el QR (no se abre)', preview.metadata.sourceUrl)}
-          <TextField select required label="Vehículo y asignación propia" value={assignmentId} disabled={busy || assignments.length === 0}
+        </>}
+          <TextField select required label="Vehículo y asignación" value={assignmentId} disabled={busy || assignments.length === 0}
             onChange={event => { const assignment = assignments.find(item => item.id === event.target.value); setAssignmentId(event.target.value); setVehicleId(assignment?.vehicleId ?? ''); }}>
             {assignments.map(item => <MenuItem key={item.id} value={item.id}>{item.vehiclePlate ?? item.vehicleId} · {item.driver.name}</MenuItem>)}
           </TextField>
@@ -148,7 +192,7 @@ export function InvoiceQrCapture({ open, api, loadDecoder, assignments, context,
     </DialogContent>
     <DialogActions sx={{ px: 3, pb: 2 }}>
       <Button onClick={() => { reset(); onClose(); }}>Cancelar</Button>
-      {preview && <Button variant="contained" onClick={() => void save()} disabled={busy || !assignmentId}>{busy ? 'Registrando…' : 'Confirmar registro'}</Button>}
+      {qrContent && <Button variant="contained" onClick={() => void save()} disabled={busy || !assignmentId}>{busy ? 'Registrando…' : 'Confirmar registro'}</Button>}
     </DialogActions>
   </Dialog>;
 }

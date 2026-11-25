@@ -40,6 +40,13 @@ describe('runtime environment and identity configuration', () => {
     const env = readServerEnvironment({ ...base, KEYCLOAK_ISSUER_URL: 'https://identity.invalid/realm', KEYCLOAK_AUDIENCE: 'api' });
     expect(keycloakConfiguration(env)).toEqual({ issuer: 'https://identity.invalid/realm', audience: 'api', jwksUrl: 'https://identity.invalid/realm/protocol/openid-connect/certs' });
   });
+  it('accepts a bounded offline credential signing key reference and rejects partial or overlong configuration', () => {
+    expect(readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1' }))
+      .toMatchObject({ OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: 8 });
+    expect(readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: '4' }).OFFLINE_CREDENTIAL_TTL_HOURS).toBe(4);
+    expect(() => readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1' })).toThrow(ConfigurationError);
+    expect(() => readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: '9' })).toThrow(ConfigurationError);
+  });
   it('does not expose secret values in diagnostics', () => {
     try { readServerEnvironment({ MONGODB_URI: 'SECRET_VALUE' }); }
     catch (error) { expect(String(error)).not.toContain('SECRET_VALUE'); expect((error as ConfigurationError).fields).toContain('MONGODB_URI'); }
