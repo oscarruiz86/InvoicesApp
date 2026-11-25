@@ -14,7 +14,7 @@ import type { Permission, PermissionScope } from '@/modules/authentication/domai
 import { RequestError } from '@/shared/application/request-error';
 
 const globalScope: PermissionScope = { kind: 'global', companyId: null, thirdPartyId: null };
-const profile = { documentType: 'NIT', documentNumber: '001', verificationDigit: null, businessName: 'Empresa', tradeName: null, email: 'contact@example.com', phone: null, address: null, country: null, department: null, city: null };
+const profile = { documentType: 'NIT', documentNumber: '001', verificationDigit: '3', businessName: 'Empresa', tradeName: null, email: 'contact@example.com', phone: null, address: null, country: null, department: null, city: null };
 const company = { ...profile, id: '0123456789abcdef01234567', status: 'ACTIVE' as const, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', createdBy: 'actor', updatedBy: null };
 const record: CompanyRecord = { company, version: '1' };
 const responses = new Map<string, unknown>([['GET:companies', { items: [{ company, version: '1' }], page: 1, pageSize: 20, total: 1 }], ['GET:item', record], ['POST:companies', record], ['PATCH:item', record], ['POST:status', { ...record, company: { ...company, status: 'INACTIVE' } }]]);
@@ -113,6 +113,7 @@ it('validates required fields and submits only validated company data', async ()
   expect(screen.getByRole('button', { name: 'Guardar empresa' })).toBeDisabled();
   expect(create).not.toHaveBeenCalled();
   await user.type(screen.getByLabelText(/Número de documento/), '001'); await user.type(screen.getByLabelText(/Razón social/), 'Empresa nueva'); await user.type(screen.getByLabelText(/Correo electrónico/), 'contact@example.com');
+  await user.type(screen.getByLabelText(/Dígito de verificación/), '3');
   await user.click(screen.getByRole('button', { name: 'Guardar empresa' }));
   await waitFor(() => expect(create).toHaveBeenCalledWith(globalScope, expect.objectContaining({ businessName: 'Empresa nueva', documentNumber: '001' }), expect.any(AbortSignal)));
 }, 15000);

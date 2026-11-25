@@ -14,7 +14,7 @@ import type { Permission, PermissionScope } from '@/modules/authentication/domai
 import { RequestError } from '@/shared/application/request-error';
 
 const globalScope: PermissionScope = { kind: 'global', companyId: null, thirdPartyId: null };
-const profile: ThirdParty = { id: 'b'.repeat(24), documentType: 'NIT', documentNumber: '001', verificationDigit: null, businessName: 'Tercero Andino', tradeName: null, email: 'contact@example.com', phone: null, address: null, country: 'Colombia', department: null, city: 'Bogotá', status: 'ACTIVE', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', createdBy: 'actor', updatedBy: null };
+const profile: ThirdParty = { id: 'b'.repeat(24), documentType: 'NIT', documentNumber: '001', verificationDigit: '3', businessName: 'Tercero Andino', tradeName: null, email: 'contact@example.com', phone: null, address: null, country: 'Colombia', department: null, city: 'Bogotá', status: 'ACTIVE', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', createdBy: 'actor', updatedBy: null };
 const record: ThirdPartyRecord = { thirdParty: profile, version: '1', relationship: null };
 const permissions: readonly Permission[] = ['third-parties:read', 'third-parties:create', 'third-parties:update', 'third-parties:deactivate'];
 const authorizationStores: AuthorizationStore[] = [];

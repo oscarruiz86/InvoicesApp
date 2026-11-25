@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
 import type { Authorization } from '@/modules/identity/application/authorization';
+import type { CatalogRepositoryPort } from '../application/catalog-repository';
 import { errorResponse } from '@/shared/presentation/http/errors';
 import { CatalogError, isCatalogName, validateCatalogCode, type CatalogName } from '../domain/catalogs';
 
@@ -14,7 +15,7 @@ function fail(error: unknown) {
   return Response.json({ error: { code: error.code, message: 'No fue posible completar la operación.' } }, { status, headers: { 'Cache-Control': 'no-store' } });
 }
 
-export function catalogHandlers(repository: ReturnType<typeof import('../infrastructure/mongodb/catalog-repository').createCatalogRepository>, auth: Authorization) {
+export function catalogHandlers(repository: CatalogRepositoryPort, auth: Authorization) {
   const authorize = (actor: AuthenticatedActor, permission: 'parameters:read' | 'parameters:update') => auth.requirePermission(actor, permission, { kind: 'global', companyId: null, thirdPartyId: null });
   return {
     async list(actor: AuthenticatedActor, request: Request, catalogName: string) {
