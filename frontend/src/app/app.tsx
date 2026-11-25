@@ -1,18 +1,23 @@
-import { BrowserRouter, Link, Route, Routes } from 'react-router';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router';
 import { useStore } from 'zustand';
-import { Button, CssBaseline, Stack, ThemeProvider, Typography } from '@mui/material';
+import { useEffect, type ReactNode } from 'react';
+import { Alert, Box, Button, CssBaseline, Stack, ThemeProvider, Typography } from '@mui/material';
 import { theme } from '@/shared/theme/theme';
 import { AppLayout } from '@/shared/components/app-layout';
 import { ErrorBoundary } from '@/shared/components/error-boundary';
 import { HomePage } from '@/modules/home/presentation/home-page';
+import { LandingPage } from '@/modules/home/presentation/landing-page';
 import type { HealthStore } from '@/modules/home/presentation/health-store';
 import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
+import type { SessionStatus } from '@/modules/authentication/application/session-ports';
 import type { AuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
-import { AuthenticationActions, AuthenticationCallback, PrivateRoute, SessionPage } from '@/modules/authentication/presentation/session-page';
+import { AccountMenu, AuthenticationActions, AuthenticationCallback, PrivateRoute, SessionPage } from '@/modules/authentication/presentation/session-page';
 import type { ContextStore } from '@/modules/organization-context/presentation/context-store';
-import { ContextSessionBootstrap, OrganizationContextGuard, OrganizationSelectionPage, OrganizationSelector } from '@/modules/organization-context/presentation/organization-selector';
+import { ContextSessionBootstrap, OrganizationContextGuard, OrganizationSelectionPage } from '@/modules/organization-context/presentation/organization-selector';
 import type { CompanyApi } from '@/modules/company-management/application/company-api';
 import { CompanyPage } from '@/modules/company-management/presentation/company-page';
+import type { ThirdPartyApi } from '@/modules/third-party-management/application/third-party-api';
+import { ThirdPartyPage } from '@/modules/third-party-management/presentation/third-party-page';
 import { ProtectedRoute } from '@/modules/authentication/presentation/permission-guard';
 import { AuthorizedNavigation } from '@/modules/authentication/presentation/authorized-navigation';
 import type { InvitationApi } from '@/modules/user-invitations/application/invitation-api';
@@ -21,30 +26,151 @@ import { InvitationAcceptancePage } from '@/modules/user-invitations/presentatio
 import { MembershipPage } from '@/modules/user-invitations/presentation/membership-page';
 import { ReceivedInvitationsPage } from '@/modules/user-invitations/presentation/received-invitations-page';
 import { AuthenticationLoginPage } from '@/modules/authentication/presentation/authentication-login-page';
+import { markerModules, MarkerModulePage, type MarkerModuleDefinition } from './module-registry';
+import { RouteHeadingFocus } from '@/shared/components/route-heading-focus';
+import { VehiclesPage } from '@/modules/fleet/presentation/vehicles-page';
+import { AssignmentsPage } from '@/modules/fleet/presentation/assignments-page';
+import type { AssignmentApi, DriverApi, VehicleApi } from '@/modules/fleet/application/fleet-api';
+import { FleetResourcePage } from '@/modules/fleet/presentation/fleet-resource-page';
+import type { NotificationDeliveryReadPort } from '@/modules/notifications/application/delivery-api';
+import { NotificationDeliveriesPage } from '@/modules/notifications/presentation/notification-deliveries-page';
+import type { RolePolicyApi } from '@/modules/role-management/application/role-policy-api';
+import { RoleManagementPage } from '@/modules/role-management/presentation/role-management-page';
+import { GlobalRolePolicyContextGuard } from '@/modules/role-management/presentation/global-role-policy-context-guard';
+import type { InvoiceApi } from '@/modules/invoices/application/invoice-api';
+import type { OfflineCredentialPublicJwk, OfflineCredentialVerifier, OfflineInvoiceQueuePort } from '@/modules/invoices/application/offline-invoice-ports';
+import { InvoicesPage } from '@/modules/invoices/presentation/invoices-page';
+import type { ParameterApi } from '@/modules/parameter-management/application/parameter-api';
+import { ParametersPage } from '@/modules/parameter-management/presentation/parameters-page';
+import type { CatalogApi } from '@/modules/parameter-management/application/catalog-api';
+import { CatalogsPage } from '@/modules/parameter-management/presentation/catalogs-page';
+import { prepareOfflineLogout, subscribeOfflineInvoiceLifecycle } from './offline-invoice-lifecycle';
 
-function OrganizationManagementNavigation({ authorization, context, invitationsAvailable }: { authorization: AuthorizationStore; context: ContextStore; invitationsAvailable: boolean }) {
+const driverModule = markerModules.find(module => module.key === 'drivers')!;
+
+function OrganizationManagementNavigation({ authorization, context, invitationsAvailable, roleManagementAvailable }: { authorization: AuthorizationStore; context: ContextStore; invitationsAvailable: boolean; roleManagementAvailable: boolean }) {
+  useStore(authorization);
   const state = useStore(context);
   if (state.status !== 'ready' || !state.activeContext) return null;
-  return <AuthorizedNavigation store={authorization} items={[{ label: 'Empresas', path: '/companies', permission: 'companies:read' },
-    ...(invitationsAvailable ? [{ label: 'Gestionar invitaciones', path: '/invitations', anyPermission: ['users:read', 'drivers:read'] as const },
-      { label: 'Usuarios vinculados', path: '/organization-memberships', anyPermission: ['users:read', 'drivers:read'] as const }] : [])]} />;
+  const moduleGroups: Record<MarkerModuleDefinition['key'], string> = {
+    drivers: 'Flota',
+    vehicles: 'Flota',
+    'notification-deliveries': 'Administración',
+    assignments: 'Flota',
+    invoices: 'Facturas',
+    parameters: 'Configuración',
+    audit: 'Auditoría',
+  };
+  const items = [
+    { label: 'Empresas', path: '/companies', group: 'Administración', permission: 'companies:read' as const },
+    { label: 'Terceros', path: '/third-parties', group: 'Administración', permission: 'third-parties:read' as const },
+    ...(invitationsAvailable ? [
+      { label: 'Invitaciones', path: '/invitations', group: 'Administración', anyPermission: ['associations:read', 'drivers:read'] as const },
+      { label: 'Usuarios', path: '/organization-memberships', group: 'Administración', permission: 'associations:read' as const },
+    ] : []),
+    ...markerModules.map(({ label, path, permission, context, key }) => ({ label, path, permission, context, group: moduleGroups[key] })),
+    { label: 'Catálogos paramétricos', path: '/catalogs', group: 'Configuración', permission: 'parameters:read' as const, context: 'global' as const },
+    ...(roleManagementAvailable && authorization.getState().has('roles:read') && state.activeContext.kind === 'GLOBAL' ? [{ label: 'Roles y permisos', path: '/roles', group: 'Configuración', permission: 'roles:read' as const, context: 'global' as const }] : []),
+  ];
+  return <AuthorizedNavigation store={authorization} contextKind={state.activeContext.kind} items={items} />;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, invitations }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; invitations?: InvitationApi }) {
-  return <ThemeProvider theme={theme}><CssBaseline /><ErrorBoundary><BrowserRouter><AppLayout><AuthenticationActions store={authentication} authorization={authorization} />
-    {organizationContext && <><ContextSessionBootstrap authentication={authentication} /><OrganizationSelector store={organizationContext} /></>}
-    {companies && authorization && organizationContext && <OrganizationManagementNavigation authorization={authorization} context={organizationContext} invitationsAvailable={Boolean(invitations)} />}
+
+function MarkerModuleContext({ module, context, children }: { module: MarkerModuleDefinition; context: ContextStore; children: ReactNode }) {
+  const state = useStore(context);
+  if (state.status !== 'ready' || !state.activeContext) return null;
+  if (module.context === 'organization' && state.activeContext.kind !== 'ORGANIZATION') {
+    return <Alert severity="warning">Selecciona una organización para continuar.</Alert>;
+  }
+  return children;
+}
+
+function ShellNavigation({ authorization, context, invitationsAvailable, roleManagementAvailable }: { authorization?: AuthorizationStore; context?: ContextStore; invitationsAvailable: boolean; roleManagementAvailable: boolean }) {
+  const { pathname } = useLocation(); const home = pathname === '/home';
+  return <Stack spacing={.5}><Typography variant="overline" sx={{ px: 1.5, fontWeight: 700 }}>Inicio</Typography><Button variant="text" component={Link} to="/home" aria-current={home ? 'page' : undefined} sx={{ justifyContent: 'flex-start', px: 1.5, minHeight: 42, borderColor: 'transparent', bgcolor: home ? '#e8effe' : 'transparent', color: home ? '#153d8e' : 'text.primary', fontWeight: home ? 700 : 400 }}>Inicio</Button>
+    {authorization && context && <OrganizationManagementNavigation authorization={authorization} context={context} invitationsAvailable={invitationsAvailable} roleManagementAvailable={roleManagementAvailable} />}
+  </Stack>;
+}
+
+function ShellAccount({ authentication, context, offlineQueue }: { authentication: AuthenticationStore; context?: ContextStore; offlineQueue?: OfflineInvoiceQueuePort }) {
+  const beforeLogout = offlineQueue ? (subject: string | null) => prepareOfflineLogout(subject, offlineQueue) : undefined;
+  return context ? <ShellAccountWithContext authentication={authentication} context={context} offlineQueue={offlineQueue} /> : <AccountMenu store={authentication} beforeLogout={beforeLogout} />;
+}
+
+function ShellAccountWithContext({ authentication, context, offlineQueue }: { authentication: AuthenticationStore; context: ContextStore; offlineQueue?: OfflineInvoiceQueuePort }) {
+  const current = useStore(context);
+  const beforeLogout = offlineQueue ? (subject: string | null) => prepareOfflineLogout(subject, offlineQueue) : undefined;
+  return <AccountMenu store={authentication} context={{ activeContext: current.activeContext, openSelector: current.openSelector }} beforeLogout={beforeLogout} />;
+}
+
+function OfflineInvoiceLifecycle({ authentication, offlineQueue }: { readonly authentication: AuthenticationStore; readonly offlineQueue?: OfflineInvoiceQueuePort }) {
+  useEffect(() => {
+    if (!offlineQueue) return;
+    return subscribeOfflineInvoiceLifecycle(authentication, offlineQueue);
+  }, [authentication, offlineQueue]);
+  return null;
+}
+
+function AuthorizationConnectivityNotice({ authorization }: { readonly authorization: AuthorizationStore }) {
+  const state = useStore(authorization);
+  if (!state.snapshot || !['NETWORK', 'TIMEOUT'].includes(state.error ?? '')) return null;
+  return <Alert severity="info" role="status">No se pudo actualizar la autorización por la conexión. Se conservan temporalmente los permisos verificados para este contexto mientras se reintenta; el servidor seguirá validando cada operación.</Alert>;
+}
+
+function RouteAppFrame({ authenticated, sessionStatus, navigation, account, children }: { authenticated: boolean; sessionStatus: SessionStatus; navigation: ReactNode; account: ReactNode; children: ReactNode }) {
+  const { pathname } = useLocation();
+  // Keep the shell only while a reloaded Home is checking for an existing OIDC session.
+  if (authenticated || ((pathname === '/' || pathname === '/home') && sessionStatus === 'initializing')) return <AppLayout navigation={navigation} account={authenticated ? account : undefined}>{children}</AppLayout>;
+  return <Box component="main" sx={{ minHeight: '100dvh', px: { xs: 2, sm: 3, md: 6 }, py: { xs: 3, md: 6 } }}>{children}</Box>;
+}
+
+export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, assignmentApi, invoices, notificationDeliveries, rolePolicy, parameters, catalogs, offlineCredentialPublicJwks, offlineQueue, verifyOfflineCredential }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; assignmentApi?: AssignmentApi; invoices?: InvoiceApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi; parameters?: ParameterApi; catalogs?: CatalogApi; offlineCredentialPublicJwks?: readonly OfflineCredentialPublicJwk[]; offlineQueue?: OfflineInvoiceQueuePort; verifyOfflineCredential?: OfflineCredentialVerifier }) {
+  const session = useStore(authentication);
+  const authenticated = ['authenticated', 'refreshing'].includes(session.status);
+  const content = <><RouteHeadingFocus /><OfflineInvoiceLifecycle authentication={authentication} offlineQueue={offlineQueue} /><AuthenticationActions store={authentication} authorization={authorization} />{authorization && <AuthorizationConnectivityNotice authorization={authorization} />}
+    {organizationContext && <ContextSessionBootstrap authentication={authentication} />}
     <Routes>
-    <Route path="/" element={<HomePage store={store} />} />
+    <Route path="/" element={authenticated ? <Navigate to="/home" replace /> : session.status === 'initializing' ? <HomePage store={store} authorization={authorization} authentication={authentication} /> : <LandingPage authentication={authentication} />} />
+    <Route path="/home" element={authenticated || session.status === 'initializing' ? <HomePage store={store} authorization={authorization} authentication={authentication} /> : <Navigate to="/" replace />} />
     <Route path="/login" element={<AuthenticationLoginPage authentication={authentication} />} />
-    {companies && authorization && organizationContext && (['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={mode} path={mode === 'list' ? '/companies' : mode === 'create' ? '/companies/new' : mode === 'detail' ? '/companies/:id' : '/companies/:id/edit'} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={mode === 'create' ? 'companies:create' : mode === 'edit' ? 'companies:update' : 'companies:read'}><OrganizationContextGuard store={organizationContext} authorization={authorization}><CompanyPage key={mode} api={companies} context={organizationContext} authorization={authorization} mode={mode} /></OrganizationContextGuard></ProtectedRoute>} />)}
-    {invitations && authorization && organizationContext && <Route path="/invitations" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><InvitationPage api={invitations} context={organizationContext} authorization={authorization} /></OrganizationContextGuard></PrivateRoute>} />}
+    {companies && authorization && organizationContext && (['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={mode} path={mode === 'list' ? '/companies' : mode === 'create' ? '/companies/new' : mode === 'detail' ? '/companies/:id' : '/companies/:id/edit'} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={mode === 'create' ? 'companies:create' : mode === 'edit' ? 'companies:update' : 'companies:read'}><OrganizationContextGuard store={organizationContext} authorization={authorization}><CompanyPage key={mode} api={companies} context={organizationContext} authorization={authorization} catalogs={catalogs} mode={mode} /></OrganizationContextGuard></ProtectedRoute>} />)}
+    {thirdParties && authorization && organizationContext && (['list', 'create', 'detail', 'edit'] as const).map(mode => <Route key={`third-party-${mode}`} path={mode === 'list' ? '/third-parties' : mode === 'create' ? '/third-parties/new' : mode === 'detail' ? '/third-parties/:id' : '/third-parties/:id/edit'} element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={mode === 'create' ? 'third-parties:create' : mode === 'edit' ? 'third-parties:update' : 'third-parties:read'}><OrganizationContextGuard store={organizationContext} authorization={authorization}><ThirdPartyPage key={mode} api={thirdParties} context={organizationContext} authorization={authorization} companies={companies} catalogs={catalogs} mode={mode} /></OrganizationContextGuard></ProtectedRoute>} />)}
+    {invitations && authorization && organizationContext && <Route path="/invitations" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><InvitationPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
     {invitations && <Route path="/invitations/received" element={<PrivateRoute store={authentication}><ReceivedInvitationsPage api={invitations} context={organizationContext} /></PrivateRoute>} />}
-    {invitations && authorization && organizationContext && <Route path="/organization-memberships" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MembershipPage api={invitations} context={organizationContext} authorization={authorization} /></OrganizationContextGuard></PrivateRoute>} />}
+    {invitations && authorization && organizationContext && <Route path="/organization-memberships" element={<PrivateRoute store={authentication}><OrganizationContextGuard store={organizationContext} authorization={authorization}><MembershipPage api={invitations} context={organizationContext} authorization={authorization} companies={companies} /></OrganizationContextGuard></PrivateRoute>} />}
     {invitations && <Route path="/invitations/accept" element={<InvitationAcceptancePage api={invitations} authentication={authentication} context={organizationContext} />} />}
+    {rolePolicy && authorization && organizationContext && <Route path="/roles" element={<ProtectedRoute authentication={authentication} authorization={authorization} permission="roles:read"><OrganizationContextGuard store={organizationContext} authorization={authorization}><GlobalRolePolicyContextGuard context={organizationContext}><RoleManagementPage api={rolePolicy} authorization={authorization} context={organizationContext} /></GlobalRolePolicyContextGuard></OrganizationContextGuard></ProtectedRoute>} />}
+    {catalogs && authorization && organizationContext && <Route path="/catalogs" element={<ProtectedRoute authentication={authentication} authorization={authorization} permission="parameters:read"><OrganizationContextGuard store={organizationContext} authorization={authorization}><GlobalRolePolicyContextGuard context={organizationContext}><CatalogsPage api={catalogs} authorization={authorization} context={organizationContext} /></GlobalRolePolicyContextGuard></OrganizationContextGuard></ProtectedRoute>} />}
+    {organizationContext && authorization && fleet && <Route path="/drivers/:id"
+      element={<ProtectedRoute authentication={authentication} authorization={authorization} permission="drivers:read">
+        <OrganizationContextGuard store={organizationContext} authorization={authorization}>
+          <MarkerModuleContext module={driverModule} context={organizationContext}>
+            <FleetResourcePage resource="drivers" api={fleet} invitationApi={invitations} context={organizationContext} authorization={authorization} />
+          </MarkerModuleContext>
+        </OrganizationContextGuard>
+      </ProtectedRoute>} />}
+    {organizationContext && authorization && markerModules.map(module => <Route key={module.key} path={module.path}
+      element={<ProtectedRoute authentication={authentication} authorization={authorization} permission={module.permission}>
+        <OrganizationContextGuard store={organizationContext} authorization={authorization}>
+          <MarkerModuleContext module={module} context={organizationContext}>
+            {module.key === 'drivers' && fleet ? <FleetResourcePage resource="drivers" api={fleet} invitationApi={invitations} context={organizationContext} authorization={authorization} />
+              : module.key === 'vehicles' && vehicles ? <VehiclesPage api={vehicles} context={organizationContext} authorization={authorization} />
+                : module.key === 'assignments' && assignmentApi && fleet && vehicles ? <AssignmentsPage api={assignmentApi} drivers={fleet} vehicles={vehicles} context={organizationContext} authorization={authorization} />
+                  : module.key === 'invoices' && invoices && assignmentApi && offlineQueue && verifyOfflineCredential ? <InvoicesPage api={invoices} assignments={assignmentApi} context={organizationContext} authorization={authorization} offlineCredentialPublicJwks={offlineCredentialPublicJwks}
+                    offlineQueue={offlineQueue} verifyCredential={verifyOfflineCredential}
+                    loadQrDecoder={() => import('@/modules/invoices/infrastructure/qr-scanner-adapter').then(adapter => adapter.createQrScannerAdapter())} />
+                : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} />
+                : module.key === 'parameters' && parameters && authorization ? <ParametersPage api={parameters} authorization={authorization} context={organizationContext} />
+                : <MarkerModulePage module={module} />}
+          </MarkerModuleContext>
+        </OrganizationContextGuard>
+      </ProtectedRoute>} />)}
     <Route path="/auth/callback" element={<AuthenticationCallback store={authentication} />} />
     <Route path="/session" element={<PrivateRoute store={authentication}>{organizationContext && authorization ? <OrganizationContextGuard store={organizationContext} authorization={authorization}><SessionPage store={authentication} /></OrganizationContextGuard> : <SessionPage store={authentication} />}</PrivateRoute>} />
     {organizationContext && <Route path="/organizations/select" element={<PrivateRoute store={authentication}><OrganizationSelectionPage store={organizationContext} authentication={authentication} invitationsAvailable={Boolean(invitations)} /></PrivateRoute>} />}
     <Route path="*" element={<Stack spacing={2}><Typography variant="h4" component="h1">Página no encontrada</Typography><Button component={Link} to="/">Volver al inicio</Button></Stack>} />
-  </Routes></AppLayout></BrowserRouter></ErrorBoundary></ThemeProvider>;
+    </Routes></>;
+  return <ThemeProvider theme={theme}><CssBaseline /><ErrorBoundary><BrowserRouter><RouteAppFrame authenticated={authenticated} sessionStatus={session.status}
+    navigation={<ShellNavigation authorization={authorization} context={organizationContext} invitationsAvailable={Boolean(invitations)} roleManagementAvailable={Boolean(rolePolicy)} />}
+    account={<ShellAccount authentication={authentication} context={organizationContext} offlineQueue={offlineQueue} />}>{content}</RouteAppFrame></BrowserRouter></ErrorBoundary></ThemeProvider>;
 }

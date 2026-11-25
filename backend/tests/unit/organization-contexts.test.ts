@@ -55,7 +55,7 @@ describe('organization context use cases with the real authorization policy', ()
     const f = fixture();
     const selection = { kind: 'ORGANIZATION', organizationId: 't', organizationType: 'THIRD_PARTY' } as const;
     expect((await f.service.resolve(actor(['DRIVER']), selection, 'SWITCH')).authorization.permissions).toContain('invoices:create');
-    f.policies.read.mockResolvedValue({ version: '2', grants: [] });
+    f.policies.read.mockResolvedValue({ version: '2', grants: grantCeiling.filter(grant => grant.role !== 'DRIVER') });
     await expect(f.service.resolve(actor(['DRIVER']), selection, 'RESTORE')).rejects.toBeInstanceOf(AuthorizationError);
   });
   it('fails closed on dependencies and durable success capture, but preserves denial', async () => {

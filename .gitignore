@@ -18,6 +18,7 @@ backend/public/docs-assets/
 !**/.env.example
 !**/.env.*.example
 **/secrets/
+/.invoice-images/
 
 # Local agent/editor caches, history, and generated artifacts
 /.agents/
@@ -28,3 +29,4 @@ backend/public/docs-assets/
 # OS metadata
 .DS_Store
 Thumbs.db
+**/next-env.d.ts

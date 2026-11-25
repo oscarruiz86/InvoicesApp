@@ -2,12 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@mui/material';
+import { createStore } from 'zustand/vanilla';
 import { HomePage } from '@/modules/home/presentation/home-page';
 import { createHealthStore } from '@/modules/home/presentation/health-store';
 import { createReadHealth } from '@/modules/home/application/read-health';
 import { ApplicationError } from '@/shared/application/application-error';
 import { ErrorBoundary } from '@/shared/components/error-boundary';
 import { theme } from '@/shared/theme/theme';
+import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
+
+const authentication = createStore(() => ({ status: 'authenticated', profileStatus: 'success', user: { username: 'test' } })) as unknown as AuthenticationStore;
 
 describe('home presentation and application state', () => {
   it('coordinates a substitutable port without HTTP', async () => {
@@ -20,14 +24,14 @@ describe('home presentation and application state', () => {
   it('renders loading and success with the global theme', async () => {
     let resolve!: (value: { status: 'ok' }) => void;
     const read = () => new Promise<{ status: 'ok' }>(done => { resolve = done; });
-    render(<ThemeProvider theme={theme}><HomePage store={createHealthStore(read)} /></ThemeProvider>);
+    render(<ThemeProvider theme={theme}><HomePage store={createHealthStore(read)} authentication={authentication} /></ThemeProvider>);
     expect(screen.getByLabelText('Consultando API')).toBeInTheDocument();
     resolve({ status: 'ok' });
     expect(await screen.findByText('API disponible')).toBeInTheDocument();
   });
   it('renders a central error and recovers on explicit retry', async () => {
     const read = vi.fn().mockRejectedValueOnce(new ApplicationError('NETWORK')).mockResolvedValue({ status: 'ok' });
-    render(<HomePage store={createHealthStore(read)} />);
+    render(<HomePage store={createHealthStore(read)} authentication={authentication} />);
     expect(await screen.findByText(/No se pudo establecer conexión/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar conexión' }));
     expect(await screen.findByText('API disponible')).toBeInTheDocument();

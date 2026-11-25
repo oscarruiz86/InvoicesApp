@@ -8,12 +8,16 @@ const id = z.string().trim().min(1).max(128).regex(/\S/);
 const email = z.string().trim().min(3).max(254).email();
 const role = z.enum(['COMPANY_ADMIN', 'THIRD_PARTY_ADMIN', 'DRIVER']);
 const version = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
-const type = z.enum(['COMPANY', 'THIRD_PARTY']);
+const organizationType = z.enum(['COMPANY', 'THIRD_PARTY']);
+const listOrganizationType = z.enum(['COMPANY', 'THIRD_PARTY', 'ALL']);
 const status = z.enum(['PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'EXPIRED']);
-const createBody = z.object({ organizationId: id, organizationType: type, companyId: id.nullable(), recipientEmail: email, roles: z.array(role).min(1).max(3) }).strict();
+const delivery = z.enum(['UNKNOWN', 'LOGGED', 'FAILED']);
+const createBody = z.object({ organizationId: id, organizationType, companyId: id.nullable(), recipientEmail: email, roles: z.array(role).min(1).max(3) }).strict();
 const tokenBody = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/), expectedVersion: version }).strict();
 const expectedVersionBody = z.object({ expectedVersion: version }).strict();
-const listQuery = z.object({ organizationId: id, organizationType: type, companyId: id.nullable().default(null), status: status.optional(), page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) }).strict();
+const listQuery = z.object({ organizationId: id, organizationType: listOrganizationType, companyId: id.nullable().default(null), status: status.optional(),
+  email: z.string().trim().max(254).optional(), role: role.optional(), delivery: delivery.optional(),
+  page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) }).strict();
 const receivedQuery = z.object({ page: z.coerce.number().int().min(1).max(1000000).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) }).strict();
 const listResponse = z.object({ items: z.array(z.unknown()), page: z.number(), pageSize: z.number(), total: z.number() }).strict();
 

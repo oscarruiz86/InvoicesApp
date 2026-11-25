@@ -17,6 +17,9 @@ const schema = z.object({
     catch { return false; }
   })),
   MONGODB_URI_FILE: optional(z.string().trim().min(1)),
+  INVOICE_IMAGE_STORAGE_PROVIDER: optional(z.enum(['local'])),
+  INVOICE_IMAGE_STORAGE_LOCAL_ROOT: optional(z.string().trim().min(1)),
+  INVOICE_IMAGE_STORAGE_COMPANY_ID: optional(z.string().trim().regex(/^[a-f\d]{24}$/i)),
   KEYCLOAK_DIRECTORY_CLIENT_ID: optional(z.string().trim().min(1)),
   KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE: optional(z.string().trim().min(1)),
   KEYCLOAK_DIRECTORY_CLIENT_SECRET: optional(z.string().min(1)),
@@ -38,7 +41,19 @@ const schema = z.object({
   NOTIFICATION_PAYLOAD_KEY_FILE: optional(z.string().trim().min(1)),
   NOTIFICATION_PAYLOAD_KEY_FILES: optional(z.string().trim().min(1)),
   NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: z.preprocess(value => value === '' || value === undefined ? 1 : Number(value), z.number().int().min(1).max(255)),
+  OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: optional(z.string().trim().min(1)),
+  OFFLINE_CREDENTIAL_KEY_ID: optional(z.string().trim().regex(/^[A-Za-z0-9._-]{1,64}$/)),
+  OFFLINE_CREDENTIAL_TTL_HOURS: z.preprocess(value => value === '' || value === undefined ? 8 : Number(value), z.number().int().min(1).max(8)),
 }).superRefine((value, context) => {
+  const invoiceStorageConfigured = Boolean(value.INVOICE_IMAGE_STORAGE_PROVIDER);
+  if (invoiceStorageConfigured && (!value.INVOICE_IMAGE_STORAGE_LOCAL_ROOT || !value.INVOICE_IMAGE_STORAGE_COMPANY_ID)) {
+    if (!value.INVOICE_IMAGE_STORAGE_LOCAL_ROOT) context.addIssue({ code: 'custom', path: ['INVOICE_IMAGE_STORAGE_LOCAL_ROOT'], message: 'La raíz local es requerida para el proveedor local' });
+    if (!value.INVOICE_IMAGE_STORAGE_COMPANY_ID) context.addIssue({ code: 'custom', path: ['INVOICE_IMAGE_STORAGE_COMPANY_ID'], message: 'El namespace es requerido para el proveedor local' });
+  }
+  if (value.INVOICE_IMAGE_STORAGE_LOCAL_ROOT && !/^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(value.INVOICE_IMAGE_STORAGE_LOCAL_ROOT))
+    context.addIssue({ code: 'custom', path: ['INVOICE_IMAGE_STORAGE_LOCAL_ROOT'], message: 'La raíz local debe ser absoluta' });
+  if (Boolean(value.INVOICE_IMAGE_STORAGE_LOCAL_ROOT) !== Boolean(value.INVOICE_IMAGE_STORAGE_PROVIDER))
+    context.addIssue({ code: 'custom', path: ['INVOICE_IMAGE_STORAGE_PROVIDER'], message: 'Configure proveedor y raíz local juntos' });
   if (value.NODE_ENV === 'production') {
     if (!value.MONGODB_URI_FILE || value.MONGODB_URI) context.addIssue({ code: 'custom', path: ['MONGODB_URI_FILE'], message: 'Producción requiere solo MONGODB_URI_FILE' });
     if (value.KEYCLOAK_DIRECTORY_CLIENT_SECRET || value.KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE && !value.KEYCLOAK_DIRECTORY_CLIENT_ID)
@@ -47,6 +62,10 @@ const schema = z.object({
   if (value.MONGODB_URI_FILE && value.MONGODB_URI) context.addIssue({ code: 'custom', path: ['MONGODB_URI_FILE'], message: 'Configure Mongo mediante una sola fuente' });
   if (value.KEYCLOAK_DIRECTORY_CLIENT_SECRET && value.KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE)
     context.addIssue({ code: 'custom', path: ['KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE'], message: 'Configure el secreto de directorio mediante una sola fuente' });
+  if (Boolean(value.OFFLINE_CREDENTIAL_SIGNING_KEY_FILE) !== Boolean(value.OFFLINE_CREDENTIAL_KEY_ID)) {
+    context.addIssue({ code: 'custom', path: ['OFFLINE_CREDENTIAL_SIGNING_KEY_FILE'], message: 'Configure archivo de clave y key id juntos' });
+    context.addIssue({ code: 'custom', path: ['OFFLINE_CREDENTIAL_KEY_ID'], message: 'Configure archivo de clave y key id juntos' });
+  }
   if (value.NODE_ENV !== 'production' && !value.MONGODB_URI && !value.MONGODB_URI_FILE)
     context.addIssue({ code: 'custom', path: ['MONGODB_URI'], message: 'Se requiere configuración Mongo' });
   if (value.MONGODB_URI) {

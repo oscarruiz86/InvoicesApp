@@ -118,12 +118,18 @@ describe('accessible selection and guards', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Seleccionar Organization a' })); });
     expect(f.store.getState().activeContext).toMatchObject({ organizationId: 'a' }); expect(f.port.login).not.toHaveBeenCalled();
   });
-  it('never renders protected content without valid context or during permission refresh', async () => {
+  it('gates invalid context and preserves protected content during background permission refresh', async () => {
     const f = setup(); await f.start();
     render(<MemoryRouter><OrganizationContextGuard store={f.store} authorization={f.authorization}><p>Private resource</p></OrganizationContextGuard></MemoryRouter>);
     expect(screen.queryByText('Private resource')).not.toBeInTheDocument();
     await act(async () => { await f.store.getState().select(selected('a')); });
     await waitFor(() => expect(screen.getByText('Private resource')).toBeInTheDocument());
+    let resolveRefresh!: (value: PermissionsSnapshot) => void;
+    f.read.mockImplementationOnce(scope => new Promise(resolve => { resolveRefresh = resolve; void scope; }));
+    let pending!: Promise<void>;
+    act(() => { pending = f.authorization.getState().refresh(); });
+    expect(f.authorization.getState().status).toBe('ready'); expect(screen.getByText('Private resource')).toBeInTheDocument();
+    await act(async () => { resolveRefresh(snapshot(scopeOf(selected('a')))); await pending; });
     act(() => f.authorization.getState().invalidate()); expect(screen.queryByText('Private resource')).not.toBeInTheDocument();
   });
 });

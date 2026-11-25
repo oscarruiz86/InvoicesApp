@@ -3,13 +3,23 @@ import { ApplicationError } from '@/shared/application/application-error';
 import type { AccessTokenPort, LoginOptions, SessionPort, SessionSnapshot, SessionFailure } from '../application/session-ports';
 import type { OidcConfiguration } from './oidc-configuration';
 
-export type OidcClient = Pick<Keycloak, 'init' | 'createLoginUrl' | 'createLogoutUrl' | 'updateToken' | 'isTokenExpired' | 'clearToken' | 'authenticated' | 'token' | 'refreshToken' | 'idToken' | 'onTokenExpired'>;
+export type OidcClient = Pick<Keycloak, 'init' | 'createLoginUrl' | 'createLogoutUrl' | 'updateToken' | 'isTokenExpired' | 'clearToken' | 'authenticated' | 'token' | 'refreshToken' | 'idToken' | 'onTokenExpired'> & Partial<Pick<Keycloak, 'accountManagement'>>;
 const logoutKey = 'invoices.logout';
 const loginReturnPathKey = 'invoices.login-return-path';
-const loginReturnPaths = new Set(['/session', '/invitations/accept', '/invitations/received']);
+const checkSsoCallbackKey = 'invoices.check-sso-callback';
+const defaultLoginReturnPath = '/session';
+
+function safeLoginReturnPath(path: unknown): string {
+  if (typeof path !== 'string' || path.length > 2048 || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) return defaultLoginReturnPath;
+  try {
+    const url = new URL(path, window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname === '/auth/callback') return defaultLoginReturnPath;
+    return url.pathname + url.search + url.hash;
+  } catch { return defaultLoginReturnPath; }
+}
 
 function saveLoginReturnPath(path: string) {
-  try { sessionStorage.setItem(loginReturnPathKey, JSON.stringify({ path, expires: Date.now() + 86_400_000 })); } catch { /* A failed storage write falls back to the default callback destination. */ }
+  try { sessionStorage.setItem(loginReturnPathKey, JSON.stringify({ path: safeLoginReturnPath(path), expires: Date.now() + 86_400_000 })); } catch { /* A failed storage write falls back to the default callback destination. */ }
 }
 function takeLoginReturnPath(): SessionSnapshot['returnPath'] {
   try {
@@ -17,8 +27,8 @@ function takeLoginReturnPath(): SessionSnapshot['returnPath'] {
     sessionStorage.removeItem(loginReturnPathKey);
     if (!raw) return undefined;
     const value: { path?: unknown; expires?: unknown } = JSON.parse(raw);
-    return typeof value.path === 'string' && loginReturnPaths.has(value.path) && typeof value.expires === 'number' && value.expires > Date.now()
-      ? value.path as SessionSnapshot['returnPath'] : undefined;
+    return typeof value.path === 'string' && typeof value.expires === 'number' && value.expires > Date.now()
+      ? safeLoginReturnPath(value.path) : undefined;
   } catch { return undefined; }
 }
 
@@ -66,12 +76,7 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
       if (initialization) return initialization;
       initialization = (async () => {
         const callback = window.location.pathname === '/auth/callback';
-        const returnPath = callback ? takeLoginReturnPath() : undefined;
-
-        if (!configuration) {
-          if (callback) cleanCallbackUrl();
-          publish({ status: 'anonymous', error: 'CONFIGURATION' }); return;
-        }
+        const checkSso = !callback && window.location.pathname !== '/login';
         try {
           const marker = sessionStorage.getItem(logoutKey);
           if (marker) {
@@ -83,20 +88,33 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
             return;
           }
         } catch { publish({ status: 'error', error: 'LOGOUT_UNCONFIRMED' }); return; }
+        const checkSsoCallback = callback && sessionStorage.getItem(checkSsoCallbackKey) === '1';
+        if (checkSsoCallback) sessionStorage.removeItem(checkSsoCallbackKey);
+        if (checkSso) {
+          saveLoginReturnPath(window.location.pathname + window.location.search + window.location.hash);
+          sessionStorage.setItem(checkSsoCallbackKey, '1');
+        }
+        const returnPath = callback ? takeLoginReturnPath() : undefined;
+
+        if (!configuration) {
+          if (callback) cleanCallbackUrl();
+          publish({ status: 'anonymous', error: 'CONFIGURATION' }); return;
+        }
         const epoch = generation;
         const instance = options.factory?.() ?? new Keycloak(configuration);
         client = instance;
         publish({ status: 'initializing' });
         instance.onTokenExpired = () => { void port.getAccessToken().catch(() => {}); };
         try {
-          const operation = instance.init({ flow: 'standard', pkceMethod: 'S256', useNonce: true, responseMode: 'query', scope: 'openid profile email', checkLoginIframe: false, enableLogging: false });
+          const operation = instance.init({ flow: 'standard', pkceMethod: 'S256', useNonce: true, responseMode: 'query', scope: 'openid profile email', ...(checkSso ? { onLoad: 'check-sso' as const, redirectUri: `${window.location.origin}/auth/callback` } : {}), checkLoginIframe: false, enableLogging: false });
           void operation.then(() => { if (epoch !== generation) clear(instance); }, () => {});
           const authenticated = await bounded(operation);
           if (epoch !== generation) return;
-          if (callback && !authenticated) throw new Error('INVALID_CALLBACK');
+          if (callback && !authenticated && !checkSsoCallback) throw new Error('INVALID_CALLBACK');
           if (callback) cleanCallbackUrl();
-          publish(authenticated ? { status: 'authenticated', credentialRevision: ++credentialRevision, ...(returnPath ? { returnPath } : {}) } : { status: 'anonymous' });
+          publish(authenticated ? { status: 'authenticated', credentialRevision: ++credentialRevision, ...(returnPath ? { returnPath } : {}) } : { status: 'anonymous', ...(checkSsoCallback && returnPath ? { returnPath } : {}) });
         } catch {
+          if (checkSso) sessionStorage.removeItem(checkSsoCallbackKey);
           if (callback) cleanCallbackUrl();
           if (epoch === generation) discard('AUTHENTICATION');
         }
@@ -112,7 +130,7 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
       const instance = client;
       if (!instance) return;
       const epoch = generation;
-      const destination = loginReturnPaths.has(returnPath) ? returnPath : '/session';
+      const destination = safeLoginReturnPath(returnPath);
       saveLoginReturnPath(destination);
       publish({ status: 'authenticating' });
       try {
@@ -120,7 +138,13 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
         if (loginHint && (loginHint.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginHint))) throw new Error('INVALID_LOGIN_HINT');
         const url = await bounded(instance.createLoginUrl({ redirectUri: window.location.origin + '/auth/callback', scope: 'openid profile email', ...(loginHint ? { loginHint } : {}), ...(loginOptions.action === 'register' ? { action: 'register' } : {}), ...(loginOptions.action === 'switch-account' ? { prompt: 'login' } : {}) }));
         if (epoch === generation) navigate(url);
-      } catch { try { sessionStorage.removeItem(loginReturnPathKey); } catch {} if (epoch === generation) discard('AUTHENTICATION'); }
+      } catch { try { sessionStorage.removeItem(loginReturnPathKey); } catch { /* Ignore storage cleanup failures. */ } if (epoch === generation) discard('AUTHENTICATION'); }
+    },
+    async openAccountManagement() {
+      const instance = client;
+      if (!instance || !['authenticated', 'refreshing'].includes(snapshot.status)) throw new ApplicationError('UNAUTHENTICATED');
+      if (!instance.accountManagement) throw new ApplicationError('UNEXPECTED');
+      await instance.accountManagement();
     },
     async getAccessToken() {
       const instance = client;
@@ -138,6 +162,11 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
           publish({ status: 'authenticated', credentialRevision: ++credentialRevision });
           return instance.token;
         } catch {
+          if (epoch === generation && typeof navigator !== 'undefined' && !navigator.onLine) {
+            // A failed refresh while disconnected does not prove that the identity session expired.
+            // Keep pending offline work intact; the shell will request a normal reauthentication online.
+            throw new ApplicationError('NETWORK');
+          }
           if (epoch === generation) discard('SESSION_EXPIRED');
           throw new ApplicationError('UNAUTHENTICATED');
         } finally { if (epoch === generation) refresh = undefined; }
@@ -147,7 +176,7 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
     invalidate() { discard('SESSION_EXPIRED'); },
     async logout() {
       if (!configuration) { discard(); return; }
-      try { sessionStorage.removeItem(loginReturnPathKey); } catch {}
+      try { sessionStorage.removeItem(loginReturnPathKey); } catch { /* Ignore storage cleanup failures. */ }
       let url: URL;
       try {
         // Reinitialization permits retrying remote logout without retaining an old credential.

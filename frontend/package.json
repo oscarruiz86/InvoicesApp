@@ -13,6 +13,7 @@
     "@emotion/styled": "11.14.1",
     "@mui/material": "9.5.0",
     "keycloak-js": "26.2.5",
+    "qr-scanner": "1.4.2",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-router": "8.5.1",
@@ -49,6 +50,12 @@
     "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "tsc --noEmit && vite build",
     "start": "vite preview --host 0.0.0.0 --port 4173",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:offline-invoice-sync": "playwright test tests/e2e/offline-invoice-sync.spec.ts tests/e2e/invoice-management-responsive.spec.ts",
+    "build:e2e:offline-shell": "vite build --mode offline-shell-e2e",
+    "start:e2e:offline-shell": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
+    "test:e2e:offline-shell": "playwright test --config=playwright.offline-shell.config.ts",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e:prepared": "node ../scripts/test-vehicle-management-e2e.mjs"
   }
 }

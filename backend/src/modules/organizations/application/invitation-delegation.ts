@@ -49,7 +49,10 @@ export function createInvitationDelegation(deps: { organizations: OrganizationRe
   return {
     invitation: async (actor: AuthenticatedActor, request: InvitationDelegationRequest): Promise<void> => {
       try {
-        if (!actor.email || normalizeRecipientEmail(actor.email) === normalizeRecipientEmail(request.recipientEmail)) throw new InvitationDelegationDenied();
+        const selfInvitation = actor.email && normalizeRecipientEmail(actor.email) === normalizeRecipientEmail(request.recipientEmail);
+        const selfThirdPartyAdministratorInvitation = request.organizationType === 'THIRD_PARTY'
+          && request.roles.length === 1 && request.roles[0] === 'THIRD_PARTY_ADMIN';
+        if (!actor.email || selfInvitation && !selfThirdPartyAdministratorInvitation) throw new InvitationDelegationDenied();
         await authorizeRoles(actor, request);
       } catch { throw new InvitationDelegationDenied(); }
     },

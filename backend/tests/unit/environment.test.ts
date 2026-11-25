@@ -10,6 +10,19 @@ describe('runtime environment and identity configuration', () => {
     expect(env.NODE_ENV).toBe('development');
     expect(keycloakConfiguration(env)).toBeNull();
   });
+  it('accepts a complete local invoice image storage configuration without touching the filesystem', () => {
+    const env = readServerEnvironment({ ...base, INVOICE_IMAGE_STORAGE_PROVIDER: 'local',
+      INVOICE_IMAGE_STORAGE_LOCAL_ROOT: 'C:\\private\\invoice-images', INVOICE_IMAGE_STORAGE_COMPANY_ID: 'a'.repeat(24) });
+    expect(env).toMatchObject({ INVOICE_IMAGE_STORAGE_PROVIDER: 'local', INVOICE_IMAGE_STORAGE_COMPANY_ID: 'a'.repeat(24) });
+  });
+  it.each([
+    { INVOICE_IMAGE_STORAGE_PROVIDER: 'remote' },
+    { INVOICE_IMAGE_STORAGE_PROVIDER: 'local' },
+    { INVOICE_IMAGE_STORAGE_PROVIDER: 'local', INVOICE_IMAGE_STORAGE_LOCAL_ROOT: 'relative/path', INVOICE_IMAGE_STORAGE_COMPANY_ID: 'a'.repeat(24) },
+    { INVOICE_IMAGE_STORAGE_PROVIDER: 'local', INVOICE_IMAGE_STORAGE_LOCAL_ROOT: 'C:\\private\\images', INVOICE_IMAGE_STORAGE_COMPANY_ID: '../secret' },
+  ])('rejects incomplete or unsafe invoice image storage configuration: %j', fields => {
+    expect(() => readServerEnvironment({ ...base, ...fields })).toThrow(ConfigurationError);
+  });
   it.each([{}, { MONGODB_URI: '' }, { MONGODB_URI: 'https://invalid' }])('rejects invalid MongoDB configuration: %j', env => {
     expect(() => readServerEnvironment(env)).toThrow(ConfigurationError);
   });
@@ -26,6 +39,13 @@ describe('runtime environment and identity configuration', () => {
   it('accepts complete metadata without creating a verifier', () => {
     const env = readServerEnvironment({ ...base, KEYCLOAK_ISSUER_URL: 'https://identity.invalid/realm', KEYCLOAK_AUDIENCE: 'api' });
     expect(keycloakConfiguration(env)).toEqual({ issuer: 'https://identity.invalid/realm', audience: 'api', jwksUrl: 'https://identity.invalid/realm/protocol/openid-connect/certs' });
+  });
+  it('accepts a bounded offline credential signing key reference and rejects partial or overlong configuration', () => {
+    expect(readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1' }))
+      .toMatchObject({ OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: 8 });
+    expect(readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: '4' }).OFFLINE_CREDENTIAL_TTL_HOURS).toBe(4);
+    expect(() => readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1' })).toThrow(ConfigurationError);
+    expect(() => readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: '9' })).toThrow(ConfigurationError);
   });
   it('does not expose secret values in diagnostics', () => {
     try { readServerEnvironment({ MONGODB_URI: 'SECRET_VALUE' }); }

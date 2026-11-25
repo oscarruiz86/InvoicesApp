@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createPolicyRepository } from '@/modules/identity/infrastructure/mongodb/policy-repository';
 import { grantCeiling } from '@/modules/identity/domain/permissions';
+import { PolicyAuditCapacity } from '@/modules/identity/application/authorization-errors';
 import type { SecurityEvent } from '@/modules/identity/application/authorization-ports';
 
 const uri = process.env.MONGODB_TEST_URI;
@@ -20,7 +21,8 @@ it('initializes once, commits an atomic audit revision, rejects races and fails 
   await expect(repository.read()).rejects.toThrow('AUTHORIZATION_UNAVAILABLE');
   expect(await repository.initialize()).toEqual({ version: '1', grants: grantCeiling });
   const nextGrants = grantCeiling.filter(grant => grant.permission !== 'companies:create');
-  const results = await Promise.allSettled([repository.replace('1', nextGrants, event('1')), repository.replace('1', [], event('1'))]);
+  const parallelGrants = grantCeiling.filter(grant => grant.permission !== 'third-parties:create');
+  const results = await Promise.allSettled([repository.replace('1', nextGrants, event('1')), repository.replace('1', parallelGrants, event('1'))]);
   expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
   expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
   const policy = await repository.read();
@@ -28,13 +30,16 @@ it('initializes once, commits an atomic audit revision, rejects races and fails 
   expect(await repository.initialize()).toEqual(policy);
   const raw = await connection.collection('authorization_policies').findOne({});
   expect(raw?.pendingEvents).toHaveLength(1);
-  expect(raw?.pendingEvents[0]).toMatchObject({ beforeVersion: '1', afterVersion: '2', permission: 'roles:manage', scope: { kind: 'global', companyId: null, thirdPartyId: null }, resource: { type: 'authorization-policy', id: 'active' } });
+  expect(raw?.pendingEvents[0]).toMatchObject({ subject: 'admin-fixture', correlationId: expect.any(String), beforeVersion: '1', afterVersion: '2', permission: 'roles:manage', scope: { kind: 'global', companyId: null, thirdPartyId: null }, resource: { type: 'authorization-policy', id: 'active' } });
+  expect(raw?.pendingEvents[0]).not.toHaveProperty('token');
+  expect(raw?.pendingEvents[0]).not.toHaveProperty('payload');
   expect(Object.keys(raw!).sort()).toEqual(['_id', 'grants', 'pendingEvents', 'version']);
   await expect(repository.replace('2', [{ role: 'APP_ADMIN', permission: 'invoices:delete', scope: 'global' }], event('2'))).rejects.toThrow('INVALID_REQUEST');
-  await expect(repository.replace('2', [], { ...event('2'), subject: '' })).rejects.toThrow('INVALID_REQUEST');
+  await expect(repository.replace('2', grantCeiling, { ...event('2'), subject: '' })).rejects.toThrow('INVALID_REQUEST');
+  for (const permission of ['roles:read', 'roles:manage']) await expect(repository.replace('2', policy.grants.filter(grant => grant.permission !== permission), event('2'))).rejects.toThrow('INVALID_REQUEST');
   expect(await repository.read()).toEqual(policy);
   await connection.collection('authorization_policies').updateOne({}, { $set: { pendingEvents: Array.from({ length: 1000 }, () => event('2')) } });
-  await expect(repository.replace('2', [], event('2'))).rejects.toThrow('POLICY_CONFLICT');
+  await expect(repository.replace('2', policy.grants, event('2'))).rejects.toBeInstanceOf(PolicyAuditCapacity);
   expect(await repository.read()).toEqual(policy);
   await connection.collection('authorization_policies').updateOne({}, { $set: { grants: [{ role: 'APP_ADMIN', permission: 'invoices:delete', scope: 'global' }] } });
   await expect(repository.read()).rejects.toThrow('AUTHORIZATION_UNAVAILABLE');

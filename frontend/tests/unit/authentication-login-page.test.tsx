@@ -10,10 +10,10 @@ afterEach(cleanup);
 
 it('shows the password update message and starts an explicit login', async () => {
   const login = vi.fn(async () => {});
-  const authentication = createStore(() => ({ status: 'anonymous' as const, login })) as unknown as AuthenticationStore;
+  const authentication = createStore(() => ({ status: 'anonymous' as const, error: 'SESSION_EXPIRED' as const, login })) as unknown as AuthenticationStore;
   render(<MemoryRouter><AuthenticationLoginPage authentication={authentication} /></MemoryRouter>);
-  expect(screen.getByText(/Tu contraseña se actualizó.*inicia sesión/i)).toBeInTheDocument();
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+  expect(screen.getByText('La sesión terminó. Inicia sesión para continuar.')).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Reintentar inicio de sesión' }));
   expect(login).toHaveBeenCalledWith('/session');
 });
 

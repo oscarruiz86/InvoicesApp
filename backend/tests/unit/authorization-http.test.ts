@@ -86,6 +86,42 @@ describe('permissions HTTP boundary', () => {
         else expect(operation.security).toEqual([{ bearerAuth: [] }]);
         expect(operation['x-authorization-scope']).toBeDefined();
         expect(operation['x-required-permissions']).toBeDefined();
+      } else if (path.startsWith('/api/third-parties')) {
+        for (const value of Object.values(contract.paths[path]) as { security: unknown; 'x-required-permissions': string[]; 'x-authorization-scope': string }[]) {
+          expect(value.security).toEqual([{ bearerAuth: [] }]);
+          expect(value['x-authorization-scope']).toBeDefined();
+          expect(value['x-required-permissions']).toBeDefined();
+        }
+      } else if (path.startsWith('/api/drivers') || path.startsWith('/api/vehicles')) {
+        for (const value of Object.values(contract.paths[path]) as { security: unknown; 'x-required-permissions': string[]; 'x-authorization-scope': string }[]) {
+          expect(value.security).toEqual([{ bearerAuth: [] }]);
+          expect(value['x-authorization-scope']).toBeDefined();
+          expect(value['x-required-permissions'].length).toBeGreaterThan(0);
+        }
+      } else if (path.startsWith('/api/assignments') || path.startsWith('/api/invoices')) {
+        for (const value of Object.values(contract.paths[path]) as { security: unknown; 'x-required-permissions': string[]; 'x-authorization-scope': string }[]) {
+          expect(value.security).toEqual([{ bearerAuth: [] }]);
+          expect(value['x-authorization-scope']).toBeDefined();
+          expect(value['x-required-permissions'].length).toBeGreaterThan(0);
+        }
+      } else if (path.startsWith('/api/invoice-sync')) {
+        for (const value of Object.values(contract.paths[path]) as { security: unknown; 'x-required-permissions': string[]; 'x-authorization-scope': string }[]) {
+          expect(value.security).toEqual([{ bearerAuth: [] }]);
+          expect(value['x-authorization-scope']).toBeDefined();
+          expect(value['x-required-permissions'].length).toBeGreaterThan(0);
+        }
+      } else if (path === '/api/roles') {
+        for (const value of Object.values(contract.paths[path]) as { security: unknown; 'x-required-permissions': string[]; 'x-authorization-scope': string }[]) {
+          expect(value.security).toEqual([{ bearerAuth: [] }]);
+          expect(value['x-authorization-scope']).toBeDefined();
+          expect(value['x-required-permissions'].length).toBeGreaterThan(0);
+        }
+      } else if (path.startsWith('/api/parameters') || path.startsWith('/api/catalogs/')) {
+        for (const [method, value] of Object.entries(contract.paths[path]) as [string, { security: unknown; 'x-required-permissions': string[]; 'x-authorization-scope': string }][]) {
+          expect(value.security).toEqual([{ bearerAuth: [] }]);
+          expect(value['x-authorization-scope']).toBe('global');
+          expect(value['x-required-permissions']).toEqual([['patch', 'post', 'put'].includes(method) ? 'parameters:update' : 'parameters:read']);
+        }
       } else expect(operation.security).toEqual([]);
     }
   });

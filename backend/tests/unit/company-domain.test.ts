@@ -12,8 +12,8 @@ describe('company domain', () => {
     expect(() => companyProfile({ ...valid, ...changes })).toThrow('INVALID_REQUEST');
   });
   it('distinguishes omission and clearing; rejects empty patch and null required fields', () => {
-    const before = companyProfile({ ...valid, city: 'Bogotá' });
-    expect(companyProfile({ tradeName: ' ACME ' }, before).city).toBe('Bogotá');
+    const before = companyProfile({ ...valid, country: 'CO', department: '11', city: '11001' });
+    expect(companyProfile({ tradeName: ' ACME ' }, before).city).toBe('11001');
     expect(companyProfile({ city: null }, before).city).toBeNull();
     expect(() => companyProfile({}, before)).toThrow();
     expect(() => companyProfile({ email: null }, before)).toThrow();

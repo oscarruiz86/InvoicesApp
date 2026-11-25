@@ -1,9 +1,10 @@
 import { ConfigurationError } from '@/shared/application/configuration-error';
 import { AuthenticationError, AuthorizationError } from '@/modules/identity/application/authentication-error';
-import { AuthorizationUnavailable, InvalidAuthorizationRequest, PolicyConflict, ResourceNotFound } from '@/modules/identity/application/authorization-errors';
+import { AuthorizationUnavailable, InvalidAuthorizationRequest, PolicyAuditCapacity, PolicyConflict, ResourceNotFound } from '@/modules/identity/application/authorization-errors';
 
 export function errorResponse(error: unknown): Response {
-  const authorizationError = error instanceof AuthorizationUnavailable ? [503, 'AUTHORIZATION_UNAVAILABLE', 'La autorización no está disponible.'] as const
+  const authorizationError = error instanceof PolicyAuditCapacity ? [503, 'POLICY_AUDIT_CAPACITY', 'La política no se actualizó porque la capacidad de auditoría está agotada.'] as const
+    : error instanceof AuthorizationUnavailable ? [503, 'AUTHORIZATION_UNAVAILABLE', 'La autorización no está disponible.'] as const
     : error instanceof InvalidAuthorizationRequest ? [400, 'INVALID_REQUEST', 'La solicitud no es válida.'] as const
     : error instanceof ResourceNotFound ? [404, 'RESOURCE_NOT_FOUND', 'El recurso no está disponible.'] as const
     : error instanceof PolicyConflict ? [409, 'POLICY_CONFLICT', 'La política cambió o no puede confirmar otra revisión.'] as const : null;

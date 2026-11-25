@@ -1,6 +1,6 @@
 import type { AuthenticatedActor } from './actor';
 import type { AuthorizationPolicy, Grant, Permission } from './permissions';
-import { isPermission, validGrants } from './permissions';
+import { isPermission, validPolicyGrants } from './permissions';
 import { sameScope, validScope, type AuthorizationDecision, type OrganizationEvidence, type OrganizationScope, type ResourceFacts } from './authorization-facts';
 
 export function effectiveRoles(actor: AuthenticatedActor, scope: OrganizationScope, evidence?: OrganizationEvidence): readonly AuthenticatedActor['roles'][number][] {
@@ -33,7 +33,7 @@ function applies(grant: Grant, scope: OrganizationScope, evidence?: Organization
 }
 
 export function matchingGrants(actor: AuthenticatedActor, policy: AuthorizationPolicy, permission: string, scope: OrganizationScope, evidence?: OrganizationEvidence): readonly Grant[] {
-  if (!actor.subject || !policy.version || !validGrants(policy.grants) || !isPermission(permission) || !validOrganization(actor, scope, evidence)) return [];
+  if (!actor.subject || !policy.version || !validPolicyGrants(policy.grants) || !isPermission(permission) || !validOrganization(actor, scope, evidence)) return [];
   const roles = effectiveRoles(actor, scope, evidence);
   return policy.grants.filter(grant => grant.permission === permission && roles.includes(grant.role) && applies(grant, scope, evidence));
 }
@@ -53,6 +53,7 @@ function resourceMatches(subject: string, permission: Permission, grant: Grant, 
       || resource.associationKind !== (grant.role === 'APP_ADMIN' ? 'user-company' : 'user-third-party'))) return false;
   }
   if (resource.type === 'users' && permission === 'users:update' && resource.targetRole) return false; // Profile updates never assign roles.
+  if (grant.role === 'THIRD_PARTY_ADMIN' && permission === 'invoices:update') return true;
   if (grant.role !== 'DRIVER') return !['invoices:update', 'invoices:create'].includes(permission) || resource.eligible === true;
   switch (permission) {
     case 'vehicles:read': return resource.active === true && resource.assignmentActive === true && resource.assignedSubject === subject;

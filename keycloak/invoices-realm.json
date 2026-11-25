@@ -13,6 +13,8 @@
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 28800,
   "defaultSignatureAlgorithm": "RS256",
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false,
   "roles": {
     "realm": [
       {

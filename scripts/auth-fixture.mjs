@@ -54,6 +54,8 @@ export async function createRealmFixture(base, adminUsername, adminPassword, ori
   const template = JSON.parse(await readFile(new URL('../keycloak/invoices-realm.json', import.meta.url), 'utf8'));
   const userProfile = JSON.parse(await readFile(new URL('../keycloak/invoices-user-profile.json', import.meta.url), 'utf8'));
   template.realm = realm;
+  // Admin API imports do not expand container environment placeholders.
+  template.clients[0].baseUrl = `${origins[0] ?? base}/login`;
   template.clients[0].redirectUris = origins.map(origin => `${origin}/auth/callback`);
   template.clients[0].webOrigins = origins;
   template.clients[0].attributes['post.logout.redirect.uris'] = origins.map(origin => `${origin}/`).join('##');
@@ -110,11 +112,48 @@ export async function createRealmFixture(base, adminUsername, adminPassword, ori
       assert.deepEqual(mapped.map(role => role.name).sort(), ['query-users', 'view-users']);
       const targetName = `company-admin-${randomBytes(4).toString('hex')}`;
       const targetPassword = randomBytes(32).toString('base64url');
-      assert.equal((await admin(`${realm}/users`, { method: 'POST', body: JSON.stringify({ username: targetName, enabled: true, email: 'company@example.invalid', emailVerified: true, firstName: 'Company', lastName: 'Administrator', credentials: [{ type: 'password', value: targetPassword, temporary: false }] }) })).status, 201);
-      const [target] = await (await admin(`${realm}/users?username=${targetName}&exact=true`)).json();
+      const createdTarget = await admin(`${realm}/users`, { method: 'POST', body: JSON.stringify({ username: targetName, enabled: true, email: 'company@example.invalid', emailVerified: true, firstName: 'Company', lastName: 'Administrator', credentials: [{ type: 'password', value: targetPassword, temporary: false }] }) });
+      assert.equal(createdTarget.status, 201);
+      // The realm may canonicalize usernames to email. Use the identity returned by creation.
+      const targetId = createdTarget.headers.get('location')?.split('/').at(-1);
+      assert(targetId, 'Created directory fixture must provide a Location');
+      const target = await (await admin(`${realm}/users/${encodeURIComponent(targetId)}`)).json();
+      assert.equal(target.id, targetId);
       const role = await (await admin(`${realm}/roles/COMPANY_ADMIN`)).json();
       assert.equal((await admin(`${realm}/users/${target.id}/role-mappings/realm`, { method: 'POST', body: JSON.stringify([role]) })).status, 204);
       return { clientId, clientSecret, subject: target.id, username: targetName, password: targetPassword };
+    },
+    async verifyAdminAuditCapture() {
+      const realmConfig = await (await admin(realm)).json();
+      assert.equal(realmConfig.adminEventsEnabled, true, 'Disposable realm must record administrative events');
+      assert.equal(realmConfig.adminEventsDetailsEnabled, false, 'Disposable realm must omit resource representations');
+      const clientId = `audit-reader-${randomBytes(4).toString('hex')}`;
+      const clientSecret = randomBytes(32).toString('base64url');
+      assert.equal((await admin(`${realm}/clients`, { method: 'POST', body: JSON.stringify({ clientId, secret: clientSecret,
+        publicClient: false, serviceAccountsEnabled: true, standardFlowEnabled: false, directAccessGrantsEnabled: false }) })).status, 201);
+      const [client] = await (await admin(`${realm}/clients?clientId=${clientId}`)).json();
+      const clientScopes = await (await admin(`${realm}/client-scopes`)).json();
+      const adminApiScope = clientScopes.find(scope => scope.name === 'kc-admin-api');
+      assert(adminApiScope, 'Keycloak Admin REST API scope must be available');
+      assert.equal((await admin(`${realm}/clients/${client.id}/default-client-scopes/${adminApiScope.id}`, { method: 'PUT' })).status, 204);
+      const serviceAccount = await (await admin(`${realm}/clients/${client.id}/service-account-user`)).json();
+      const [management] = await (await admin(`${realm}/clients?clientId=realm-management`)).json();
+      const eventRole = await (await admin(`${realm}/clients/${management.id}/roles/view-events`)).json();
+      assert.equal((await admin(`${realm}/users/${serviceAccount.id}/role-mappings/clients/${management.id}`, { method: 'POST', body: JSON.stringify([eventRole]) })).status, 204);
+      const tokenResponse = await fetch(`${base}/realms/${realm}/protocol/openid-connect/token`, { method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }) });
+      assert.equal(tokenResponse.status, 200, 'Dedicated audit reader must authenticate');
+      const { access_token: serviceToken } = await tokenResponse.json();
+      const eventsResponse = await fetch(`${base}/admin/realms/${realm}/admin-events?${new URLSearchParams({ dateFrom: String(Date.now() - 600_000), direction: 'asc', first: '0', max: '100' })}`,
+        { headers: { authorization: `Bearer ${serviceToken}` } });
+      assert.equal(eventsResponse.status, 200, 'Audit reader with view-events must read the event feed');
+      const events = await eventsResponse.json();
+      assert(events.length > 0, 'Administrative operations must be captured');
+      assert(events.every(event => typeof event.id === 'string' && Number.isSafeInteger(event.time)), 'Provider events must include stable IDs and timestamps');
+      assert(events.every(event => event.representation === undefined), 'Administrative event details must remain disabled');
+      const forbiddenWrite = await fetch(`${base}/admin/realms/${realm}`, { method: 'PUT', headers: { authorization: `Bearer ${serviceToken}`, 'content-type': 'application/json' }, body: '{}' });
+      assert.equal(forbiddenWrite.status, 403, 'Audit reader must not administer the realm');
+      return { base, realm, clientId, clientSecret };
     },
     async verifyConfiguration() {
       const representation = await (await admin(realm)).json();

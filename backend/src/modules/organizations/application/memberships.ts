@@ -8,6 +8,7 @@ import type { OrganizationReader } from './context-ports';
 import type { LocalRole, OrganizationType } from '../domain/organization';
 import type { Membership } from '../domain/invitations';
 import type { MembershipDelegationRequest } from './invitation-delegation';
+import type { DriverProvisioningPort } from './driver-provisioning';
 
 export class MembershipUseCaseError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'NOT_FOUND' | 'FORBIDDEN' | 'CONFLICT' | 'UNAVAILABLE') { super(code); }
@@ -16,6 +17,7 @@ export class MembershipUseCaseError extends Error {
 export interface MembershipView {
   readonly id: string; readonly status: Membership['status']; readonly roles: readonly LocalRole[]; readonly revision: number;
   readonly profile: null | { readonly fullName: string; readonly documentType: ColombianDocumentType; readonly documentNumber: string; readonly email: string };
+  readonly organization?: { readonly id: string; readonly organizationType: OrganizationType; readonly name: string };
 }
 
 const selectedScope = (organizationType: OrganizationType, organizationId: string, companyId: string | null): OrganizationScope => ({ kind: 'organization',
@@ -27,37 +29,78 @@ const permissionFor = (organizationType: OrganizationType, companyId: string | n
 
 export function createMemberships(deps: {
   repository: InvitationRepositoryPort & {
-    listMemberships(input: { organizationId: string; organizationType: OrganizationType; status?: Membership['status']; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[] }[]; readonly total: number }>;
+    listMemberships(input: { organizationId: string; organizationType: OrganizationType; status?: Membership['status']; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[] }[]; readonly total: number }>;
+    listMembershipsByCompany(input: { companyId?: string; status?: Membership['status']; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly organization: { readonly id: string; readonly organizationType: OrganizationType; readonly name: string } }[]; readonly total: number }>;
     findMembership(input: { membershipId: string; organizationId: string; organizationType: OrganizationType }): Promise<{ readonly membership: Membership; readonly roles: readonly LocalRole[] } | null>;
-    changeMembership(input: { membershipId: string; expectedRevision: number; actorSubject: string; now: Date; status?: Membership['status']; roles?: readonly string[]; companyId: string | null }): Promise<{
+    changeMembership(input: { membershipId: string; expectedRevision: number; actorSubject: string; now: Date; status?: Membership['status']; roles?: readonly string[]; companyId: string | null; driverProvisioning?: DriverProvisioningPort }): Promise<{
       readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly replacement?: { readonly membership: Membership; readonly roles: readonly LocalRole[] };
     }>;
   };
   organizations: OrganizationReader; authorization: Authorization; identity: IdentityProfileReader; now(): Date;
-  authorizeDelegation(actor: AuthenticatedActor, request: MembershipDelegationRequest): Promise<void>;
+  authorizeDelegation(actor: AuthenticatedActor, request: MembershipDelegationRequest): Promise<void>; driverProvisioning?: DriverProvisioningPort;
 }) {
   async function authorize(actor: AuthenticatedActor, organizationId: string, organizationType: OrganizationType, companyId: string | null, mutation = false) {
     const organization = await deps.organizations.find(organizationId);
     if (!organization || organization.type !== organizationType || (companyId && organizationType !== 'THIRD_PARTY')) throw new MembershipUseCaseError('NOT_FOUND');
-    const scope = organizationType === 'COMPANY' && actor.roles.includes('APP_ADMIN') ? globalScope : selectedScope(organizationType, organizationId, companyId);
+    const scope = actor.roles.includes('APP_ADMIN') ? globalScope : selectedScope(organizationType, organizationId, companyId);
     try { await deps.authorization.requirePermission(actor, permissionFor(organizationType, companyId, mutation), scope); }
     catch (error) { throw new MembershipUseCaseError(error instanceof AuthorizationUnavailable ? 'UNAVAILABLE' : 'FORBIDDEN'); }
   }
   async function profile(subject: string) {
     let value;
     try { value = await deps.identity.read(subject); } catch { throw new MembershipUseCaseError('UNAVAILABLE'); }
-    if (!value || !value.enabled || !value.profileComplete || !value.fullName || !value.documentType || !value.documentNumber || !value.email) throw new MembershipUseCaseError('UNAVAILABLE');
+    if (!value || !value.fullName || !value.documentType || !value.documentNumber || !value.email) throw new MembershipUseCaseError('UNAVAILABLE');
     return { fullName: value.fullName, documentType: value.documentType, documentNumber: value.documentNumber, email: value.email };
   }
-  function view(item: { membership: Membership; roles: readonly LocalRole[] }, personal: MembershipView['profile']): MembershipView {
-    return { id: item.membership.id, status: item.membership.status, roles: item.roles, revision: item.membership.revision, profile: personal };
+  function view(item: { membership: Membership; roles: readonly LocalRole[] }, personal: MembershipView['profile'], organization?: MembershipView['organization']): MembershipView {
+    return { id: item.membership.id, status: item.membership.status, roles: item.roles, revision: item.membership.revision, profile: personal,
+      ...(organization ? { organization } : {}) };
   }
   return {
-    async list(actor: AuthenticatedActor, input: { organizationId: string; organizationType: OrganizationType; companyId: string | null; status?: Membership['status']; page: number; pageSize: number }) {
+    async searchUsers(actor: AuthenticatedActor, input: { organizationId: string; organizationType: OrganizationType; companyId: string | null; search?: string; documentNumber?: string }) {
+      if (!input.search && !input.documentNumber) throw new MembershipUseCaseError('INVALID_REQUEST');
+      await authorize(actor, input.organizationId, input.organizationType, input.companyId, true);
+      if (!deps.identity.search) throw new MembershipUseCaseError('UNAVAILABLE');
+      let matches;
+      try { matches = await deps.identity.search({ text: input.search, documentNumber: input.documentNumber, emailOnly: Boolean(input.search && !input.documentNumber) }); }
+      catch { throw new MembershipUseCaseError('UNAVAILABLE'); }
+      return { items: matches.filter(value => value.enabled && value.profileComplete && value.fullName && value.documentType && value.documentNumber && value.email)
+        .map(value => ({ fullName: value.fullName!, documentType: value.documentType!, documentNumber: value.documentNumber!, email: value.email! })) };
+    },
+    async list(actor: AuthenticatedActor, input: { organizationId: string; organizationType: OrganizationType; companyId: string | null; status?: Membership['status']; search?: string; documentNumber?: string; role?: LocalRole; page: number; pageSize: number }) {
       if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new MembershipUseCaseError('INVALID_REQUEST');
       await authorize(actor, input.organizationId, input.organizationType, input.companyId);
-      const result = await deps.repository.listMemberships(input);
-      const items = await Promise.all(result.items.map(async item => view(item, item.membership.status === 'ACTIVE' ? await profile(item.membership.subject) : null)));
+      let subjects: readonly string[] | undefined;
+      if (input.search || input.documentNumber) {
+        if (!deps.identity.search) throw new MembershipUseCaseError('UNAVAILABLE');
+        try { subjects = (await deps.identity.search({ text: input.search, documentNumber: input.documentNumber })).map(profile => profile.subject); }
+        catch { throw new MembershipUseCaseError('UNAVAILABLE'); }
+      }
+      const result = await deps.repository.listMemberships({ ...input, ...(subjects ? { subjects } : {}) });
+      const items = await Promise.all(result.items.map(async item => {
+        let personal: MembershipView['profile'] = null;
+        try { personal = await profile(item.membership.subject); } catch { /* One unavailable identity profile must not hide the remaining memberships. */ }
+        return view(item, personal);
+      }));
+      return { items, page: input.page, pageSize: input.pageSize, total: result.total };
+    },
+    async listByCompany(actor: AuthenticatedActor, input: { companyId?: string; status?: Membership['status']; search?: string; documentNumber?: string; role?: LocalRole; page: number; pageSize: number }) {
+      if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new MembershipUseCaseError('INVALID_REQUEST');
+      if (!input.companyId && !actor.roles.includes('APP_ADMIN')) throw new MembershipUseCaseError('FORBIDDEN');
+      if (input.companyId) await authorize(actor, input.companyId, 'COMPANY', null);
+      else { try { await deps.authorization.requirePermission(actor, 'users:read', globalScope); } catch { throw new MembershipUseCaseError('FORBIDDEN'); } }
+      let subjects: readonly string[] | undefined;
+      if (input.search || input.documentNumber) {
+        if (!deps.identity.search) throw new MembershipUseCaseError('UNAVAILABLE');
+        try { subjects = (await deps.identity.search({ text: input.search, documentNumber: input.documentNumber })).map(profile => profile.subject); }
+        catch { throw new MembershipUseCaseError('UNAVAILABLE'); }
+      }
+      const result = await deps.repository.listMembershipsByCompany({ ...input, ...(subjects ? { subjects } : {}) });
+      const items = await Promise.all(result.items.map(async item => {
+        let personal: MembershipView['profile'] = null;
+        try { personal = await profile(item.membership.subject); } catch { /* Keep one unavailable identity profile from hiding other company associations. */ }
+        return view(item, personal, item.organization);
+      }));
       return { items, page: input.page, pageSize: input.pageSize, total: result.total };
     },
     async profile(actor: AuthenticatedActor, input: { membershipId: string; organizationId: string; organizationType: OrganizationType; companyId: string | null }) {
@@ -76,7 +119,7 @@ export function createMemberships(deps: {
         companyId: input.companyId, subject: current.membership.subject, roles: input.roles ?? current.roles }); }
       catch { throw new MembershipUseCaseError('FORBIDDEN'); }
       const result = await deps.repository.changeMembership({ membershipId: input.membershipId, expectedRevision: input.expectedRevision, actorSubject: actor.subject,
-        now: deps.now(), ...(input.status ? { status: input.status } : {}), ...(input.roles ? { roles: input.roles } : {}), companyId: input.companyId });
+        now: deps.now(), ...(input.status ? { status: input.status } : {}), ...(input.roles ? { roles: input.roles } : {}), companyId: input.companyId, ...(deps.driverProvisioning ? { driverProvisioning: deps.driverProvisioning } : {}) });
       return view({ membership: result.membership, roles: result.roles }, null);
     },
   };

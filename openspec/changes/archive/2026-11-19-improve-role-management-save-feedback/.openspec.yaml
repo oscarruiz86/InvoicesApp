@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-19
+goal: Dar una respuesta clara al guardar permisos, con confirmación en modal,
+  progreso consistente y conservación del rol seleccionado.

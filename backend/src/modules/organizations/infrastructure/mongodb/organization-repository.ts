@@ -22,7 +22,9 @@ associationSchema.index({ id: 1 }, { unique: true });
 associationSchema.index({ subject: 1, organizationId: 1, capability: 1 }, { unique: true });
 associationSchema.index({ subject: 1, active: 1, organizationId: 1 });
 associationSchema.index({ membershipId: 1, active: 1 }, { sparse: true });
-const relationshipSchema = new Schema({ companyId: identityField, thirdPartyId: identityField, ...stateFields }, { strict: 'throw', versionKey: false, collection: 'company_third_party_relations' });
+const relationshipSchema = new Schema({ companyId: identityField, thirdPartyId: identityField, ...stateFields,
+  createdAt: { type: Date, default: null }, updatedBy: { type: String, default: null, maxlength: 128 }, mutationFence: { type: Number, default: 0 } },
+{ strict: 'throw', versionKey: false, collection: 'company_third_party_relations' });
 relationshipSchema.index({ companyId: 1, thirdPartyId: 1 }, { unique: true });
 
 /** Infrastructure-only model factory, also used by isolated fixtures. Runtime exposes reads only. */

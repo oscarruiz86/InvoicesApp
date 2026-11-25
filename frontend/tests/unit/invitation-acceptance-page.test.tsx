@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createStore } from 'zustand/vanilla';
 import { MemoryRouter } from 'react-router';
@@ -10,9 +10,11 @@ import { ApplicationError } from '@/shared/application/application-error';
 
 const token = 'A'.repeat(43);
 const invitation: InvitationPreview = { organizationId: 'company-1', organizationType: 'COMPANY', organizationName: 'Empresa', recipientEmail: 'person@example.invalid', roles: ['COMPANY_ADMIN'], expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString(), version: 3 };
-function auth(status: 'anonymous' | 'authenticated') {
+function auth(status: 'anonymous' | 'authenticated', email?: string) {
   const login = vi.fn(async () => {}); const logout = vi.fn(async () => {});
-  return { store: Object.assign(createStore(() => ({ status, login, logout })), {}) as unknown as AuthenticationStore, login };
+  const profileStatus = status === 'authenticated' ? 'success' : 'idle';
+  const user = email ? { id: 'person-1', username: null, name: 'Persona', email, roles: [] } : null;
+  return { store: Object.assign(createStore(() => ({ status, profileStatus, user, login, logout, loadUser: vi.fn(async () => {}) })), {}) as unknown as AuthenticationStore, login };
 }
 function api(overrides: Partial<InvitationApi> = {}) {
   return { preview: vi.fn(async () => invitation), accept: vi.fn(async () => ({ invitation: {} as never, membershipId: 'membership-1', membershipRevision: 1 })),
@@ -25,21 +27,21 @@ it('keeps invitation data in the URL, prefills registration email, and accepts f
   openUrl(token); const anonymous = auth('anonymous'); const service = api();
   const { unmount } = render(<MemoryRouter><InvitationAcceptancePage api={service} authentication={anonymous.store} /></MemoryRouter>);
   expect(await screen.findByText('Empresa te invita a vincularte a su organización.')).toBeTruthy();
-  expect(screen.getByText(/entra a Mis invitaciones.*la lista no depende/i)).toBeTruthy();
+  expect(screen.getByText(/inicia sesión o crea una cuenta.*continuarás en Mis invitaciones/i)).toBeTruthy();
   expect(new URLSearchParams(window.location.hash.slice(1)).get('token')).toBe(token);
   expect(sessionStorage.getItem('invoices.invitation-token')).toBeNull();
   await userEvent.setup().click(screen.getByRole('button', { name: 'Crear mi cuenta' }));
-  expect(anonymous.login).toHaveBeenCalledWith('/session', expect.objectContaining({ loginHint: 'person@example.invalid', action: 'register' }));
+  expect(anonymous.login).toHaveBeenCalledWith('/invitations/received', expect.objectContaining({ loginHint: 'person@example.invalid', action: 'register' }));
   expect(sessionStorage.getItem('invoices.invitation-token')).toBeNull();
   unmount();
 
   sessionStorage.clear();
   window.history.replaceState(null, '', '/invitations/accept?token=' + encodeURIComponent(token));
-  const authenticated = auth('authenticated'); const resolvedApi = api();
+  const authenticated = auth('authenticated', invitation.recipientEmail); const resolvedApi = api();
   render(<MemoryRouter><InvitationAcceptancePage api={resolvedApi} authentication={authenticated.store} /></MemoryRouter>);
   await screen.findByText('Empresa te invita a vincularte a su organización.');
   await userEvent.setup().click(screen.getByRole('button', { name: 'Aceptar invitación' }));
-  expect(await screen.findByText(/Invitación aceptada\. Ahora puedes elegir la organización/)).toBeTruthy();
+  expect(await screen.findByText(/Invitación aceptada\. No se pudo activar automáticamente el contexto/)).toBeTruthy();
   expect(resolvedApi.accept).toHaveBeenCalledOnce();
   expect(sessionStorage.getItem('invoices.invitation-token')).toBeNull();
   expect(window.location.search).toBe('');
@@ -56,13 +58,16 @@ it('continues to accept legacy query-string invitation links without moving the 
   expect(sessionStorage.getItem('invoices.invitation-token')).toBeNull();
 });
 
-it('shows a neutral identity mismatch and does not submit twice', async () => {
-  openUrl(token); const authenticated = auth('authenticated'); const accept = vi.fn(async () => { throw new ApplicationError('FORBIDDEN'); });
+it('rejects an unauthorized acceptance and does not submit twice', async () => {
+  openUrl(token); const authenticated = auth('authenticated', invitation.recipientEmail); let reject!: (reason: unknown) => void;
+  const accept = vi.fn(() => new Promise<never>((_resolve, rejectPromise) => { reject = rejectPromise; }));
   const service = api({ accept: accept as never });
   render(<MemoryRouter><InvitationAcceptancePage api={service} authentication={authenticated.store} /></MemoryRouter>);
   await screen.findByText('Empresa te invita a vincularte a su organización.');
   const button = screen.getByRole('button', { name: 'Aceptar invitación' });
-  await userEvent.setup().click(button);
+  await userEvent.setup().dblClick(button);
+  expect(accept).toHaveBeenCalledOnce();
+  await act(async () => { reject(new ApplicationError('FORBIDDEN')); });
   expect(await screen.findByText('No se pudo autorizar la operación. Revisa la cuenta o solicita ayuda a la organización.')).toBeTruthy();
   await waitFor(() => expect(accept).toHaveBeenCalledOnce());
 });

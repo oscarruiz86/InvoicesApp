@@ -7,6 +7,7 @@ import { InvitationDelegationDenied, type InvitationDelegationRequest } from './
 import type { Invitation, InvitationStatus } from '../domain/invitations';
 import { normalizeRecipientEmail, normalizeRoles } from '../domain/invitations';
 import type { OrganizationReader } from './context-ports';
+import type { DriverProvisioningPort } from './driver-provisioning';
 
 export class InvitationUseCaseError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'NOT_FOUND' | 'EXPIRED' | 'CONFLICT' | 'FORBIDDEN' | 'UNAVAILABLE' | 'IDENTITY_MISMATCH' | 'EMAIL_UNVERIFIED' | 'PROFILE_INCOMPLETE') { super(code); }
@@ -16,17 +17,19 @@ export interface InvitationRepositoryPort {
   createPending(invitation: Invitation, now: Date, notification: InvitationNotificationRequest): Promise<Invitation>;
   findInvitation(id: string): Promise<Invitation | null>;
   findInvitationByToken(token: string, now: Date): Promise<Invitation | null>;
-  listInvitations(input: { organizationId: string; status?: InvitationStatus; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }>;
+  listInvitations(input: { organizationId: string; organizationType?: Invitation['organizationType'] | 'ALL'; companyId?: string; companyWide?: boolean;
+    status?: InvitationStatus; email?: string; role?: Invitation['roles'][number]; delivery?: Invitation['deliveryStatus']; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }>;
   listReceivedInvitations(input: { recipientEmail: string; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }>;
   resendPending(input: { id: string; expectedVersion: number; tokenHash: string; attemptId: string; expiresAt: Date; now: Date; notification: InvitationNotificationRequest }): Promise<Invitation>;
   resolveInvitation(id: string, expectedVersion: number, status: 'ACCEPTED' | 'REJECTED' | 'CANCELLED', now: Date, acceptedSubject?: string | null): Promise<Invitation>;
-  accept(input: { invitationId: string; token: string | null; expectedVersion: number; subject: string; email: string; emailVerified: true; profileComplete: true; now: Date; membershipId: string }): Promise<{ invitation: Invitation; membership: { readonly id: string; readonly revision: number } }>;
+  accept(input: { invitationId: string; token: string | null; expectedVersion: number; subject: string; email: string; emailVerified: true; profileComplete: true; now: Date; membershipId: string; driverProvisioning?: DriverProvisioningPort }): Promise<{ invitation: Invitation; membership: { readonly id: string; readonly revision: number } }>;
 }
 
 export interface InvitationNotificationRequest { readonly type: 'INVITATION_CREATED' | 'INVITATION_RESENT'; readonly invitationId: string; readonly tokenVersion: number; readonly attemptId: string; readonly token: string; readonly recipient: string; readonly organizationName: string; readonly roles: readonly string[]; readonly expiresAt: Date; readonly createdAt: Date }
 
 export interface InvitationView {
   readonly id: string; readonly organizationId: string; readonly organizationType: Invitation['organizationType']; readonly companyId: string | null;
+  readonly organizationName?: string; readonly companyName?: string;
   readonly recipientEmail: string; readonly roles: Invitation['roles']; readonly status: Invitation['status']; readonly expiresAt: string;
   readonly version: number; readonly deliveryStatus: Invitation['deliveryStatus']; readonly createdAt: string; readonly resolvedAt: string | null;
 }
@@ -50,7 +53,7 @@ const manageInvitationScope = (invitation: Invitation): OrganizationScope => inv
   ? { kind: 'organization', companyId: null, thirdPartyId: invitation.organizationId } : invitationScope(invitation);
 
 export function createInvitations(deps: {
-  repository: InvitationRepositoryPort; organizations: OrganizationReader; authorization: Authorization;
+  repository: InvitationRepositoryPort; organizations: OrganizationReader; authorization: Authorization; driverProvisioning?: DriverProvisioningPort;
   identity: IdentityProfileReader; now(): Date; nextId(): string; ttlHours: number;
   issueCredential(now: Date, ttlHours: number): InvitationCredential;
   authorizeDelegation(actor: AuthenticatedActor, request: InvitationDelegationRequest): Promise<void>;
@@ -64,9 +67,9 @@ export function createInvitations(deps: {
     const organization = await deps.organizations.find(invitation.organizationId);
     if (!organization || organization.type !== invitation.organizationType) throw new InvitationUseCaseError('NOT_FOUND');
     try {
-      const permission = invitation.organizationType === 'COMPANY' ? 'users:read'
+      const permission = actor.roles.includes('APP_ADMIN') ? 'users:read' : invitation.organizationType === 'COMPANY' ? 'users:read'
         : invitation.roles.includes('DRIVER') ? 'drivers:read' : 'users:read';
-      await deps.authorization.requirePermission(actor, permission, manageInvitationScope(invitation));
+      await deps.authorization.requirePermission(actor, permission, actor.roles.includes('APP_ADMIN') ? globalScope : manageInvitationScope(invitation));
     } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
   }
   async function activeInvitation(token: string) {
@@ -87,15 +90,50 @@ export function createInvitations(deps: {
     return { invitation, identity };
   }
   return {
-    async list(actor: AuthenticatedActor, input: { organizationId: string; organizationType: Invitation['organizationType']; companyId: string | null; status?: InvitationStatus; page: number; pageSize: number }) {
+    async list(actor: AuthenticatedActor, input: { organizationId: string; organizationType: Invitation['organizationType'] | 'ALL'; companyId: string | null;
+      status?: InvitationStatus; email?: string; role?: Invitation['roles'][number]; delivery?: Invitation['deliveryStatus']; page: number; pageSize: number }) {
       if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new InvitationUseCaseError('INVALID_REQUEST');
+      if (input.organizationType === 'ALL') {
+        const companyId = input.companyId;
+        const appAdmin = actor.roles.includes('APP_ADMIN');
+        if (companyId && input.organizationId !== companyId || !companyId && (!appAdmin || input.organizationId !== 'all')) throw new InvitationUseCaseError('NOT_FOUND');
+        if (companyId) {
+          const company = await deps.organizations.find(companyId);
+          if (!company || company.type !== 'COMPANY') throw new InvitationUseCaseError('NOT_FOUND');
+        }
+        const scope: OrganizationScope = appAdmin ? globalScope : { kind: 'organization', companyId: companyId!, thirdPartyId: null };
+        try { await deps.authorization.requirePermission(actor, 'users:read', scope); } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
+        const result = await deps.repository.listInvitations({ organizationId: companyId ?? 'all', organizationType: 'ALL',
+          ...(companyId ? { companyId } : {}), companyWide: true, ...(input.status ? { status: input.status } : {}), ...(input.email ? { email: input.email } : {}),
+          ...(input.role ? { role: input.role } : {}), ...(input.delivery ? { delivery: input.delivery } : {}), page: input.page, pageSize: input.pageSize, now: deps.now() });
+        const organizationIds = [...new Set(result.items.map(invitation => invitation.organizationId))];
+        const organizations = await Promise.all(organizationIds.map(async organizationId => [organizationId, await deps.organizations.find(organizationId)] as const));
+        const names = new Map(organizations.map(([organizationId, organization]) => [organizationId, organization?.name ?? 'Organización no disponible']));
+        const companyNames = await Promise.all(result.items.map(async invitation => {
+          if (invitation.organizationType === 'COMPANY') return [invitation.id, names.get(invitation.organizationId) ?? 'Organización no disponible'] as const;
+          const company = invitation.companyId ? await deps.organizations.find(invitation.companyId) : null;
+          return [invitation.id, company?.type === 'COMPANY' ? company.name : '—'] as const;
+        }));
+        const companyNameByInvitation = new Map(companyNames);
+        return { items: result.items.map(invitation => ({ ...invitationView(invitation), organizationName: names.get(invitation.organizationId) ?? 'Organización no disponible', companyName: companyNameByInvitation.get(invitation.id) })),
+          page: input.page, pageSize: input.pageSize, total: result.total };
+      }
       const organization = await deps.organizations.find(input.organizationId);
       if (!organization || organization.type !== input.organizationType || (input.companyId && input.organizationType !== 'THIRD_PARTY')) throw new InvitationUseCaseError('NOT_FOUND');
-      const probe: Pick<Invitation, 'organizationType' | 'organizationId' | 'companyId'> = input;
-      const permission = input.organizationType === 'COMPANY' ? 'users:read' : input.companyId ? 'users:read' : 'drivers:read';
-      try { await deps.authorization.requirePermission(actor, permission, invitationScope(probe)); } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
-      const result = await deps.repository.listInvitations({ organizationId: input.organizationId, ...(input.status ? { status: input.status } : {}), page: input.page, pageSize: input.pageSize, now: deps.now() });
-      return { items: result.items.map(invitationView), page: input.page, pageSize: input.pageSize, total: result.total };
+      const probe: Pick<Invitation, 'organizationType' | 'organizationId' | 'companyId'> = {
+        organizationId: input.organizationId, organizationType: input.organizationType as Invitation['organizationType'], companyId: input.companyId,
+      };
+      const permission = actor.roles.includes('APP_ADMIN') ? 'users:read' : input.organizationType === 'COMPANY' ? 'users:read' : input.companyId ? 'users:read' : 'drivers:read';
+      try { await deps.authorization.requirePermission(actor, permission, actor.roles.includes('APP_ADMIN') ? globalScope : invitationScope(probe)); } catch { throw new InvitationUseCaseError('FORBIDDEN'); }
+      const result = await deps.repository.listInvitations({ organizationId: input.organizationId,
+        ...(input.organizationType === 'THIRD_PARTY' && input.companyId ? { companyId: input.companyId } : {}),
+        organizationType: input.organizationType, ...(input.status ? { status: input.status } : {}), ...(input.email ? { email: input.email } : {}),
+        ...(input.role ? { role: input.role } : {}), ...(input.delivery ? { delivery: input.delivery } : {}), page: input.page, pageSize: input.pageSize, now: deps.now() });
+      const items = await Promise.all(result.items.map(async invitation => {
+        const company = invitation.organizationType === 'COMPANY' ? organization : invitation.companyId ? await deps.organizations.find(invitation.companyId) : null;
+        return { ...invitationView(invitation), companyName: company?.type === 'COMPANY' ? company.name : '—' };
+      }));
+      return { items, page: input.page, pageSize: input.pageSize, total: result.total };
     },
     async received(actor: AuthenticatedActor, input: { page: number; pageSize: number }) {
       if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) throw new InvitationUseCaseError('INVALID_REQUEST');
@@ -151,12 +189,12 @@ export function createInvitations(deps: {
       let identity;
       try { identity = await readInvitationIdentity(deps.identity, { subject: actor.subject, recipientEmail: invitation.recipientEmail }); }
       catch (error) { throw new InvitationUseCaseError(error instanceof InvitationIdentityError ? (error.code === 'IDENTITY_UNAVAILABLE' ? 'UNAVAILABLE' : error.code) : 'FORBIDDEN'); }
-      const result = await deps.repository.accept({ invitationId: invitation.id, token, expectedVersion, ...identity, now: deps.now(), membershipId: deps.nextId() });
+      const result = await deps.repository.accept({ invitationId: invitation.id, token, expectedVersion, ...identity, now: deps.now(), membershipId: deps.nextId(), ...(deps.driverProvisioning ? { driverProvisioning: deps.driverProvisioning } : {}) });
       return { invitation: invitationView(result.invitation), membershipId: result.membership.id, membershipRevision: result.membership.revision };
     },
     async acceptReceived(actor: AuthenticatedActor, id: string, expectedVersion: number) {
       const { invitation, identity } = await activeReceivedInvitation(actor, id);
-      const result = await deps.repository.accept({ invitationId: invitation.id, token: null, expectedVersion, ...identity, now: deps.now(), membershipId: deps.nextId() });
+      const result = await deps.repository.accept({ invitationId: invitation.id, token: null, expectedVersion, ...identity, now: deps.now(), membershipId: deps.nextId(), ...(deps.driverProvisioning ? { driverProvisioning: deps.driverProvisioning } : {}) });
       return { invitation: invitationView(result.invitation), membershipId: result.membership.id, membershipRevision: result.membership.revision };
     },
     async reject(actor: AuthenticatedActor, token: string, expectedVersion: number) {

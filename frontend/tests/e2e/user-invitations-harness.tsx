@@ -1,6 +1,9 @@
 import { createRoot } from 'react-dom/client';
-import { MemoryRouter } from 'react-router';
+import { Link, MemoryRouter } from 'react-router';
 import { createStore } from 'zustand/vanilla';
+import { Avatar, Button, CssBaseline, Stack, ThemeProvider } from '@mui/material';
+import { AppLayout } from '@/shared/components/app-layout';
+import { theme } from '@/shared/theme/theme';
 import { createAuthorizationStore } from '@/modules/authentication/presentation/authorization-store';
 import type { PermissionScope } from '@/modules/authentication/domain/permissions';
 import type { SessionPort } from '@/modules/authentication/application/session-ports';
@@ -18,11 +21,15 @@ const api: InvitationApi = {
   list: async () => ({ items: [], page: 1, pageSize: 20, total: 0 }), create: async () => { throw new Error('not used'); }, cancel: async () => { throw new Error('not used'); }, resend: async () => { throw new Error('not used'); },
   preview: async () => { throw new Error('not used'); }, accept: async () => { throw new Error('not used'); }, reject: async () => { throw new Error('not used'); },
   received: async () => ({ items: [], page: 1, pageSize: 20, total: 0 }), acceptReceived: async () => { throw new Error('not used'); }, rejectReceived: async () => { throw new Error('not used'); },
-  memberships: async () => ({ items: [currentMember], page: 1, pageSize: 20, total: 1 }), profile: async () => currentMember, changeRoles: async () => currentMember,
+  thirdParties: async () => [], searchUsers: async () => [], memberships: async () => ({ items: [currentMember], page: 1, pageSize: 20, total: 1 }), membershipsByCompany: async () => ({ items: [currentMember], page: 1, pageSize: 20, total: 1 }), membershipsAll: async () => ({ items: [currentMember], page: 1, pageSize: 20, total: 1 }), profile: async () => currentMember, changeRoles: async () => currentMember,
   changeStatus: async (_scope, _target, _id, _revision, status) => { currentMember = { ...currentMember, status, revision: currentMember.revision + 1 }; return currentMember; },
 };
 const activeContext = { kind: 'ORGANIZATION', organizationId: scope.companyId!, organizationType: 'COMPANY', organizationName: 'Empresa de prueba', roles: ['APP_ADMIN'], authorization: { subject: 'browser-test', scope, roles: ['APP_ADMIN'], permissions: ['users:read'], policyVersion: '1', contextRevision: '1', evaluatedAt: new Date().toISOString(), refreshAfterSeconds: 30 } };
 const context = createStore(() => ({ status: 'ready', activeContext, generation: 1 })) as unknown as ContextStore;
 (context as unknown as { capture: () => unknown }).capture = () => ({ scope, signal: new AbortController().signal, isCurrent: () => true, release: () => {} });
 
-createRoot(document.getElementById('root')!).render(<MemoryRouter><MembershipPage api={api} context={context} authorization={authorization} /></MemoryRouter>);
+createRoot(document.getElementById('root')!).render(<ThemeProvider theme={theme}><CssBaseline /><MemoryRouter>
+  <AppLayout navigation={<Stack><Button component={Link} to="/">Inicio</Button><Button component={Link} to="/companies">Empresas</Button><Button component={Link} to="/organization-memberships">Asociados</Button></Stack>} account={<Avatar>LR</Avatar>}>
+    <MembershipPage api={api} context={context} authorization={authorization} />
+  </AppLayout>
+</MemoryRouter></ThemeProvider>);

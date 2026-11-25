@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { Schema, Types, type ClientSession, type Connection } from 'mongoose';
 import { InvitationDomainError, normalizeRecipientEmail, normalizeRoles, type Invitation, type Membership } from '../../domain/invitations';
 import type { LocalRole, OrganizationType } from '../../domain/organization';
+import type { DriverProvisioningPort } from '../../application/driver-provisioning';
 import { organizationModels } from './organization-repository';
 import { hashInvitationToken, matchesInvitationToken } from '../invitation-tokens';
+import { createMongoAuditWriter, prepareMongoAudit } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 export class InvitationRepositoryError extends Error {
   constructor(readonly code: 'INVALID_RECORD' | 'DUPLICATE_PENDING_INVITATION' | 'DUPLICATE_MEMBERSHIP' | 'IDENTITY_MISMATCH' | 'INVITATION_EXPIRED' | 'INVALID_ROLES' | 'LAST_ROLE_REQUIRED' | 'LAST_ADMINISTRATOR_REQUIRED' | 'VERSION_CONFLICT' | 'RECORD_NOT_FOUND' | 'AUTHORITY_REVOKED' | 'STORAGE_UNAVAILABLE') { super(code); }
@@ -21,6 +23,7 @@ const invitationSchema = new Schema({
 }, { strict: 'throw', versionKey: false, collection: 'organization_invitations' });
 invitationSchema.index({ id: 1 }, { unique: true });
 invitationSchema.index({ organizationId: 1, status: 1, createdAt: -1, id: 1 });
+invitationSchema.index({ companyId: 1, createdAt: -1, id: 1 });
 invitationSchema.index({ status: 1, expiresAt: 1 });
 invitationSchema.index({ tokenHash: 1 }, { unique: true });
 invitationSchema.index({ recipientEmail: 1, organizationId: 1 }, { unique: true, partialFilterExpression: { status: 'PENDING' } });
@@ -46,6 +49,8 @@ function mapError(error: unknown, duplicateCode: 'DUPLICATE_PENDING_INVITATION' 
   throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
 }
 
+const regexLiteral = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 function validatedRoles(type: OrganizationType, roles: readonly string[]): LocalRole[] {
   if (!roles.length) throw new InvitationRepositoryError('LAST_ROLE_REQUIRED');
   try { return normalizeRoles(type, roles); }
@@ -60,7 +65,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
 }) {
   let initialized: Promise<void> | undefined;
   async function initialize(connection: Connection) {
-    if (!initialized) initialized = Promise.all([invitationModel(connection).init(), membershipModel(connection).init(), ...Object.values(organizationModels(connection)).map(model => model.init()),
+    if (!initialized) initialized = Promise.all([invitationModel(connection).init(), membershipModel(connection).init(), prepareMongoAudit(connection), ...Object.values(organizationModels(connection)).map(model => model.init()),
       connection.collection('organization_invitation_events').createIndex({ eventId: 1 }, { unique: true }),
       connection.collection('organization_invitation_events').createIndex({ invitationId: 1, at: 1, eventId: 1 }),
       connection.collection('organization_membership_events').createIndex({ eventId: 1 }, { unique: true }),
@@ -93,6 +98,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
             for (const prior of expired) await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(),
               invitationId: prior.id, organizationId: prior.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: now, version: Number(prior.version) + 1 }, { session });
           }
+          if (guards?.revalidateAndCoordinate && !await guards.revalidateAndCoordinate(invitation, session)) throw new InvitationRepositoryError('AUTHORITY_REVOKED');
           await invitations.create([invitation], { session });
           await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: invitation.id,
             organizationId: invitation.organizationId, actorSubject: invitation.invitedBy, action: 'INVITATION_CREATED', at: now,
@@ -112,7 +118,8 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         return value as Invitation | null;
       } catch (error) { return mapError(error); }
     },
-    async listInvitations(input: { organizationId: string; status?: Invitation['status']; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }> {
+    async listInvitations(input: { organizationId: string; organizationType?: Invitation['organizationType'] | 'ALL'; companyId?: string; companyWide?: boolean;
+      status?: Invitation['status']; email?: string; role?: Invitation['roles'][number]; delivery?: Invitation['deliveryStatus']; page: number; pageSize: number; now: Date }): Promise<{ readonly items: readonly Invitation[]; readonly total: number }> {
       if (!input.organizationId || !Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) {
         throw new InvitationRepositoryError('INVALID_RECORD');
       }
@@ -120,9 +127,20 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         const connection = await connect();
         await initialize(connection);
         const model = invitationModel(connection);
-        const filter = input.status === 'PENDING' ? { organizationId: input.organizationId, status: 'PENDING', expiresAt: { $gt: input.now } }
-          : input.status === 'EXPIRED' ? { organizationId: input.organizationId, $or: [{ status: 'EXPIRED' }, { status: 'PENDING', expiresAt: { $lte: input.now } }] }
-            : { organizationId: input.organizationId, ...(input.status ? { status: input.status } : {}) };
+        const organizationFilter: Record<string, unknown> = input.companyWide
+          ? input.organizationType === 'ALL'
+            ? input.companyId ? { $or: [{ organizationType: 'COMPANY', organizationId: input.companyId }, { organizationType: 'THIRD_PARTY', companyId: input.companyId }] }
+              : { organizationType: { $in: ['COMPANY', 'THIRD_PARTY'] } }
+            : { organizationType: 'THIRD_PARTY', companyId: input.companyId }
+          : { organizationId: input.organizationId, ...(input.companyId ? { companyId: input.companyId } : {}), ...(input.organizationType ? { organizationType: input.organizationType } : {}) };
+        const predicates: Record<string, unknown>[] = [organizationFilter];
+        if (input.status === 'PENDING') predicates.push({ status: 'PENDING', expiresAt: { $gt: input.now } });
+        else if (input.status === 'EXPIRED') predicates.push({ $or: [{ status: 'EXPIRED' }, { status: 'PENDING', expiresAt: { $lte: input.now } }] });
+        else if (input.status) predicates.push({ status: input.status });
+        if (input.email) predicates.push({ recipientEmail: { $regex: regexLiteral(input.email.trim()), $options: 'i' } });
+        if (input.role) predicates.push({ roles: input.role });
+        if (input.delivery) predicates.push({ deliveryStatus: input.delivery });
+        const filter = predicates.length === 1 ? organizationFilter : { $and: predicates };
         const [values, total] = await Promise.all([
           model.find(filter).sort({ createdAt: -1, id: -1 }).skip((input.page - 1) * input.pageSize).limit(input.pageSize).lean().exec(),
           model.countDocuments(filter).exec(),
@@ -225,19 +243,22 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
               $set: { status: 'EXPIRED', resolvedAt: input.now }, $inc: { version: 1 },
             }, { session });
             if (expired.modifiedCount === 1) {
-              await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
+
+await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
                 organizationId: current.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: input.now, version: current.version + 1 }, { session });
             }
             outcome = new InvitationRepositoryError('INVITATION_EXPIRED');
             return;
           }
+          if (guards?.revalidateAndCoordinate && !await guards.revalidateAndCoordinate(current, session)) { outcome = new InvitationRepositoryError('AUTHORITY_REVOKED'); return; }
           const updated = await model.findOneAndUpdate({ id: current.id, status: 'PENDING', version: input.expectedVersion, expiresAt: { $gt: input.now } }, {
             $set: { tokenHash: input.tokenHash, expiresAt: input.expiresAt, attemptId: input.attemptId, deliveryStatus: 'UNKNOWN' },
             $inc: { version: 1, tokenVersion: 1 },
           }, { session, returnDocument: 'after', runValidators: true }).lean().exec();
           if (!updated) { outcome = new InvitationRepositoryError('VERSION_CONFLICT'); return; }
           result = updated as Invitation;
-          await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
+
+await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
             organizationId: current.organizationId, actorSubject: null, action: 'INVITATION_RESENT', at: input.now,
             roles: current.roles, version: result.version, tokenVersion: result.tokenVersion }, { session });          const notification = input.notification;
           if (notification && guards?.enqueueInvitationNotification) await guards.enqueueInvitationNotification({
@@ -291,7 +312,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
     },
     async accept(input: {
       invitationId: string; token: string | null; expectedVersion: number; subject: string; email: string | null; emailVerified: boolean;
-      profileComplete: boolean; now: Date; membershipId: string;
+      profileComplete: boolean; now: Date; membershipId: string; driverProvisioning?: DriverProvisioningPort;
     }): Promise<{ invitation: Invitation; membership: Membership }> {
       if (!guards) throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
       if (!input.subject || !input.email || !input.emailVerified || !input.profileComplete) throw new InvitationRepositoryError('IDENTITY_MISMATCH');
@@ -336,6 +357,10 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
           const roleCollection = connection.collection('organization_associations');
           await roleCollection.insertMany(current.roles.map(capability => ({ id: new Types.ObjectId().toString(), subject: input.subject,
             organizationId: current.organizationId, capability, assigned: true, active: true, revision: 1, updatedAt: input.now, membershipId: membership.id })), { session });
+          if (current.organizationType === 'THIRD_PARTY' && current.roles.includes('DRIVER')) {
+            if (!input.driverProvisioning) throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
+            await input.driverProvisioning.provision({ membership, roles: current.roles, actorSubject: input.subject, now: input.now, source: 'INVITATION' }, session);
+          }
           await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
             organizationId: current.organizationId, subject: input.subject, action: 'INVITATION_ACCEPTED', at: input.now, version: updated.version }, { session });
           result = { invitation: updated, membership };
@@ -368,7 +393,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         return updated as Membership;
       } catch (error) { return mapError(error); }
     },
-    async listMemberships(input: { organizationId: string; organizationType: OrganizationType; status?: 'ACTIVE' | 'INACTIVE'; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[] }[]; readonly total: number }> {
+    async listMemberships(input: { organizationId: string; organizationType: OrganizationType; status?: 'ACTIVE' | 'INACTIVE'; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[] }[]; readonly total: number }> {
       if (!input.organizationId || !Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) {
         throw new InvitationRepositoryError('INVALID_RECORD');
       }
@@ -376,7 +401,14 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
         const connection = await connect();
         await initialize(connection);
         const memberships = membershipModel(connection);
-        const filter = { organizationId: input.organizationId, ...(input.status ? { status: input.status } : {}) };
+        if (input.subjects && !input.subjects.length) return { items: [], total: 0 };
+        const filter: Record<string, unknown> = { organizationId: input.organizationId, ...(input.status ? { status: input.status } : {}), ...(input.subjects ? { subject: { $in: input.subjects } } : {}) };
+        if (input.role) {
+          const assignments = await connection.collection('organization_associations').find({ organizationId: input.organizationId, capability: input.role, assigned: { $ne: false } }, { projection: { membershipId: 1, _id: 0 } }).toArray();
+          const membershipIds = assignments.map(value => value.membershipId).filter((value): value is string => typeof value === 'string');
+          if (!membershipIds.length) return { items: [], total: 0 };
+          filter.id = { $in: membershipIds };
+        }
         const [values, total] = await Promise.all([
           memberships.find(filter).sort({ subject: 1, id: 1 }).skip((input.page - 1) * input.pageSize).limit(input.pageSize).lean().exec(),
           memberships.countDocuments(filter).exec(),
@@ -391,6 +423,58 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
           const roles = [...new Set(assignments.filter(assignment => assignment.membershipId === membership.id && assignment.subject === membership.subject && assignment.assigned !== false)
             .map(assignment => String(assignment.capability)))];
           return { membership, roles: validatedRoles(input.organizationType, roles) };
+        });
+        return { items, total };
+      } catch (error) { return mapError(error); }
+    },
+    async listMembershipsByCompany(input: { companyId?: string; status?: 'ACTIVE' | 'INACTIVE'; role?: LocalRole; subjects?: readonly string[]; page: number; pageSize: number }): Promise<{ readonly items: readonly { readonly membership: Membership; readonly roles: readonly LocalRole[]; readonly organization: { readonly id: string; readonly organizationType: OrganizationType; readonly name: string } }[]; readonly total: number }> {
+      if (!Number.isSafeInteger(input.page) || input.page < 1 || !Number.isSafeInteger(input.pageSize) || input.pageSize < 1 || input.pageSize > 100) {
+        throw new InvitationRepositoryError('INVALID_RECORD');
+      }
+      try {
+        const connection = await connect();
+        await initialize(connection);
+        const companies = connection.collection('organizations');
+        let organizations;
+        if (input.companyId) {
+          const company = await companies.findOne({ id: input.companyId, type: 'COMPANY', active: true }, { projection: { _id: 0, id: 1, type: 1, name: 1 } });
+          if (!company) throw new InvitationRepositoryError('RECORD_NOT_FOUND');
+          const relations = await connection.collection('company_third_party_relations').find({ companyId: input.companyId, active: true }, { projection: { thirdPartyId: 1, _id: 0 } }).toArray();
+          const thirdPartyIds = relations.map(value => value.thirdPartyId).filter((value): value is string => typeof value === 'string');
+          organizations = await companies.find({ $or: [{ id: input.companyId, type: 'COMPANY', active: true },
+            { id: { $in: thirdPartyIds }, type: 'THIRD_PARTY', active: true }] }, { projection: { _id: 0, id: 1, type: 1, name: 1 } }).toArray();
+        } else {
+          organizations = await companies.find({ type: { $in: ['COMPANY', 'THIRD_PARTY'] }, active: true }, { projection: { _id: 0, id: 1, type: 1, name: 1 } }).toArray();
+        }
+        const organizationById = new Map(organizations.map(value => [String(value.id), {
+          id: String(value.id), organizationType: value.type as OrganizationType, name: String(value.name),
+        }]));
+        const organizationIds = [...organizationById.keys()];
+        if (!organizationIds.length || input.subjects?.length === 0) return { items: [], total: 0 };
+        const memberships = membershipModel(connection);
+        const filter: Record<string, unknown> = { organizationId: { $in: organizationIds }, ...(input.status ? { status: input.status } : {}),
+          ...(input.subjects ? { subject: { $in: input.subjects } } : {}) };
+        if (input.role) {
+          const matchingAssignments = await connection.collection('organization_associations').find({ organizationId: { $in: organizationIds }, capability: input.role,
+            assigned: { $ne: false } }, { projection: { membershipId: 1, _id: 0 } }).toArray();
+          const membershipIds = matchingAssignments.map(value => value.membershipId).filter((value): value is string => typeof value === 'string');
+          if (!membershipIds.length) return { items: [], total: 0 };
+          filter.id = { $in: membershipIds };
+        }
+        const [values, total] = await Promise.all([
+          memberships.find(filter).sort({ organizationId: 1, subject: 1, id: 1 }).skip((input.page - 1) * input.pageSize).limit(input.pageSize).lean().exec(),
+          memberships.countDocuments(filter).exec(),
+        ]);
+        if (!values.length) return { items: [], total };
+        const ids = values.map(value => String(value.id));
+        const assignments = await connection.collection('organization_associations').find({ organizationId: { $in: organizationIds }, membershipId: { $in: ids } }).sort({ capability: 1 }).toArray();
+        const items = values.flatMap(value => {
+          const membership = value as Membership;
+          const organization = organizationById.get(membership.organizationId);
+          if (!organization) return [];
+          const roles = [...new Set(assignments.filter(assignment => assignment.organizationId === membership.organizationId && assignment.membershipId === membership.id
+            && assignment.subject === membership.subject && assignment.assigned !== false).map(assignment => String(assignment.capability)))];
+          return [{ membership, roles: validatedRoles(organization.organizationType, roles), organization }];
         });
         return { items, total };
       } catch (error) { return mapError(error); }
@@ -413,7 +497,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
     async changeMembership(input: {
       membershipId: string; expectedRevision: number; actorSubject: string; now: Date; status?: 'ACTIVE' | 'INACTIVE'; roles?: readonly string[];
       companyId?: string | null;
-      replacement?: { membershipId: string; expectedRevision: number; roles: readonly string[]; status?: 'ACTIVE' | 'INACTIVE' };
+      replacement?: { membershipId: string; expectedRevision: number; roles: readonly string[]; status?: 'ACTIVE' | 'INACTIVE' }; driverProvisioning?: DriverProvisioningPort;
     }): Promise<{ membership: Membership; roles: LocalRole[]; replacement?: { membership: Membership; roles: LocalRole[] } }> {
       const authorizeMembershipChange = guards?.authorizeMembershipChange;
       if (!authorizeMembershipChange || !input.actorSubject) throw new InvitationRepositoryError('AUTHORITY_REVOKED');
@@ -509,7 +593,27 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
           const changedReplacement = replacement && replacementRoles && replacementStatus
             ? await saveMembership(replacement, input.replacement!.expectedRevision, replacementRoles, replacementStatus, replacementAssignments) : undefined;
           if (changedTarget.membership === target && (!changedReplacement || changedReplacement.membership === replacement)) return { membership: target, roles: targetRoles, ...(changedReplacement ? { replacement: changedReplacement } : {}) };
+          const synchronizeDriverRole = async (membership: Membership, beforeRoles: readonly LocalRole[], afterRoles: readonly LocalRole[]) => {
+            if (beforeRoles.includes('DRIVER') === afterRoles.includes('DRIVER')) return;
+            if (!input.driverProvisioning) throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
+            await input.driverProvisioning.synchronizeRoles({ membership, beforeRoles, afterRoles, actorSubject: input.actorSubject, now }, session);
+          };
+          await synchronizeDriverRole(changedTarget.membership, targetCurrentRoles as LocalRole[], targetRoles);
+          if (changedReplacement && replacement && replacementRoles) {
+            await synchronizeDriverRole(changedReplacement.membership,
+              replacementAssignments.filter(value => value.assigned !== false).map(value => String(value.capability) as LocalRole), replacementRoles);
+          }
           const eventId = randomUUID();
+          const audit = createMongoAuditWriter(connection, session);
+          const recordMembershipAudit = async (before: Membership, after: Membership, actionId: string) => {
+            await audit.record({ eventId: actionId, occurredAt: now.toISOString(), source: 'organizations', actor: { kind: 'user', subject: input.actorSubject },
+              action: 'MEMBERSHIP_UPDATED', result: 'allowed', reason: 'ASSOCIATION', correlationId: actionId,
+              scope: { companyId: organizationType === 'COMPANY' ? target.organizationId : null,
+                thirdPartyId: organizationType === 'THIRD_PARTY' ? target.organizationId : null },
+              resource: { type: 'organization-membership', id: before.id }, beforeVersion: String(before.revision), afterVersion: String(after.revision) });
+          };
+          await recordMembershipAudit(target, changedTarget.membership, eventId);
+          if (changedReplacement && replacement) await recordMembershipAudit(replacement, changedReplacement.membership, randomUUID());
           await connection.collection('organization_membership_events').insertOne({ eventId, organizationId: target.organizationId, actorSubject: input.actorSubject,
             membershipId: target.id, action: 'MEMBERSHIP_UPDATED', at: now, beforeRevision: target.revision, revision: changedTarget.membership.revision,
             beforeRoles: targetCurrentRoles, afterRoles: targetRoles, beforeStatus: target.status, afterStatus: targetStatus,

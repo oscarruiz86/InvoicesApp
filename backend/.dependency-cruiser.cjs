@@ -5,7 +5,10 @@ module.exports = {
     ...readdirSync('src/modules', { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => ({
       name: `no-other-context-adapters-${entry.name}`, severity: 'error',
       from: { path: `^src/modules/${entry.name}/` },
-      to: { path: `^src/modules/(?!${entry.name}/)[^/]+/infrastructure/` },
+      // Organization membership changes must commit their sanitized Audit fact in the same Mongo transaction.
+      to: { path: entry.name === 'organizations'
+        ? `^src/modules/(?!organizations/|audit/infrastructure/mongodb/audit-writer)[^/]+/infrastructure/`
+        : `^src/modules/(?!${entry.name}/)[^/]+/infrastructure/` },
     })),
     {
       "name": "no-cycles",
@@ -30,7 +33,7 @@ module.exports = {
         "path": "^src/.*/domain/"
       },
       "to": {
-        "pathNot": "^src/(modules/[^/]+/domain/|shared/domain/)"
+        "pathNot": "^(src/(modules/[^/]+/domain/|shared/domain/)|\\.\\./shared/invoice-qr\\.ts$)"
       }
     },
     {
