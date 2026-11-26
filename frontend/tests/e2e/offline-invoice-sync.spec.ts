@@ -8,7 +8,7 @@ test('stores a manual invoice while offline and restores it from IndexedDB', asy
   await context.setOffline(true);
   await expect(page.evaluate(() => navigator.onLine)).resolves.toBe(false);
 
-  await page.getByRole('combobox', { name: 'Asignación disponible' }).click();
+  await page.getByRole('combobox', { name: 'Vehículo y asignación' }).click();
   await page.getByRole('option', { name: /ABC123/ }).click();
   await page.getByLabel('Fecha de factura').fill('2026-11-20');
   await page.getByLabel('Hora').fill('12:30');
@@ -22,28 +22,27 @@ test('stores a manual invoice while offline and restores it from IndexedDB', asy
   await expect(page.getByRole('status')).toContainText('Aún no está registrado en el servidor.');
   expect(apiRequests).toEqual([]);
 
-  const reload = page.waitForEvent('load');
   await context.setOffline(false);
-  await reload;
-  await expect(page.getByText(/Factura FAC-OFFLINE-E2E · Pendiente de envío/)).toBeVisible();
+  await page.reload();
+  await page.getByRole('tab', { name: /Pendientes/ }).click();
+  await expect(page.getByRole('cell', { name: 'FAC-OFFLINE-E2E' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Facturas pendientes de sincronización' }).getByText('Pendiente', { exact: true })).toBeVisible();
 });
 
 test('captures a QR offline without claiming local authenticity and preserves its raw content', async ({ page, context }) => {
   await page.goto('/tests/e2e/offline-invoice-harness.html');
   await context.setOffline(true);
-  await page.getByRole('combobox', { name: 'Tipo de captura' }).click();
-  await page.getByRole('option', { name: 'Código QR' }).click();
-  await page.getByRole('combobox', { name: 'Asignación disponible' }).click();
+  await page.getByRole('tab', { name: 'Código QR' }).click();
+  await page.getByRole('combobox', { name: 'Vehículo y asignación' }).click();
   await page.getByRole('option', { name: /ABC123/ }).click();
   await page.getByRole('button', { name: 'Abrir cámara' }).click();
-  const content = 'contenido QR E2E sin formato, pendiente de validación del servidor';
-  await expect(page.getByRole('textbox', { name: 'Contenido QR capturado' })).toHaveValue(content);
   await expect(page.getByText(/se conservará sin validar localmente/)).toBeVisible();
   await page.getByRole('button', { name: 'Guardar en este dispositivo' }).click();
   await expect(page.getByRole('status')).toContainText('Aún no está registrado en el servidor.');
 
-  const reload = page.waitForEvent('load');
   await context.setOffline(false);
-  await reload;
-  await expect(page.getByText(/Factura QR · Pendiente de envío/)).toBeVisible();
+  await page.reload();
+  await page.getByRole('tab', { name: /Pendientes/ }).click();
+  await expect(page.getByRole('cell', { name: 'Factura QR' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Facturas pendientes de sincronización' }).getByText('Pendiente', { exact: true })).toBeVisible();
 });

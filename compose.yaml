@@ -12,6 +12,7 @@ services:
     volumes:
       - keycloak-data:/opt/keycloak/data
       - ./keycloak/invoices-realm.json:/opt/keycloak/data/import/invoices-realm.json:ro
+      - ./keycloak/themes/invoices:/opt/keycloak/themes/invoices:ro
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9000; printf \"GET /health/ready HTTP/1.0\\r\\n\\r\\n\" >&3; read -r line <&3; [[ \"$$line\" == *\"200\"* ]]'"]
       interval: 10s
@@ -172,7 +173,7 @@ services:
       NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: ${NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION:-1}
       OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: ${OFFLINE_CREDENTIAL_SIGNING_KEY_FILE:-/run/secrets/offline-credential-signing-key}
       OFFLINE_CREDENTIAL_KEY_ID: ${OFFLINE_CREDENTIAL_KEY_ID:-offline-v1}
-      OFFLINE_CREDENTIAL_TTL_HOURS: ${OFFLINE_CREDENTIAL_TTL_HOURS:-8}
+      OFFLINE_CREDENTIAL_TTL_HOURS: ${OFFLINE_CREDENTIAL_TTL_HOURS:-72}
       KEYCLOAK_ISSUER_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}/realms/invoices
       KEYCLOAK_AUDIENCE: invoices-api
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/invoices/protocol/openid-connect/certs
@@ -298,6 +299,7 @@ services:
     environment:
       VITE_API_BASE_URL: /api
       VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: ${VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS:-}
+      VITE_OFFLINE_CREDENTIAL_MAX_TTL_HOURS: ${VITE_OFFLINE_CREDENTIAL_MAX_TTL_HOURS:-72}
       API_PROXY_TARGET: http://backend:3000
       CONTAINER_POLLING: "true"
       VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}

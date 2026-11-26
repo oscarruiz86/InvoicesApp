@@ -20,7 +20,7 @@ export function createOfflineCredentialIssuer(deps: {
   return {
     async issue(actor: AuthenticatedActor, input: { readonly thirdPartyId: string; readonly assignments: readonly OfflineCredentialAssignment[]; readonly ttlHours: number }) {
       if (!validId(input.thirdPartyId) || !Array.isArray(input.assignments) || input.assignments.length < 1 || input.assignments.length > 100
-        || !Number.isSafeInteger(input.ttlHours) || input.ttlHours < 1 || input.ttlHours > 8) throw new OfflineCredentialError('INVALID_REQUEST');
+        || !Number.isSafeInteger(input.ttlHours) || input.ttlHours < 1 || input.ttlHours > 72) throw new OfflineCredentialError('INVALID_REQUEST');
       const seen = new Set<string>();
       for (const assignment of input.assignments) {
         if (!validId(assignment.assignmentId) || !validId(assignment.vehicleId) || seen.has(assignment.assignmentId)) throw new OfflineCredentialError('INVALID_REQUEST');

@@ -44,9 +44,11 @@ function clientEnvironment() {
 
 async function composeOfflineCapture() {
   const environment = clientEnvironment();
-  const valid = await findValidOfflineCredential(await offlineInvoiceQueue.listCredentials(), environment.offlineCredentialPublicJwks);
+  const verifyCredential = (record: Parameters<typeof verifyOfflineCredential>[0], publicJwks: readonly Parameters<typeof verifyOfflineCredential>[1][number][], now?: number) =>
+    verifyOfflineCredential(record, publicJwks, now, environment.offlineCredentialMaxTtlHours);
+  const valid = await findValidOfflineCredential(await offlineInvoiceQueue.listCredentials(), environment.offlineCredentialPublicJwks, Date.now(), environment.offlineCredentialMaxTtlHours);
   if (valid && environment.offlineCredentialPublicJwks.length) return <ThemeProvider theme={theme}><CssBaseline />
-    <OfflineInvoiceCapturePage ticket={valid.record} claims={valid.claims} publicJwks={environment.offlineCredentialPublicJwks} offlineQueue={offlineInvoiceQueue} verifyCredential={verifyOfflineCredential}
+    <OfflineInvoiceCapturePage ticket={valid.record} claims={valid.claims} publicJwks={environment.offlineCredentialPublicJwks} offlineQueue={offlineInvoiceQueue} verifyCredential={verifyCredential}
       loadDecoder={() => import('@/modules/invoices/infrastructure/qr-scanner-adapter').then(adapter => adapter.createQrScannerAdapter())} />
   </ThemeProvider>;
   return <ThemeProvider theme={theme}><CssBaseline /><Stack spacing={2} sx={{ maxWidth: 520, mx: 'auto', mt: 8, p: 3 }}>
@@ -74,14 +76,26 @@ async function composeApplication() {
     await authentication.getState().initialize();
     if (!navigator.onLine) return composeOfflineCapture();
     const rolePolicy = createRolePolicyApi(createHttpRolePolicy(http));
+    const verifyCredential = (record: Parameters<typeof verifyOfflineCredential>[0], publicJwks: readonly Parameters<typeof verifyOfflineCredential>[1][number][], now?: number) =>
+      verifyOfflineCredential(record, publicJwks, now, environment.offlineCredentialMaxTtlHours);
     return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} thirdParties={createThirdPartyApi(http)} invitations={createInvitationApi(http)} rolePolicy={rolePolicy} fleet={createDriverApi(http)} vehicles={createVehicleApi(http)} assignmentApi={createAssignmentApi(http)} invoices={createInvoiceApi(http)} parameters={createHttpParameters(http)} catalogs={createHttpCatalogApi(http)} offlineCredentialPublicJwks={environment.offlineCredentialPublicJwks}
-      offlineQueue={offlineInvoiceQueue} verifyOfflineCredential={verifyOfflineCredential} />;
+      offlineQueue={offlineInvoiceQueue} verifyOfflineCredential={verifyCredential} />;
   } catch {
     return <ThemeProvider theme={theme}><CssBaseline /><Alert severity="error">{errorMessage('CONFIGURATION')}</Alert></ThemeProvider>;
   }
 }
 const root = createRoot(document.getElementById('root')!);
-if ('serviceWorker' in navigator && import.meta.env.PROD) void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  void navigator.serviceWorker.register('/sw.js').then(registration => {
+    registration.addEventListener('updatefound', () => {
+      const worker = registration.installing;
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) window.dispatchEvent(new Event('lola:service-worker-update'));
+      });
+    });
+  }).catch(() => undefined);
+}
 const initializing = <ThemeProvider theme={theme}><CssBaseline /><Alert severity="info">Inicializando sesión…</Alert></ThemeProvider>;
 let renderGeneration = 0;
 function showOfflineCapture() {

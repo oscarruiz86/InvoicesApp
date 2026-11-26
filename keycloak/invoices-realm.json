@@ -6,12 +6,16 @@
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
   "verifyEmail": true,
+  "rememberMe": true,
+  "loginTheme": "invoices",
   "loginWithEmailAllowed": true,
   "editUsernameAllowed": false,
   "resetPasswordAllowed": false,
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 28800,
+  "ssoSessionIdleTimeoutRememberMe": 604800,
+  "ssoSessionMaxLifespanRememberMe": 2592000,
   "defaultSignatureAlgorithm": "RS256",
   "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": false,
@@ -176,7 +180,8 @@
       "serviceAccountsEnabled": false,
       "fullScopeAllowed": true,
       "redirectUris": [
-        "${INVOICES_WEB_ORIGIN}/auth/callback"
+        "${INVOICES_WEB_ORIGIN}/auth/callback",
+        "${INVOICES_WEB_ORIGIN}/silent-check-sso.html"
       ],
       "webOrigins": [
         "${INVOICES_WEB_ORIGIN}"

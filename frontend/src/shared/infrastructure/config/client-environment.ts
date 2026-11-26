@@ -7,7 +7,8 @@ const schema = z.object({ VITE_API_BASE_URL: z.string().trim().refine(value => {
   catch { return false; }
 }).default('/api'),
   VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value,
-    z.string().trim().min(1).max(16_384).optional()) });
+    z.string().trim().min(1).max(16_384).optional()),
+  VITE_OFFLINE_CREDENTIAL_MAX_TTL_HOURS: z.preprocess(value => value === '' || value === undefined ? 72 : Number(value), z.number().int().min(1).max(72)) });
 export function readClientEnvironment(source: Record<string, unknown>) {
   const result = schema.safeParse(source);
   if (!result.success) throw new ApplicationError('CONFIGURATION');
@@ -30,5 +31,6 @@ export function readClientEnvironment(source: Record<string, unknown>) {
       offlineCredentialPublicJwks = keys;
     } catch { throw new ApplicationError('CONFIGURATION'); }
   }
-  return { apiBaseUrl: result.data.VITE_API_BASE_URL.replace(/\/$/, ''), offlineCredentialPublicJwks };
+  return { apiBaseUrl: result.data.VITE_API_BASE_URL.replace(/\/$/, ''), offlineCredentialPublicJwks,
+    offlineCredentialMaxTtlHours: result.data.VITE_OFFLINE_CREDENTIAL_MAX_TTL_HOURS };
 }

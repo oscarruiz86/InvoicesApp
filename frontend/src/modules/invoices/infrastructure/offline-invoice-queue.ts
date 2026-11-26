@@ -51,6 +51,11 @@ export const offlineInvoiceQueue: OfflineInvoiceQueuePort = {
     const saved: OfflineInvoiceRecord = { ...record, id, idempotencyKey, status: 'PENDING', createdAt: new Date().toISOString() };
     await transact(storeName, 'readwrite', store => store.add(saved));
     notifyChanged();
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration();
+      const sync = (registration as ServiceWorkerRegistration & { sync?: { register(tag: string): Promise<void> } } | undefined)?.sync;
+      await sync?.register('invoice-app-sync');
+    } catch { /* Background Sync is progressive; focus/online events remain the fallback. */ }
     return saved;
   },
   async list(subject: string, thirdPartyId: string): Promise<OfflineInvoiceRecord[]> {

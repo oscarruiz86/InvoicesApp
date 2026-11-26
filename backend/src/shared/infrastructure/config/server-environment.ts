@@ -43,7 +43,7 @@ const schema = z.object({
   NOTIFICATION_PAYLOAD_ACTIVE_KEY_VERSION: z.preprocess(value => value === '' || value === undefined ? 1 : Number(value), z.number().int().min(1).max(255)),
   OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: optional(z.string().trim().min(1)),
   OFFLINE_CREDENTIAL_KEY_ID: optional(z.string().trim().regex(/^[A-Za-z0-9._-]{1,64}$/)),
-  OFFLINE_CREDENTIAL_TTL_HOURS: z.preprocess(value => value === '' || value === undefined ? 8 : Number(value), z.number().int().min(1).max(8)),
+  OFFLINE_CREDENTIAL_TTL_HOURS: z.preprocess(value => value === '' || value === undefined ? 72 : Number(value), z.number().int().min(1).max(72)),
 }).superRefine((value, context) => {
   const invoiceStorageConfigured = Boolean(value.INVOICE_IMAGE_STORAGE_PROVIDER);
   if (invoiceStorageConfigured && (!value.INVOICE_IMAGE_STORAGE_LOCAL_ROOT || !value.INVOICE_IMAGE_STORAGE_COMPANY_ID)) {

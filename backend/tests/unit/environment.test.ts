@@ -42,10 +42,10 @@ describe('runtime environment and identity configuration', () => {
   });
   it('accepts a bounded offline credential signing key reference and rejects partial or overlong configuration', () => {
     expect(readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1' }))
-      .toMatchObject({ OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: 8 });
+      .toMatchObject({ OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: 72 });
     expect(readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/secrets/offline-signing-key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: '4' }).OFFLINE_CREDENTIAL_TTL_HOURS).toBe(4);
     expect(() => readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1' })).toThrow(ConfigurationError);
-    expect(() => readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: '9' })).toThrow(ConfigurationError);
+    expect(() => readServerEnvironment({ ...base, OFFLINE_CREDENTIAL_SIGNING_KEY_FILE: '/run/key', OFFLINE_CREDENTIAL_KEY_ID: 'offline-v1', OFFLINE_CREDENTIAL_TTL_HOURS: '73' })).toThrow(ConfigurationError);
   });
   it('does not expose secret values in diagnostics', () => {
     try { readServerEnvironment({ MONGODB_URI: 'SECRET_VALUE' }); }

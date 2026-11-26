@@ -18,8 +18,8 @@ describe('public configuration and HTTP adapter', () => {
     }
   });
   it('uses a public relative base and excludes private configuration', () => {
-    expect(readClientEnvironment({ API_PROXY_TARGET: 'http://backend:3000', MONGODB_URI: 'private' })).toEqual({ apiBaseUrl: '/api', offlineCredentialPublicJwks: [] });
-    expect(readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: '  ' })).toEqual({ apiBaseUrl: '/api', offlineCredentialPublicJwks: [] });
+    expect(readClientEnvironment({ API_PROXY_TARGET: 'http://backend:3000', MONGODB_URI: 'private' })).toEqual({ apiBaseUrl: '/api', offlineCredentialPublicJwks: [], offlineCredentialMaxTtlHours: 72 });
+    expect(readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: '  ' })).toEqual({ apiBaseUrl: '/api', offlineCredentialPublicJwks: [], offlineCredentialMaxTtlHours: 72 });
     const key = { kty: 'EC', crv: 'P-256', x: 'x'.repeat(43), y: 'y'.repeat(43), kid: 'offline-v1', alg: 'ES256', use: 'sig' };
     expect(readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: JSON.stringify({ keys: [key] }) }).offlineCredentialPublicJwks)
       .toMatchObject([{ kty: 'EC', crv: 'P-256', kid: 'offline-v1' }]);
@@ -27,6 +27,7 @@ describe('public configuration and HTTP adapter', () => {
     expect(() => readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS: JSON.stringify({ keys: [key, key] }) })).toThrow('CONFIGURATION');
     expect(() => readClientEnvironment({ VITE_API_BASE_URL: 'not-a-url' })).toThrow('CONFIGURATION');
     expect(() => readClientEnvironment({ VITE_API_BASE_URL: 'https://user:secret@example.invalid' })).toThrow('CONFIGURATION');
+    expect(() => readClientEnvironment({ VITE_OFFLINE_CREDENTIAL_MAX_TTL_HOURS: '73' })).toThrow('CONFIGURATION');
   });
   it('reads validated health and preserves the API prefix', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ status: 'ok' }));
