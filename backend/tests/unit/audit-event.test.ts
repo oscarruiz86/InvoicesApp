@@ -16,6 +16,23 @@ describe('audit event contract', () => {
     expect(() => normalizeAuditEvent({ ...event(), [field]: 'sensitive' })).toThrow(InvalidAuditEvent);
   });
 
+  it('accepts the closed fleet action catalog and rejects unknown sources and actions', () => {
+    expect(normalizeAuditEvent({ ...event(), source: 'fleet', action: 'VEHICLE_CREATED' }).source).toBe('fleet');
+    expect(() => normalizeAuditEvent({ ...event(), source: 'unknown' })).toThrow(InvalidAuditEvent);
+    expect(() => normalizeAuditEvent({ ...event(), source: 'fleet', action: 'VEHICLE_SECRET_EXPORTED' })).toThrow(InvalidAuditEvent);
+  });
+
+  it('accepts only the normalized invoice origin and approved field names', () => {
+    expect(normalizeAuditEvent({ ...event(), source: 'invoices', action: 'INVOICE_CREATED', captureOrigin: 'QR', changedFields: ['invoiceNumber', 'qrMetadata'] }))
+      .toMatchObject({ source: 'invoices', captureOrigin: 'QR', changedFields: ['invoiceNumber', 'qrMetadata'] });
+    expect(() => normalizeAuditEvent({ ...event(), source: 'invoices', action: 'INVOICE_UPDATED', changedFields: ['payload'] })).toThrow(InvalidAuditEvent);
+    expect(() => normalizeAuditEvent({ ...event(), source: 'invoices', action: 'INVOICE_CREATED', captureOrigin: 'QR', qrPayload: 'secret' })).toThrow(InvalidAuditEvent);
+  });
+
+  it('rejects personally identifying actor values in place of an opaque subject identifier', () => {
+    expect(() => normalizeAuditEvent({ ...event(), actor: { kind: 'user', subject: 'person@example.com' } })).toThrow(InvalidAuditEvent);
+  });
+
   it('sets two calendar years of retention and handles leap-day dates', () => {
     expect(auditExpiresAt('2026-01-31T12:00:00.000Z').toISOString()).toBe('2028-01-31T12:00:00.000Z');
     expect(auditExpiresAt('2024-02-29T12:00:00.000Z').toISOString()).toBe('2026-02-28T12:00:00.000Z');

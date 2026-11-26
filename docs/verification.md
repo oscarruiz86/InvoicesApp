@@ -298,3 +298,23 @@ La factura MANUAL conserva `createdAt` e historial cuando cambia el parámetro. 
 ## Cierre OpenSpec — 2026-11-22
 
 Las propuestas `capture-keycloak-admin-events`, `implement-audit-delivery` e `implement-authorization` quedaron traducidas al español y archivadas. Se sincronizaron sus deltas en `openspec/specs/keycloak-admin-audit/`, `openspec/specs/audit/`, `openspec/specs/identity-access/` y `openspec/specs/frontend-shell/`. Cada cambio tenía todas las tareas completadas antes del archivo; la evidencia de cierre y verificación está en `docs/authorization-progress.md` y `docs/initial-invoices-app-closure.md`.
+
+## Verificación de `implement-audit-logging` — 2026-11-26
+
+Las integraciones Mongo requieren una replica set y una base con sufijo `_test`. Ejemplo local:
+
+```powershell
+$env:MONGODB_TEST_URI='mongodb://127.0.0.1:27018/invoices_test?replicaSet=rs0&directConnection=true'
+```
+
+| Comando | Resultado |
+| --- | --- |
+| `npm run test:integration -- tests/integration/invoice-repository.test.ts tests/integration/configuration-parameters.test.ts tests/integration/parametric-catalog-audit.test.ts` | 26 pruebas pasaron. Incluye MANUAL/QR, resoluciones offline, exclusión de valores y contenido, parámetros y ciclo de vida de catálogos. |
+| `npm test -- --run tests/unit/audit-event.test.ts tests/unit/invoice-submission-repository.test.ts tests/unit/parametric-catalogs.test.ts` | 19 pruebas pasaron en 3 archivos. |
+| `npm run typecheck` | Pasó. |
+| `openspec validate implement-audit-logging --strict` | Cambio válido. |
+| `git diff --check` | Sin errores de whitespace. |
+
+También pasaron las suites de auditoría compartida, Organizations/outbox, membresías/contexto y Fleet durante la implementación: el escritor y outbox verifican idempotencia, reintentos y rollback; las mutaciones de Fleet verifican identidad común y fallo transaccional. Los comandos de integración se repiten desde `backend` con el URI configurado arriba.
+
+`audit:read` está en el catálogo de permisos disponible, pero no se concede en `grantCeiling`; no hay controlador/ruta de lectura para el journal ni interfaz transversal. La evidencia central contiene metadatos de la lista permitida. Los eventos de factura, parámetros y catálogos conservan los valores operativos en sus colecciones locales y mantienen sus consultas existentes.

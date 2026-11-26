@@ -86,10 +86,12 @@ export interface InvoiceAuditEvent {
   readonly eventId: string;
   readonly correlationId: string;
   readonly action: 'INVOICE_CREATED' | 'INVOICE_UPDATED';
+  readonly captureOrigin: 'MANUAL' | 'QR';
   readonly actorSubject: string;
   readonly invoiceId: string;
   readonly thirdPartyId: string;
   readonly at: string;
+  readonly version: number;
   readonly changedFields: readonly string[];
 }
 export interface InvoiceAuditPort { record(event: InvoiceAuditEvent): Promise<void> }

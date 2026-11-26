@@ -1,5 +1,8 @@
-import { Types, type Connection } from 'mongoose';
+import { Types, type ClientSession, type Connection } from 'mongoose';
 import { createInvoiceSubmission, InvoiceSubmissionError, transitionInvoiceSubmission, type InvoiceSubmission, type InvoiceSubmissionStatus } from '../../domain/submission';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
+import { offlineResolutionAuditEvent } from './audit-event';
 
 const collectionName = 'invoice_sync_submissions';
 const imageCleanupCollectionName = 'invoice_sync_image_cleanup';
@@ -23,7 +26,7 @@ function decode(row: Row): InvoiceSubmission {
   } catch { throw new Error('SUBMISSION_STORAGE_UNAVAILABLE'); }
 }
 
-export function createMongoInvoiceSubmissionRepository(connect: () => Promise<Connection>) {
+export function createMongoInvoiceSubmissionRepository(connect: () => Promise<Connection>, auditFactory: (connection: Connection, session: ClientSession) => AuditWriter = createMongoAuditWriter) {
   const ready = new WeakSet<Connection>();
   async function database() {
     const connection = await connect();
@@ -163,6 +166,9 @@ export function createMongoInvoiceSubmissionRepository(connect: () => Promise<Co
         await events.insertOne({ eventId, actorSubject: input.actorSubject, thirdPartyId: input.current.thirdPartyId,
           submissionId: input.current.id, action: input.action, reason: input.reason, at: input.now, fromVersion: input.expectedVersion,
           toVersion: next.version, ...(input.resultInvoiceId ? { resultInvoiceId: input.resultInvoiceId } : {}) }, { session });
+        await auditFactory(connection, session).record(offlineResolutionAuditEvent({ eventId, at: input.now, actorSubject: input.actorSubject,
+          action: input.action, submissionId: input.current.id, thirdPartyId: input.current.thirdPartyId,
+          beforeVersion: input.expectedVersion, afterVersion: next.version }));
         const result = await rows.replaceOne({ _id: new Types.ObjectId(input.current.id), thirdPartyId: input.current.thirdPartyId,
           ownerSubject: input.current.ownerSubject, status: 'CONFLICT', version: input.expectedVersion }, { _id: new Types.ObjectId(next.id), ...next }, { session });
         if (result.modifiedCount !== 1) throw new InvoiceSubmissionError('SUBMISSION_VERSION_CONFLICT');

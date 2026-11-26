@@ -43,8 +43,14 @@ it('versions own edits, keeps no-ops quiet and isolates IDs and paginated assign
   const auth = await owner(), record = await repository.create({ ...auth, fields: fields() });
   const input = { ...auth, id: record.id, expectedVersion: 1, changes: { plate: record.plate } };
   expect(await repository.update(input)).toMatchObject({ version: 1 });
-  expect(await connection.collection('vehicle_management_events').countDocuments({ vehicleId: record.id })).toBe(1);
+  const localCreate = await connection.collection('vehicle_management_events').findOne({ vehicleId: record.id });
+  expect(localCreate).toBeTruthy();
+  const centralCreate = await connection.collection('audit_events').findOne({ _id: localCreate!.eventId as never });
+  expect(centralCreate).toMatchObject({ source: 'fleet', action: 'VEHICLE_CREATED', resource: { type: 'vehicle', id: record.id }, scope: { thirdPartyId: auth.authority.thirdPartyId } });
+  expect(centralCreate).not.toHaveProperty('plate'); expect(centralCreate).not.toHaveProperty('propertyCardNumber');
   expect(await repository.update({ ...input, changes: { internalNumber: 'NEW' } })).toMatchObject({ version: 2, internalNumber: 'NEW' });
+  const localUpdate = await connection.collection('vehicle_management_events').findOne({ vehicleId: record.id, version: 2 });
+  expect(await connection.collection('audit_events').findOne({ _id: localUpdate!.eventId as never })).toMatchObject({ action: 'VEHICLE_UPDATED', afterVersion: '2' });
   await expect(repository.update(input)).rejects.toMatchObject({ code: 'VEHICLE_VERSION_CONFLICT' });
   expect(await repository.find({ id: record.id, thirdPartyId: new mongoose.Types.ObjectId().toString() })).toBeNull();
   const query = { thirdPartyId: record.thirdPartyId, page: 1, pageSize: 1, sort: 'plate' as const, direction: 'asc' as const };
@@ -52,6 +58,16 @@ it('versions own edits, keeps no-ops quiet and isolates IDs and paginated assign
   expect(await repository.list({ ...query, assignedVehicleIds: [record.id] })).toMatchObject({ total: 1, items: [{ id: record.id }] });
   expect(await repository.list({ ...query, q: '.*' })).toMatchObject({ total: 0 });
   expect(await repository.eligibility({ id: record.id, thirdPartyId: record.thirdPartyId })).toMatchObject({ eligible: true, version: 2 });
+});
+it('rolls back vehicle state and its local capture when the central Audit writer fails', async () => {
+  const auth = await owner();
+  const failingRepository = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s), authority: vehicleAuthorityConfirmation(c, s),
+    assignments: unavailableAssignments, audit: { async record() { throw new Error('AUDIT_UNAVAILABLE'); } } }));
+  const vehiclesBefore = await connection.collection('vehicles').countDocuments();
+  const eventsBefore = await connection.collection('vehicle_management_events').countDocuments();
+  await expect(failingRepository.create({ ...auth, fields: fields() })).rejects.toThrow();
+  expect(await connection.collection('vehicles').countDocuments()).toBe(vehiclesBefore);
+  expect(await connection.collection('vehicle_management_events').countDocuments()).toBe(eventsBefore);
 });
 it('confirms policy, membership, association and third-party fences before writes', async () => {
   for (const target of ['policy', 'membership', 'association', 'organization', 'thirdParty']) {

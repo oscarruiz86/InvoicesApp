@@ -1,10 +1,13 @@
 import { Types } from 'mongoose';
 import { describe, expect, it } from 'vitest';
 import { createMongoInvoiceSubmissionRepository } from '@/modules/invoice-sync/infrastructure/mongodb/submission-repository';
+import { offlineResolutionAuditEvent } from '@/modules/invoice-sync/infrastructure/mongodb/audit-event';
+import { normalizeAuditEvent } from '@/modules/audit/domain/audit-event';
 
 const id = (digit: string) => digit.repeat(24);
 function repository() {
   const collections = new Map<string, Map<string, Record<string, unknown>>>();
+  const auditEvents: Record<string, unknown>[] = [];
   let rowNumber = 0;
   const valueAt = (row: Record<string, unknown>, path: string) => path.split('.').reduce<unknown>((value, part) => value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined, row);
   const matches = (row: Record<string, unknown>, query: Record<string, unknown>) => Object.entries(query).every(([key, expected]) => {
@@ -70,8 +73,9 @@ function repository() {
     },
     async transaction<T>(operation: (session: object) => Promise<T>) { return operation({}); },
   };
-  return Object.assign(createMongoInvoiceSubmissionRepository(async () => connection as never), {
+  return Object.assign(createMongoInvoiceSubmissionRepository(async () => connection as never, () => ({ async record(event) { auditEvents.push(event as unknown as Record<string, unknown>); } })), {
     eventRows: () => [...(collections.get('invoice_sync_resolution_events')?.values() ?? [])],
+    auditRows: () => [...auditEvents],
   });
 }
 const reference = { provider: 'local' as const, key: `${id('f')}/${id('b')}/${id('d')}/${id('a')}/imagen.jpg`, contentType: 'image/jpeg' as const,
@@ -126,6 +130,11 @@ describe('Mongo invoice submission repository', () => {
     expect(repo.eventRows()[0]).toMatchObject({ actorSubject: 'third-party-admin', thirdPartyId: input.thirdPartyId, submissionId: input.id,
       action: 'LINK_DUPLICATE', reason: 'La factura ya estaba registrada.', fromVersion: 2, toVersion: 3, resultInvoiceId: id('9') });
     expect(JSON.stringify(repo.eventRows()[0])).not.toContain('invoiceNumber');
+    expect(repo.auditRows()).toMatchObject([{ eventId: `${input.id}:3`, source: 'invoice-sync', action: 'SUBMISSION_LINKED_DUPLICATE',
+      reason: 'OFFLINE_RESOLUTION', resource: { type: 'invoice-submission', id: input.id }, beforeVersion: '2', afterVersion: '3' }]);
+    expect(JSON.stringify(repo.auditRows()[0])).not.toContain('La factura ya estaba registrada.');
+    expect(normalizeAuditEvent(offlineResolutionAuditEvent({ eventId: `${input.id}:3`, at: input.now, actorSubject: 'third-party-admin', action: 'LINK_DUPLICATE',
+      submissionId: input.id, thirdPartyId: input.thirdPartyId, beforeVersion: 2, afterVersion: 3 }))).toMatchObject({ action: 'SUBMISSION_LINKED_DUPLICATE' });
     await expect(repo.resolve(decision)).resolves.toMatchObject({ status: 'LINKED', version: 3 });
     await expect(repo.resolve({ ...decision, reason: 'Motivo distinto' })).rejects.toThrow('SUBMISSION_VERSION_CONFLICT');
   });

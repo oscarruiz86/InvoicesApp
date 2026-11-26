@@ -96,13 +96,13 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
               $set: { status: 'EXPIRED', resolvedAt: now }, $inc: { version: 1 },
             }, { session });
             for (const prior of expired) await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(),
-              invitationId: prior.id, organizationId: prior.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: now, version: Number(prior.version) + 1 }, { session });
+              invitationId: prior.id, organizationId: prior.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: now, version: Number(prior.version) + 1, delivered: false }, { session });
           }
           if (guards?.revalidateAndCoordinate && !await guards.revalidateAndCoordinate(invitation, session)) throw new InvitationRepositoryError('AUTHORITY_REVOKED');
           await invitations.create([invitation], { session });
           await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: invitation.id,
             organizationId: invitation.organizationId, actorSubject: invitation.invitedBy, action: 'INVITATION_CREATED', at: now,
-            roles: invitation.roles, version: invitation.version }, { session });          if (notification && guards?.enqueueInvitationNotification) await guards.enqueueInvitationNotification({
+            roles: invitation.roles, version: invitation.version, delivered: false }, { session });          if (notification && guards?.enqueueInvitationNotification) await guards.enqueueInvitationNotification({
             id: notification.attemptId, type: notification.type, channel: 'email', recipient: notification.recipient, language: 'es', functionalReference: notification.invitationId,
             idempotencyKey: notification.attemptId, expiresAt: notification.expiresAt, payload: { token: notification.token, organizationName: notification.organizationName, roles: notification.roles },
             projectionData: { invitationId: notification.invitationId, tokenVersion: notification.tokenVersion, attemptId: notification.attemptId }, createdAt: notification.createdAt }, session);
@@ -191,7 +191,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
             $set: { status: 'EXPIRED', resolvedAt: now }, $inc: { version: 1 },
           }, { session, returnDocument: 'after' }).lean().exec();
           if (expired) await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: invitation.id,
-            organizationId: invitation.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: now, version: invitation.version + 1 }, { session });
+            organizationId: invitation.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: now, version: invitation.version + 1, delivered: false }, { session });
           return expired ? expired as Invitation : await model.findOne({ id: invitation.id }).session(session).lean().exec() as Invitation | null;
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
       } catch (error) { return mapError(error); }
@@ -216,7 +216,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
           result = updated as Invitation;
           await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: input.id,
             organizationId: current.organizationId, actorSubject: null, action: `INVITATION_DELIVERY_${input.status}`, at: input.now,
-            version: result.version, tokenVersion: input.tokenVersion }, { session });
+            version: result.version, tokenVersion: input.tokenVersion, delivered: false }, { session });
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
         if (!result) throw new InvitationRepositoryError('STORAGE_UNAVAILABLE');
         return result;
@@ -245,7 +245,7 @@ export function createInvitationRepository(connect: () => Promise<Connection>, g
             if (expired.modifiedCount === 1) {
 
 await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
-                organizationId: current.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: input.now, version: current.version + 1 }, { session });
+                organizationId: current.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: input.now, version: current.version + 1, delivered: false }, { session });
             }
             outcome = new InvitationRepositoryError('INVITATION_EXPIRED');
             return;
@@ -260,7 +260,7 @@ await connection.collection('organization_invitation_events').insertOne({ eventI
 
 await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
             organizationId: current.organizationId, actorSubject: null, action: 'INVITATION_RESENT', at: input.now,
-            roles: current.roles, version: result.version, tokenVersion: result.tokenVersion }, { session });          const notification = input.notification;
+            roles: current.roles, version: result.version, tokenVersion: result.tokenVersion, delivered: false }, { session });          const notification = input.notification;
           if (notification && guards?.enqueueInvitationNotification) await guards.enqueueInvitationNotification({
             id: input.attemptId, type: 'INVITATION_RESENT', channel: 'email', recipient: notification.recipient, language: 'es', functionalReference: input.id,
             idempotencyKey: input.attemptId, expiresAt: input.expiresAt, payload: { token: notification.token, organizationName: notification.organizationName, roles: notification.roles },
@@ -289,7 +289,7 @@ await connection.collection('organization_invitation_events').insertOne({ eventI
             resolved = updated as Invitation;
             await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: id,
               organizationId: resolved.organizationId, actorSubject: acceptedSubject, action: `INVITATION_${status}`, at: now,
-              roles: resolved.roles, version: resolved.version }, { session });
+              roles: resolved.roles, version: resolved.version, delivered: false }, { session });
             return;
           }
           const expired = await model.findOneAndUpdate({ id, status: 'PENDING', version: expectedVersion, expiresAt: { $lte: now } }, {
@@ -299,7 +299,7 @@ await connection.collection('organization_invitation_events').insertOne({ eventI
             resolved = expired as Invitation;
             outcome = new InvitationRepositoryError('INVITATION_EXPIRED');
             await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: id,
-              organizationId: resolved.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: now, version: resolved.version }, { session });
+              organizationId: resolved.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: now, version: resolved.version, delivered: false }, { session });
             return;
           }
           const exists = await model.exists({ id }).session(session);
@@ -337,7 +337,7 @@ await connection.collection('organization_invitation_events').insertOne({ eventI
             }, { session });
             if (expired.modifiedCount === 1) await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(),
               invitationId: current.id, organizationId: current.organizationId, actorSubject: null, action: 'INVITATION_EXPIRED', at: input.now,
-              version: current.version + 1 }, { session });
+              version: current.version + 1, delivered: false }, { session });
             outcome = new InvitationRepositoryError('INVITATION_EXPIRED');
             return;
           }
@@ -362,7 +362,7 @@ await connection.collection('organization_invitation_events').insertOne({ eventI
             await input.driverProvisioning.provision({ membership, roles: current.roles, actorSubject: input.subject, now: input.now, source: 'INVITATION' }, session);
           }
           await connection.collection('organization_invitation_events').insertOne({ eventId: randomUUID(), invitationId: current.id,
-            organizationId: current.organizationId, subject: input.subject, action: 'INVITATION_ACCEPTED', at: input.now, version: updated.version }, { session });
+            organizationId: current.organizationId, subject: input.subject, action: 'INVITATION_ACCEPTED', at: input.now, version: updated.version, delivered: false }, { session });
           result = { invitation: updated, membership };
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
         if (outcome) throw outcome;

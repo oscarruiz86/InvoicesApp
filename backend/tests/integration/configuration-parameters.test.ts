@@ -13,7 +13,7 @@ let policyVersion = '1';
 const repository = createMongoParameterRepository(async () => connection, undefined, policyConfirmation);
 beforeAll(async () => { await connection.asPromise(); });
 beforeEach(async () => {
-  await connection.collection('functional_parameters').deleteMany({}); await connection.collection('configuration_events').deleteMany({});
+  await connection.collection('functional_parameters').deleteMany({}); await connection.collection('configuration_events').deleteMany({}); await connection.collection('audit_events').deleteMany({});
   await policies.initialize();
   const current = await connection.collection('authorization_policies').findOne({ _id: 'active' as never });
   if (JSON.stringify(current?.grants) !== JSON.stringify(grantCeiling)) {
@@ -59,6 +59,12 @@ it('initializes once, preserves an edited value, versions updates and keeps no-o
   expect(before).toMatchObject({ total: 2 });
   expect(await repository.update({ key: initial!.key, expectedVersion: 2, value: 21600, actor: 'admin:test', correlationId: randomUUID(), policyVersion })).toMatchObject({ version: 2 });
   expect((await repository.history(initial!.key, 1, 100)).total).toBe(2);
+  const central = await connection.collection('audit_events').find({ source: 'configuration' }).sort({ occurredAt: 1 }).toArray();
+  expect(central).toHaveLength(2);
+  expect(central[0]).toMatchObject({ action: 'PARAMETER_INITIALIZED', resource: { type: 'functional-parameter', id: 'invoice:manual-edit-window-seconds' }, beforeVersion: '0', afterVersion: '1' });
+  expect(central[1]).toMatchObject({ action: 'PARAMETER_UPDATED', beforeVersion: '1', afterVersion: '2' });
+  expect(JSON.stringify(central)).not.toContain('43200');
+  expect(JSON.stringify(central)).not.toContain('21600');
 });
 
 it('rolls back initialization and updates when their audit event cannot be written', async () => {
