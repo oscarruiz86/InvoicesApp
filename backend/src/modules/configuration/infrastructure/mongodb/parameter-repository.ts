@@ -4,6 +4,7 @@ import { isParameterKey, parameterCatalog, validateParameterValue, type Paramete
 import type { ParameterEvent, ParameterRepository, ParameterRow } from '../../application/parameters';
 import { ParameterError } from '../../application/parameters';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const parameters = 'functional_parameters';
 const events = 'configuration_events';
@@ -93,8 +94,13 @@ export function createMongoParameterRepository(connect: () => Promise<Connection
         const changed = await connection.collection(parameters).updateOne({ key: input.key, scope: 'global', version: previous.version },
           { $set: { value: input.value, version, effectiveFrom: now, updatedAt: now, updatedBy: input.actor }, $inc: { mutationFence: 1 } }, { session });
         if (changed.modifiedCount !== 1) throw new ParameterError('PARAMETER_VERSION_CONFLICT');
-        await connection.collection(events).insertOne({ eventId: ids.next(), correlationId: input.correlationId, key: input.key, actor: input.actor,
+        const eventId = ids.next();
+        await connection.collection(events).insertOne({ eventId, correlationId: input.correlationId, key: input.key, actor: input.actor,
           at: now, previousValue: previous.value, value: input.value, previousVersion: previous.version, version }, { session });
+        await createMongoAuditWriter(connection, session).record({ eventId, occurredAt: now.toISOString(), source: 'configuration',
+          actor: { kind: 'user', subject: input.actor }, action: 'PARAMETER_UPDATED', result: 'allowed', reason: 'PARAMETER_CHANGE',
+          correlationId: input.correlationId, resource: { type: 'functional-parameter', id: input.key.replaceAll('.', ':') },
+          beforeVersion: String(previous.version), afterVersion: String(version) });
         return decode({ ...current, value: input.value, version, effectiveFrom: now, updatedAt: now, updatedBy: input.actor });
       });
     },
@@ -111,7 +117,11 @@ export function createMongoParameterRepository(connect: () => Promise<Connection
         if (await connection.collection(parameters).findOne({ key, scope: 'global' }, { session })) return false;
         const now = new Date(); const value = parameterCatalog[key].initialValue;
         await connection.collection(parameters).insertOne({ key, scope: 'global', value, version: 1, mutationFence: 0, effectiveFrom: now, createdAt: now, createdBy: actor, updatedAt: now, updatedBy: actor }, { session });
-        await connection.collection(events).insertOne({ eventId: ids.next(), correlationId, key, actor, at: now, previousValue: value, value, previousVersion: 0, version: 1 }, { session });
+        const eventId = ids.next();
+        await connection.collection(events).insertOne({ eventId, correlationId, key, actor, at: now, previousValue: value, value, previousVersion: 0, version: 1 }, { session });
+        await createMongoAuditWriter(connection, session).record({ eventId, occurredAt: now.toISOString(), source: 'configuration',
+          actor: { kind: 'user', subject: actor }, action: 'PARAMETER_INITIALIZED', result: 'allowed', reason: 'PARAMETER_INITIALIZATION',
+          correlationId, resource: { type: 'functional-parameter', id: key.replaceAll('.', ':') }, beforeVersion: '0', afterVersion: '1' });
         return true;
       });
     },

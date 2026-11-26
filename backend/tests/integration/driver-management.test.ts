@@ -81,6 +81,10 @@ it('enforces unique membership ownership and records a durable local provisionin
   expect(await connection.collection('drivers').countDocuments({ membershipId: first.membershipId })).toBe(1);
   expect(await connection.collection('driver_management_events').countDocuments({ membershipId: first.membershipId })).toBe(1);
   expect(await connection.collection('audit_events').countDocuments({ membershipId: first.membershipId })).toBe(0);
+  const localEvent = await connection.collection('driver_management_events').findOne({ membershipId: first.membershipId });
+  expect(await connection.collection('audit_events').findOne({ _id: localEvent!.eventId as never })).toMatchObject({ source: 'fleet',
+    action: 'DRIVER_PROVISIONED', resource: { type: 'driver', id: first.driver.id }, scope: { thirdPartyId: first.thirdPartyId } });
+  expect(await connection.collection('audit_events').findOne({ _id: localEvent!.eventId as never })).not.toHaveProperty('subject');
 });
 
 it('versions status changes, keeps no-op requests quiet, and rejects stale versions', async () => {

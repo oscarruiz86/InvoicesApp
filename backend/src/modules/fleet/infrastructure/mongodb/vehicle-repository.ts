@@ -4,6 +4,9 @@ import type { PolicyConfirmation } from '@/modules/identity/application/policy-c
 import type { AssignmentConfirmation, VehicleAuthorityConfirmation, VehicleFactsReader, VehicleMutation, VehicleRepository } from '../../application/vehicle-ports';
 import { VehicleUseCaseError, vehicleFailure } from '../../application/vehicles';
 import { changeVehicle, createVehicle, isVehicleEligible, normalizeVehicleFields, type Vehicle } from '../../domain/vehicle';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
+import { mapFleetAuditEvent } from './fleet-audit';
 const schema = new Schema({
   plate: { type: String, required: true, match: /^[A-Z]{3}\d{2,3}$/ },
   internalNumber: { type: String, required: true, match: /^[A-Z0-9-]{1,40}$/ },
@@ -37,7 +40,7 @@ async function identifierWrite<T>(work: () => Promise<T>): Promise<T> {
     throw error;
   }
 }
-type Participants = { policy: PolicyConfirmation; authority: VehicleAuthorityConfirmation; assignments: AssignmentConfirmation };
+type Participants = { policy: PolicyConfirmation; authority: VehicleAuthorityConfirmation; assignments: AssignmentConfirmation; audit?: AuditWriter };
 export function createVehicleRepository(connect: () => Promise<Connection>, participants: (connection: Connection, session: ClientSession) => Participants): VehicleRepository & VehicleFactsReader {
   let initialized: Promise<void> | undefined;
   async function ready(connection: Connection) {
@@ -58,9 +61,18 @@ export function createVehicleRepository(connect: () => Promise<Connection>, part
         await ports.policy.confirm(input.authority.policyVersion);
         await ports.authority.confirm(input.authority);
         const result = await work(connection, session, ports);
-        if (result.changed) await connection.collection('vehicle_management_events').insertOne({ eventId: randomUUID(), correlationId: input.correlationId,
-          vehicleId: result.vehicle.id, thirdPartyId: input.authority.thirdPartyId, actorSubject: input.authority.subject,
-          action, beforeVersion: result.beforeVersion, version: result.vehicle.version, at: result.vehicle.updatedAt }, { session });
+        if (result.changed) {
+          const eventId = randomUUID();
+          const auditAction = action === 'CREATE' ? 'VEHICLE_CREATED' : action === 'UPDATE' ? 'VEHICLE_UPDATED'
+            : result.vehicle.status === 'ACTIVE' ? 'VEHICLE_ACTIVATED' : 'VEHICLE_DEACTIVATED';
+          await connection.collection('vehicle_management_events').insertOne({ eventId, correlationId: input.correlationId,
+            vehicleId: result.vehicle.id, thirdPartyId: input.authority.thirdPartyId, actorSubject: input.authority.subject,
+            action, beforeVersion: result.beforeVersion, version: result.vehicle.version, at: result.vehicle.updatedAt }, { session });
+          const auditEvent = mapFleetAuditEvent({ eventId, correlationId: input.correlationId, at: result.vehicle.updatedAt,
+            action: auditAction, actorSubject: input.authority.subject, resourceType: 'vehicle', resourceId: result.vehicle.id,
+            thirdPartyId: input.authority.thirdPartyId, beforeVersion: result.beforeVersion, afterVersion: result.vehicle.version });
+          await (ports.audit ?? createMongoAuditWriter(connection, session)).record(auditEvent);
+        }
         return result.vehicle;
       }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
     } catch (error) { return failure(error); }

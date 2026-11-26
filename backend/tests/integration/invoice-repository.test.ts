@@ -14,6 +14,7 @@ import { createPolicyRepository, policyConfirmation } from '@/modules/identity/i
 import { createMongoParameterRepository } from '@/modules/configuration/infrastructure/mongodb/parameter-repository';
 import { createParameterUseCases } from '@/modules/configuration/application/parameters';
 import { createLocalInvoiceImageStorage } from '@/modules/invoices/infrastructure/images/local-image-storage';
+import { createMongoInvoiceSubmissionRepository } from '@/modules/invoice-sync/infrastructure/mongodb/submission-repository';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
@@ -163,6 +164,11 @@ function editInput(owner: Awaited<ReturnType<typeof seed>>, current: Awaited<Ret
 it('deduplicates identical retries and rejects duplicate business keys and stale versions', async () => {
   const owner = await seed(), first = command(owner, { number: 'FAC-RETRY', idempotencyKey: 'same-key' });
   const created = await createWithImage(first);
+  const createEvent = await connection.collection('invoice_management_events').findOne({ invoiceId: created.id, action: 'INVOICE_CREATED' });
+  const createAudit = await connection.collection('audit_events').findOne({ _id: createEvent!.eventId as never });
+  expect(createAudit).toMatchObject({ source: 'invoices', action: 'INVOICE_CREATED', captureOrigin: 'MANUAL', afterVersion: '1',
+    changedFields: expect.arrayContaining(['origin', 'invoiceNumber', 'amounts']), resource: { type: 'invoice', id: created.id } });
+  expect(createAudit).not.toHaveProperty('invoiceNumber'); expect(createAudit).not.toHaveProperty('amounts.totalAmount');
   await expect(createWithImage(first)).resolves.toMatchObject({ id: created.id, version: 1 });
   await expect(createWithImage({ ...first, requestHash: 'different-content' })).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
   const duplicate = command(owner, { number: 'FAC-RETRY' });
@@ -173,6 +179,8 @@ it('deduplicates identical retries and rejects duplicate business keys and stale
     validFrom: new Date(0), validUntil: null, durationSeconds: 3600 }, actorSubject: owner.subject, expectedVersion: 1,
     authority: owner.authority, correlationId: randomUUID() });
   expect(updated).toMatchObject({ version: 2, invoiceNumber: 'FAC-UPDATED' });
+  const updateEvent = await connection.collection('invoice_management_events').findOne({ invoiceId: created.id, action: 'INVOICE_UPDATED' });
+  expect(await connection.collection('audit_events').findOne({ _id: updateEvent!.eventId as never })).toMatchObject({ source: 'invoices', action: 'INVOICE_UPDATED', afterVersion: '2' });
   await expect(repository.edit({ current: created, next, editPolicy: { state: 'AVAILABLE', revision: 'r1', scope: owner.thirdPartyId,
     validFrom: new Date(0), validUntil: null, durationSeconds: 3600 }, actorSubject: owner.subject, expectedVersion: 1,
     authority: owner.authority, correlationId: randomUUID() })).rejects.toMatchObject({ code: 'INVOICE_VERSION_CONFLICT' });
@@ -195,6 +203,46 @@ it('commits an offline submission result, invoice image reference and outbox in 
   expect(persisted).toMatchObject({ ownerSubject: owner.subject, imageId: invoice.imageId, captureChannel: 'OFFLINE' });
   expect(submission).toMatchObject({ status: 'SYNCHRONIZED', version: 2, resultInvoiceId: invoice.id, resolutionReason: 'Validación online completada.' });
   expect(cleanup).toMatchObject({ submissionId, ownerSubject: owner.subject, reference: stagingReference });
+});
+
+it('records closed-assignment approval atomically without copying its reason or invoice content', async () => {
+  const owner = await seed();
+  const submissionId = new mongoose.Types.ObjectId().toString();
+  await connection.collection('invoice_sync_submissions').insertOne({ _id: new mongoose.Types.ObjectId(submissionId), ownerSubject: owner.subject,
+    thirdPartyId: owner.thirdPartyId, status: 'CONFLICT', version: 2 });
+  const input = command(owner, { number: 'FAC-OFFLINE-APPROVAL' });
+  const approvalRepository = createMongoInvoiceRepository(connect, (c, session) => ({ policy: policyConfirmation(c, session),
+    authority: { async confirm() {} }, assignments: { ...assignments, async confirmClosedInTransaction() {} },
+    editPolicy: { async confirm() {} }, audit: createMongoInvoiceAudit(c, session) }), { clock: { now: () => new Date(serverNow) } });
+  const invoice = await approvalRepository.create({ invoice: input.invoice, actorSubject: input.actorSubject, idempotencyKey: input.idempotencyKey,
+    requestHash: input.requestHash, authority: { ...owner.authority, roles: ['THIRD_PARTY_ADMIN'] }, assignment: input.assignment, correlationId: input.correlationId,
+    offlineSubmission: { id: submissionId, expectedVersion: 2,
+      resolution: { action: 'APPROVE_CLOSED_ASSIGNMENT', reason: 'Revisión administrativa con notas privadas.' } } });
+  const resolution = await connection.collection('invoice_sync_resolution_events').findOne({ submissionId });
+  const audit = await connection.collection('audit_events').findOne({ _id: resolution!.eventId as never });
+  expect(audit).toMatchObject({ source: 'invoice-sync', action: 'SUBMISSION_CLOSED_ASSIGNMENT_APPROVED', reason: 'OFFLINE_RESOLUTION',
+    resource: { type: 'invoice-submission', id: submissionId }, scope: { thirdPartyId: owner.thirdPartyId } });
+  expect(JSON.stringify(audit)).not.toContain('Revisión administrativa'); expect(JSON.stringify(audit)).not.toContain(invoice.invoiceNumber);
+  expect(await connection.collection('invoice_sync_submissions').findOne({ _id: new mongoose.Types.ObjectId(submissionId) })).toMatchObject({ status: 'SYNCHRONIZED', resultInvoiceId: invoice.id });
+});
+
+it('records administrative offline resolutions centrally with the same durable event identity', async () => {
+  const owner = await seed(); const targetInvoice = await createWithImage(command(owner, { number: 'FAC-OFFLINE-LINK-TARGET' }));
+  const submissions = createMongoInvoiceSubmissionRepository(connect);
+  const created = await submissions.create({ id: new mongoose.Types.ObjectId().toString(), ownerSubject: owner.subject, thirdPartyId: owner.thirdPartyId,
+    origin: 'MANUAL', assignmentId: owner.assignmentId, vehicleId: owner.vehicleId, idempotencyKey: randomUUID(), requestHash: 'a'.repeat(64),
+    payload: { invoiceNumber: 'offline-value-not-central' }, now: new Date(serverNow) });
+  const conflict = await submissions.transition({ current: created, expectedVersion: 1, status: 'CONFLICT', causes: ['BUSINESS_DUPLICATE'],
+    candidateInvoiceIds: [targetInvoice.id], now: new Date(serverNow) });
+  const linked = await submissions.resolve({ current: conflict, expectedVersion: 2, action: 'LINK_DUPLICATE', actorSubject: 'third-party-admin',
+    reason: 'La factura ya estaba registrada.', now: new Date(serverNow), resultInvoiceId: targetInvoice.id });
+  expect(linked).toMatchObject({ status: 'LINKED', version: 3 });
+  const local = await connection.collection('invoice_sync_resolution_events').findOne({ submissionId: created.id });
+  const central = await connection.collection('audit_events').findOne({ _id: local!.eventId as never });
+  expect(central).toMatchObject({ source: 'invoice-sync', action: 'SUBMISSION_LINKED_DUPLICATE', reason: 'OFFLINE_RESOLUTION',
+    resource: { type: 'invoice-submission', id: created.id }, scope: { thirdPartyId: owner.thirdPartyId }, beforeVersion: '2', afterVersion: '3' });
+  expect(JSON.stringify(central)).not.toContain('La factura ya estaba registrada.');
+  expect(JSON.stringify(central)).not.toContain('offline-value-not-central');
 });
 
 it('defaults a legacy invoice without a capture channel to ONLINE', async () => {
@@ -261,6 +309,9 @@ it('stores QR and MANUAL origins together, enforces business and CUFE uniqueness
   await expect(createWithImage({ ...qr, requestHash: 'changed-qr-content-or-attachment' })).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT' });
   expect(await connection.collection('invoices').findOne({ _id: new mongoose.Types.ObjectId(created.id) })).toMatchObject({ origin: 'QR' });
   const event = await connection.collection('invoice_management_events').findOne({ invoiceId: created.id });
+  const audit = await connection.collection('audit_events').findOne({ _id: event!.eventId as never });
+  expect(audit).toMatchObject({ captureOrigin: 'QR', action: 'INVOICE_CREATED' });
+  expect(JSON.stringify(audit)).not.toContain('b'.repeat(96)); expect(JSON.stringify(audit)).not.toContain('https://example.test/qr');
   expect(event).not.toHaveProperty('qrContent'); expect(event).not.toHaveProperty('document');
 
   const commercialCollision = { ...command(owner, { number: 'FAC-CROSS-ORIGIN' }),
@@ -278,6 +329,7 @@ it('stores QR and MANUAL origins together, enforces business and CUFE uniqueness
   finally { failAudit = false; }
   expect(await connection.collection('invoices').countDocuments({ _id: new mongoose.Types.ObjectId(failed.invoice.id) })).toBe(0);
   expect(await connection.collection('invoice_management_events').countDocuments({ invoiceId: failed.invoice.id })).toBe(0);
+  expect(await connection.collection('audit_events').countDocuments({ source: 'invoices', 'resource.id': failed.invoice.id })).toBe(0);
 });
 
 it('rejects QR creation when its own many-to-many assignment closes after preview but before transaction confirmation', async () => {
