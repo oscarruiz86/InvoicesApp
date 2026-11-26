@@ -9,6 +9,7 @@ import { readServerEnvironment } from '@/shared/infrastructure/config/server-env
 import { authorization } from './authorization-endpoint';
 import { authenticatedEndpoint } from './authenticated-endpoint';
 import { driverResponse, type DriverOperation } from '@/modules/fleet/presentation/drivers';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const connect = () => { const environment = readServerEnvironment(); return connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE }); };
 const identityConfiguration = async () => {
@@ -20,7 +21,7 @@ const identityConfiguration = async () => {
     clientId: environment.KEYCLOAK_DIRECTORY_CLIENT_ID ?? '', clientSecret };
 };
 const identity = createIdentityProfileReader(identityConfiguration);
-const repository = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation);
+const repository = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation, createMongoAuditWriter);
 const assignments = createMongoAssignmentPresenceReader(connect);
 const service = createDrivers({ repository, facts: repository, assignments, authorization, identity });
 

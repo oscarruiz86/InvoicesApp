@@ -2,12 +2,13 @@ import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { createCatalogRepository } from '@/modules/parametric-catalogs/infrastructure/mongodb/catalog-repository';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
 const database = `catalog_audit_${randomUUID().replaceAll('-', '')}_test`;
 const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 5000 });
-const repository = createCatalogRepository(async () => connection, () => ({ async confirm() {} }));
+const repository = createCatalogRepository(async () => connection, () => ({ async read() { return { version: '1', grants: [] }; }, async confirm() {} }), createMongoAuditWriter);
 
 beforeAll(async () => { await connection.asPromise(); });
 beforeEach(async () => {

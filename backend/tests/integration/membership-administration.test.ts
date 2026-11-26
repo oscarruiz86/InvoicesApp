@@ -5,6 +5,7 @@ import { createInvitationRepository } from '@/modules/organizations/infrastructu
 import type { Membership } from '@/modules/organizations/domain/invitations';
 import type { DriverProvisioningPort } from '@/modules/organizations/application/driver-provisioning';
 import { driverModel, provisionDriverInSession, synchronizeDriverMembershipInSession } from '@/modules/fleet/infrastructure/mongodb/driver-repository';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
@@ -56,18 +57,18 @@ const driverProvisioning: DriverProvisioningPort = {
     if (!input.roles.includes('DRIVER')) return;
     await provisionDriverInSession(connection, transaction as ClientSession, { id: new Types.ObjectId().toHexString(),
       subject: input.membership.subject, membershipId: input.membership.id, thirdPartyId: input.membership.organizationId,
-      actor: input.actorSubject, now: input.now, source: input.source });
+      actor: input.actorSubject, now: input.now, source: input.source }, createMongoAuditWriter(connection, transaction as ClientSession));
   },
   async synchronizeRoles(input, transaction) {
     await synchronizeDriverMembershipInSession(connection, transaction as ClientSession, { membershipId: input.membership.id,
       subject: input.membership.subject, thirdPartyId: input.membership.organizationId, beforeRoles: input.beforeRoles, afterRoles: input.afterRoles,
-      membershipStatus: input.membership.status, actor: input.actorSubject, now: input.now });
+      membershipStatus: input.membership.status, actor: input.actorSubject, now: input.now }, createMongoAuditWriter(connection, transaction as ClientSession));
   },
 };
 
 async function provisionSeedDriver(membership: Membership) {
   await connection.transaction(async session => provisionDriverInSession(connection, session, { id: new Types.ObjectId().toHexString(),
-    subject: membership.subject, membershipId: membership.id, thirdPartyId: membership.organizationId, actor: 'app-admin', now, source: 'MEMBERSHIP' }));
+    subject: membership.subject, membershipId: membership.id, thirdPartyId: membership.organizationId, actor: 'app-admin', now, source: 'MEMBERSHIP' }, createMongoAuditWriter(connection, session)));
 }
 
 it('keeps one administrator through atomic replacement and emits no duplicate event for a no-op', async () => {

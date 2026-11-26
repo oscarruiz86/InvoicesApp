@@ -15,6 +15,7 @@ import { readServerEnvironment } from '@/shared/infrastructure/config/server-env
 import { authorization, policyRepository } from './authorization-endpoint';
 import { authenticatedEndpoint } from './authenticated-endpoint';
 import { parameterUseCases } from './parameter-endpoint';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const connect = () => { const environment = readServerEnvironment(); return connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE }); };
 let localStorageRoot: string | undefined;
@@ -40,7 +41,8 @@ export const invoiceImageStorage: InvoiceImageStoragePort = {
 const assignmentAuthority = createMongoInvoiceAssignmentAuthority(connect);
 const repository = createMongoInvoiceRepository(connect, (connection, session) => ({ policy: policyConfirmation(connection, session),
   authority: invoiceAuthorityConfirmation(connection, session), assignments: assignmentAuthority,
-  editPolicy: { async confirm(input) { await parameterUseCases.confirm({ ...input, transactionContext: input.transactionContext }); } }, audit: createMongoInvoiceAudit(connection, session) }));
+  editPolicy: { async confirm(input) { await parameterUseCases.confirm({ ...input, transactionContext: input.transactionContext }); } }, audit: createMongoInvoiceAudit(connection, session, createMongoAuditWriter(connection, session)) }),
+  { auditFactory: createMongoAuditWriter });
 const invoiceAuthorization = createInvoiceAuthorizationPort({ authorization, policies: policyRepository });
 
 export function invoiceImageStorageCompanyId() { const env = readServerEnvironment(); if (!env.INVOICE_IMAGE_STORAGE_COMPANY_ID) throw new Error('CONFIGURATION_ERROR'); return env.INVOICE_IMAGE_STORAGE_COMPANY_ID; }

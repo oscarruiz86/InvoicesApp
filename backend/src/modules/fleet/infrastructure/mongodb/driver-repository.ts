@@ -7,6 +7,7 @@ import { AssignmentConfirmationError, type AssignmentConfirmationPort } from '..
 import { createDriver, DriverError, isDriverEligible, transitionDriver, type Driver, type DriverMembershipFacts } from '../../domain/driver';
 import type { DriverFactsReader, DriverRepositoryPort } from '../../application/driver-ports';
 import { recordFleetAudit } from './fleet-audit';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 
 export class DriverRepositoryError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'NOT_FOUND' | 'FORBIDDEN' | 'VERSION_CONFLICT'
@@ -69,7 +70,7 @@ export async function provisionDriverInSession(connection: Connection, session: 
   readonly actor: string;
   readonly now: Date;
   readonly source: 'INVITATION' | 'MEMBERSHIP' | 'MIGRATION';
-}): Promise<Driver> {
+}, audit: AuditWriter): Promise<Driver> {
   const model = driverModel(connection);
   const existing = await model.findOne({ membershipId: input.membershipId }).session(session).lean().exec();
   if (existing) {
@@ -96,7 +97,7 @@ export async function provisionDriverInSession(connection: Connection, session: 
     membershipId: driver.membershipId, subject: driver.subject, thirdPartyId: driver.thirdPartyId, actorSubject: input.actor,
     action, source: input.source,
     beforeVersion: null, version: driver.version, at: input.now }, { session });
-  await recordFleetAudit(connection, session, { eventId, correlationId: eventId, at: input.now, action,
+  await recordFleetAudit(audit, { eventId, correlationId: eventId, at: input.now, action,
     actorSubject: input.actor, actorKind: input.source === 'MIGRATION' ? 'system' : 'user', resourceType: 'driver', resourceId: driver.id,
     thirdPartyId: driver.thirdPartyId, beforeVersion: null, afterVersion: driver.version });
   return driver;
@@ -111,14 +112,14 @@ export async function synchronizeDriverMembershipInSession(connection: Connectio
   readonly membershipStatus: 'ACTIVE' | 'INACTIVE';
   readonly actor: string;
   readonly now: Date;
-}): Promise<void> {
+}, audit: AuditWriter): Promise<void> {
   const hadDriver = input.beforeRoles.includes('DRIVER');
   const hasDriver = input.afterRoles.includes('DRIVER');
   if (hadDriver === hasDriver) return;
   const model = driverModel(connection);
   if (hasDriver) {
     if (input.membershipStatus !== 'ACTIVE') throw new DriverRepositoryError('MEMBERSHIP_NOT_ELIGIBLE');
-    await provisionDriverInSession(connection, session, { ...input, id: new Types.ObjectId().toString(), source: 'MEMBERSHIP' });
+    await provisionDriverInSession(connection, session, { ...input, id: new Types.ObjectId().toString(), source: 'MEMBERSHIP' }, audit);
     return;
   }
   const raw = await model.findOne({ membershipId: input.membershipId, subject: input.subject, thirdPartyId: input.thirdPartyId }).session(session).lean().exec();
@@ -134,13 +135,14 @@ export async function synchronizeDriverMembershipInSession(connection: Connectio
     membershipId: driver.membershipId, subject: driver.subject, thirdPartyId: driver.thirdPartyId, actorSubject: input.actor,
     action: 'DRIVER_DEACTIVATED', source: 'MEMBERSHIP_ROLE_REMOVED', beforeVersion: driver.version,
     version: driver.version + 1, at: input.now }, { session });
-  await recordFleetAudit(connection, session, { eventId, correlationId: eventId, at: input.now, action: 'DRIVER_DEACTIVATED',
+  await recordFleetAudit(audit, { eventId, correlationId: eventId, at: input.now, action: 'DRIVER_DEACTIVATED',
     actorSubject: input.actor, resourceType: 'driver', resourceId: driver.id, thirdPartyId: driver.thirdPartyId,
     beforeVersion: driver.version, afterVersion: driver.version + 1 });
 }
 
 export function createDriverRepository(connect: () => Promise<Connection>, policyFactory: (connection: Connection, session: ClientSession) => PolicyConfirmation,
-  assignmentConfirmation: (connection: Connection, session: ClientSession) => Pick<AssignmentConfirmationPort, 'confirmNoOpenForDriver'>): DriverRepositoryPort & DriverFactsReader & {
+  assignmentConfirmation: (connection: Connection, session: ClientSession) => Pick<AssignmentConfirmationPort, 'confirmNoOpenForDriver'>,
+  auditFactory: (connection: Connection, session: ClientSession) => AuditWriter): DriverRepositoryPort & DriverFactsReader & {
   nextId(): string;
 } {
   let initialized: Promise<void> | undefined;
@@ -266,7 +268,7 @@ export function createDriverRepository(connect: () => Promise<Connection>, polic
             membershipId: driver.membershipId, subject: driver.subject, thirdPartyId: driver.thirdPartyId, actorSubject: input.actor,
             action: input.status === 'ACTIVE' ? 'DRIVER_ACTIVATED' : 'DRIVER_DEACTIVATED', source: 'STATUS_TRANSITION',
             beforeVersion: driver.version, version: changed.driver.version, at: changed.driver.updatedAt }, { session });
-          await recordFleetAudit(connection, session, { eventId, correlationId, at: changed.driver.updatedAt,
+          await recordFleetAudit(auditFactory(connection, session), { eventId, correlationId, at: changed.driver.updatedAt,
             action: input.status === 'ACTIVE' ? 'DRIVER_ACTIVATED' : 'DRIVER_DEACTIVATED', actorSubject: input.actorSubject,
             resourceType: 'driver', resourceId: driver.id, thirdPartyId: driver.thirdPartyId, beforeVersion: driver.version, afterVersion: changed.driver.version });
           return changed.driver;

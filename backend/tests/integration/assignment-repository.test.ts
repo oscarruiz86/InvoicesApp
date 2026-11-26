@@ -7,6 +7,7 @@ import { createDrivers } from '@/modules/fleet/application/drivers';
 import { createVehicles } from '@/modules/fleet/application/vehicles';
 import { createMongoAssignmentAccessReader, createMongoAssignmentAudit, createMongoAssignmentConfirmation, createMongoAssignmentPresenceReader, createMongoAssignmentRepository } from '@/modules/fleet/infrastructure/mongodb/assignment-repository';
 import { createMongoInvoiceAssignmentAuthority } from '@/modules/fleet/infrastructure/mongodb/invoice-assignment-authority';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 import { createDriverRepository, driverModel } from '@/modules/fleet/infrastructure/mongodb/driver-repository';
 import { createVehicleRepository } from '@/modules/fleet/infrastructure/mongodb/vehicle-repository';
 import { createPolicyRepository, policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
@@ -19,12 +20,12 @@ const connection = mongoose.createConnection(uri, { dbName: database, serverSele
 const connect = async () => connection;
 let policyVersion = '1';
 const assignments = createMongoAssignmentRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s),
-  authority: vehicleAuthorityConfirmation(c, s), audit: createMongoAssignmentAudit(c, s) }));
-const drivers = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation);
+  authority: vehicleAuthorityConfirmation(c, s), audit: createMongoAssignmentAudit(c, s, createMongoAuditWriter(c, s)) }));
+const drivers = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation, createMongoAuditWriter);
 const presence = createMongoAssignmentPresenceReader(connect);
 const invoiceAssignmentAuthority = createMongoInvoiceAssignmentAuthority(connect);
 const vehicleRepository = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s),
-  authority: vehicleAuthorityConfirmation(c, s), assignments: createMongoAssignmentConfirmation(c, s) }));
+  authority: vehicleAuthorityConfirmation(c, s), assignments: createMongoAssignmentConfirmation(c, s), audit: createMongoAuditWriter(c, s) }));
 const now = new Date('2026-11-20T12:00:00.000Z');
 let vehicleSequence = 100;
 

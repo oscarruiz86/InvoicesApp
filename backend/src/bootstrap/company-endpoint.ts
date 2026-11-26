@@ -12,7 +12,7 @@ import { readServerEnvironment } from '@/shared/infrastructure/config/server-env
 import { authenticatedEndpoint } from './authenticated-endpoint';
 const now = () => new Date();
 const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
-const catalogs = createCatalogRepository(connect, policyConfirmation);
+const catalogs = createCatalogRepository(connect, policyConfirmation, createMongoAuditWriter);
 const service = createCompanies({ repository: createCompanyRepository(connect, policyConfirmation),
   audit: createLimitedSecurityAudit({ async record(event) { await createMongoAuditWriter(await connect()).record(authorizationAuditEvent(event)); } }, { now }),
   validateLocation: catalogs.validateLocation, now, nextEventId: randomUUID });

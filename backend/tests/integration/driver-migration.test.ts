@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { inspectDriverMigration, migrateDriverMemberships } from '@/modules/fleet/infrastructure/mongodb/driver-migration';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
@@ -36,8 +37,8 @@ it('migrates only active eligible memberships by membershipId and is idempotent'
   expect(inventory.conflicts).toEqual([]);
   expect(await connection.collection('drivers').countDocuments()).toBe(0);
 
-  expect(await migrateDriverMemberships(connection, now)).toMatchObject({ migrated: 1, alreadyPresent: 0, ineligibleThirdParties: 1 });
-  expect(await migrateDriverMemberships(connection, new Date(now.getTime() + 1000))).toMatchObject({ migrated: 0, alreadyPresent: 1, ineligibleThirdParties: 1 });
+  expect(await migrateDriverMemberships(connection, createMongoAuditWriter, now)).toMatchObject({ migrated: 1, alreadyPresent: 0, ineligibleThirdParties: 1 });
+  expect(await migrateDriverMemberships(connection, createMongoAuditWriter, new Date(now.getTime() + 1000))).toMatchObject({ migrated: 0, alreadyPresent: 1, ineligibleThirdParties: 1 });
   const driver = await connection.collection('drivers').findOne({ membershipId: eligible.membershipId });
   expect(driver).toMatchObject({ subject: eligible.subject, thirdPartyId: eligible.thirdPartyId, status: 'ACTIVE', version: 1, createdBy: 'system:driver-migration' });
   expect(await connection.collection('drivers').findOne({ membershipId: inactive.membershipId })).toBeNull();
@@ -59,7 +60,7 @@ it('reports missing membership links and mismatched existing Drivers without mer
     { reason: 'DRIVER_ROLE_MISSING_MEMBERSHIP_ID', count: 1 },
     { reason: 'DRIVER_MEMBERSHIP_CONFLICT', count: 1 },
   ]));
-  await expect(migrateDriverMemberships(connection)).rejects.toMatchObject({ code: 'MIGRATION_CONFLICT' });
+  await expect(migrateDriverMemberships(connection, createMongoAuditWriter)).rejects.toMatchObject({ code: 'MIGRATION_CONFLICT' });
   expect(await connection.collection('drivers').countDocuments({ membershipId: missingLink.membershipId })).toBe(0);
   expect(await connection.collection('drivers').findOne({ membershipId: mismatch.membershipId })).toMatchObject({ subject: 'different-subject' });
 });

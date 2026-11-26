@@ -2,13 +2,14 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { closeMongo, connectMongo } from '@/shared/infrastructure/mongodb/connection';
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
 import { createMongoInvoiceSubmissionRepository } from '@/modules/invoice-sync/infrastructure/mongodb/submission-repository';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 import { createSubmissionImageStorage } from '@/modules/invoice-sync/infrastructure/submission-image-storage';
 import { createInvoiceSubmissionRetentionWorker } from '@/modules/invoice-sync/application/retention';
 import { invoiceImageStorage, invoiceImageStorageCompanyId } from './invoice-endpoint';
 
 const environment = readServerEnvironment();
 const connect = () => connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE });
-const worker = createInvoiceSubmissionRetentionWorker({ repository: createMongoInvoiceSubmissionRepository(connect),
+const worker = createInvoiceSubmissionRetentionWorker({ repository: createMongoInvoiceSubmissionRepository(connect, createMongoAuditWriter),
   images: createSubmissionImageStorage({ storage: invoiceImageStorage, companyId: invoiceImageStorageCompanyId }), clock: { now: () => new Date() } });
 let stopping = false;
 process.once('SIGINT', () => { stopping = true; });

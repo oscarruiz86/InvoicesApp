@@ -4,16 +4,25 @@
 Capture Keycloak administrative activity in local development and deliver sanitized, idempotent facts to the shared Audit journal. Keep the collection behavior disabled in production configuration.
 
 ## Requirements
-### Requirement: Capture administrative events only in development
-The development Keycloak realm MUST record administrative events without resource representations, and production deployment configuration MUST NOT enable this capture through this change.
+### Requirement: Capture administrative events in configured environments
+Development and configured production Keycloak realms MUST record administrative events without representations. Production capture MUST use an explicit production runtime configuration and MUST NOT enable user-event capture.
 
-#### Scenario: Local realm records admin activity
+#### Scenario: Development realm capture
 - **WHEN** the imported local/development realm is initialized
-- **THEN** its administrative event capture is enabled and event details are disabled
+- **THEN** administrative events are captured without event details
 
-#### Scenario: Production configuration remains unchanged
-- **WHEN** the production deployment configuration is inspected
-- **THEN** it does not enable administrative event capture or start the development collector
+#### Scenario: Production runtime is configured
+- **WHEN** the production Keycloak runtime and audit collector are explicitly configured
+- **THEN** administrative events are captured without representations and the collector can deliver normalized records to Audit
+- **AND** user-event capture remains disabled by this capability
+
+#### Scenario: Production runtime is absent or incomplete
+- **WHEN** no production Keycloak runtime exists or required collector configuration is incomplete
+- **THEN** the production collector does not start and no local-development setting is treated as production configuration
+
+#### Scenario: Event detail contains a resource representation
+- **WHEN** Keycloak receives an administrative action that would otherwise include a resource representation
+- **THEN** the representation is not captured or forwarded to Audit
 
 ### Requirement: Read administrative events with least privilege
 The collector MUST use a dedicated service account that can view administrative events and MUST NOT receive realm-management write permissions.
