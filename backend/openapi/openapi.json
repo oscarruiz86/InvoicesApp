@@ -4550,19 +4550,54 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso"
+            "description": "Sin permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Organización no disponible"
+            "description": "Organización no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio no disponible"
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -4617,19 +4652,54 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida o roles inválidos"
+            "description": "Solicitud inválida o roles inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso de delegación"
+            "description": "Sin permiso de delegación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Invitación o membership duplicada"
+            "description": "Invitación o membership duplicada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio o entrega no disponible"
+            "description": "Servicio o entrega no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -4694,16 +4764,44 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Correo no verificado"
+            "description": "Correo no verificado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Identidad o almacenamiento no disponible"
+            "description": "Identidad o almacenamiento no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [],
@@ -4764,25 +4862,74 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Correo, verificación o perfil no válido"
+            "description": "Correo, verificación o perfil no válido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Invitación no disponible"
+            "description": "Invitación no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Invitación resuelta o versión obsoleta"
+            "description": "Invitación resuelta o versión obsoleta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "410": {
-            "description": "Invitación vencida"
+            "description": "Invitación vencida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Identidad o almacenamiento no disponible"
+            "description": "Identidad o almacenamiento no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [],
@@ -4843,25 +4990,74 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Correo, verificación o perfil no válido"
+            "description": "Correo, verificación o perfil no válido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Invitación no disponible"
+            "description": "Invitación no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Invitación resuelta o versión obsoleta"
+            "description": "Invitación resuelta o versión obsoleta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "410": {
-            "description": "Invitación vencida"
+            "description": "Invitación vencida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Identidad no disponible"
+            "description": "Identidad no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [],
@@ -4906,16 +5102,44 @@
             }
           },
           "400": {
-            "description": "Token inválido"
+            "description": "Token inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Invitación no disponible"
+            "description": "Invitación no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "410": {
-            "description": "Invitación vencida"
+            "description": "Invitación vencida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio no disponible"
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [],
@@ -4964,10 +5188,24 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
             "description": "IDENTITY_MISMATCH, EMAIL_UNVERIFIED, PROFILE_INCOMPLETE o autorización denegada",
@@ -5006,13 +5244,34 @@
             }
           },
           "409": {
-            "description": "Invitación resuelta o versión obsoleta"
+            "description": "Invitación resuelta o versión obsoleta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "410": {
-            "description": "Invitación vencida"
+            "description": "Invitación vencida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Identidad o almacenamiento no disponible"
+            "description": "Identidad o almacenamiento no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [],
@@ -5061,10 +5320,24 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
             "description": "IDENTITY_MISMATCH, EMAIL_UNVERIFIED, PROFILE_INCOMPLETE o autorización denegada",
@@ -5103,13 +5376,34 @@
             }
           },
           "409": {
-            "description": "Invitación resuelta o versión obsoleta"
+            "description": "Invitación resuelta o versión obsoleta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "410": {
-            "description": "Invitación vencida"
+            "description": "Invitación vencida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio no disponible"
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [],
@@ -5160,16 +5454,44 @@
             }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso"
+            "description": "Sin permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Invitación no disponible"
+            "description": "Invitación no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio no disponible"
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -5233,25 +5555,74 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso"
+            "description": "Sin permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Invitación no disponible"
+            "description": "Invitación no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Versión obsoleta"
+            "description": "Versión obsoleta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "410": {
-            "description": "Invitación vencida"
+            "description": "Invitación vencida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio no disponible"
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -5315,25 +5686,74 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso"
+            "description": "Sin permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Invitación no disponible"
+            "description": "Invitación no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Versión obsoleta"
+            "description": "Versión obsoleta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "410": {
-            "description": "Invitación vencida"
+            "description": "Invitación vencida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio o entrega no disponible"
+            "description": "Servicio o entrega no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -5576,19 +5996,54 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso"
+            "description": "Sin permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Organización no disponible"
+            "description": "Organización no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio no disponible"
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -5676,19 +6131,54 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso o membership inactiva"
+            "description": "Sin permiso o membership inactiva",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Membership no disponible"
+            "description": "Membership no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Perfil no disponible"
+            "description": "Perfil no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -5752,22 +6242,64 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida o rol mínimo incumplido"
+            "description": "Solicitud inválida o rol mínimo incumplido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso de delegación"
+            "description": "Sin permiso de delegación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Membership no disponible"
+            "description": "Membership no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Versión obsoleta o último administrador"
+            "description": "Versión obsoleta o último administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio no disponible"
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -5831,22 +6363,64 @@
             }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso de delegación"
+            "description": "Sin permiso de delegación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Membership no disponible"
+            "description": "Membership no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Versión obsoleta o último administrador"
+            "description": "Versión obsoleta o último administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Servicio no disponible"
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -9532,16 +10106,44 @@
             }
           },
           "400": {
-            "description": "QR incompleto, inválido o incompatible"
+            "description": "QR incompleto, inválido o incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso"
+            "description": "Sin permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "413": {
-            "description": "Contenido demasiado grande"
+            "description": "Contenido demasiado grande",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -9648,19 +10250,54 @@
             }
           },
           "400": {
-            "description": "QR inválido"
+            "description": "QR inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "No autenticado"
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Sin permiso"
+            "description": "Sin permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Factura duplicada"
+            "description": "Factura duplicada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "413": {
-            "description": "Contenido demasiado grande"
+            "description": "Contenido demasiado grande",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -9731,22 +10368,64 @@
         "x-authorization-scope": "global",
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParameterPage"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Solicitud inválida."
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Autenticación requerida."
+            "description": "Autenticación requerida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permiso o contexto insuficiente."
+            "description": "Permiso o contexto insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Parámetro ausente."
+            "description": "Parámetro ausente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Configuration no disponible."
+            "description": "Configuration no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -9790,22 +10469,64 @@
         "x-authorization-scope": "global",
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Parameter"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Solicitud inválida."
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Autenticación requerida."
+            "description": "Autenticación requerida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permiso o contexto insuficiente."
+            "description": "Permiso o contexto insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Parámetro ausente."
+            "description": "Parámetro ausente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Configuration no disponible."
+            "description": "Configuration no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       },
@@ -9847,25 +10568,74 @@
         "x-authorization-scope": "global",
         "responses": {
           "200": {
-            "description": "Parámetro actualizado o sin cambios."
+            "description": "Parámetro actualizado o sin cambios.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Parameter"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Valor inválido."
+            "description": "Valor inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Autenticación requerida."
+            "description": "Autenticación requerida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permiso o contexto insuficiente."
+            "description": "Permiso o contexto insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Parámetro no inicializado."
+            "description": "Parámetro no inicializado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "La versión enviada ya no es vigente."
+            "description": "La versión enviada ya no es vigente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "No se pudo confirmar el cambio y su evento."
+            "description": "No se pudo confirmar el cambio y su evento.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -9954,22 +10724,64 @@
         "x-authorization-scope": "global",
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParameterHistoryPage"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Solicitud inválida."
+            "description": "Solicitud inválida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Autenticación requerida."
+            "description": "Autenticación requerida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permiso o contexto insuficiente."
+            "description": "Permiso o contexto insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Parámetro ausente."
+            "description": "Parámetro ausente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Configuration no disponible."
+            "description": "Configuration no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         }
       }
@@ -10024,16 +10836,44 @@
         ],
         "responses": {
           "200": {
-            "description": "Opciones activas ordenadas por etiqueta. Los departamentos dependen de CO; los municipios de un departamento."
+            "description": "Opciones activas ordenadas por etiqueta. Los departamentos dependen de CO; los municipios de un departamento.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogList"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Consulta inválida"
+            "description": "Consulta inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permiso parameters:read requerido"
+            "description": "Permiso parameters:read requerido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Catálogo no disponible"
+            "description": "Catálogo no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -10044,12 +10884,109 @@
       "post": {
         "operationId": "createCatalogEntry",
         "summary": "Crear un tipo documental o una ubicación geográfica",
-        "tags": ["Parametric catalogs"],
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [{ "name": "catalog", "in": "path", "required": true, "schema": { "type": "string", "enum": ["document-types", "countries", "departments", "municipalities"] } }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["code", "label", "parentCode"], "properties": { "code": { "type": "string", "minLength": 2, "maxLength": 12 }, "label": { "type": "string", "minLength": 1, "maxLength": 128 }, "parentCode": { "type": ["string", "null"] } } } } } },
-        "responses": { "201": { "description": "Entrada creada o reactivada" }, "400": { "description": "Código o relación padre-hijo inválidos" }, "403": { "description": "Permiso parameters:update requerido" }, "503": { "description": "Catálogo no disponible" } },
-        "x-required-permissions": ["parameters:update"],
+        "tags": [
+          "Parametric catalogs"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "catalog",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "document-types",
+                "countries",
+                "departments",
+                "municipalities"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "code",
+                  "label",
+                  "parentCode"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 12
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "parentCode": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Entrada creada o reactivada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Código o relación padre-hijo inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso parameters:update requerido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Catálogo no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "parameters:update"
+        ],
         "x-authorization-scope": "global"
       }
     },
@@ -10125,22 +11062,64 @@
         },
         "responses": {
           "200": {
-            "description": "Etiqueta actualizada y auditada"
+            "description": "Etiqueta actualizada y auditada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogEntry"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Solicitud inválida"
+            "description": "Solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Permiso parameters:update requerido"
+            "description": "Permiso parameters:update requerido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Código inexistente"
+            "description": "Código inexistente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "409": {
-            "description": "Versión desactualizada"
+            "description": "Versión desactualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "503": {
-            "description": "Catálogo no disponible"
+            "description": "Catálogo no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           }
         },
         "x-required-permissions": [
@@ -10153,15 +11132,120 @@
       "post": {
         "operationId": "deactivateCatalogEntry",
         "summary": "Desactivar lógicamente una entrada de catálogo",
-        "tags": ["Parametric catalogs"],
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "catalog", "in": "path", "required": true, "schema": { "type": "string", "enum": ["document-types", "countries", "departments", "municipalities"] } },
-          { "name": "code", "in": "path", "required": true, "schema": { "type": "string" } }
+        "tags": [
+          "Parametric catalogs"
         ],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["expectedVersion", "parentCode"], "properties": { "expectedVersion": { "type": "integer", "minimum": 1 }, "parentCode": { "type": ["string", "null"] } } } } } },
-        "responses": { "200": { "description": "Entrada marcada inactiva y auditada" }, "400": { "description": "Entrada protegida, dependencias existentes o solicitud inválida" }, "403": { "description": "Permiso parameters:update requerido" }, "409": { "description": "Versión desactualizada" }, "503": { "description": "Catálogo no disponible" } },
-        "x-required-permissions": ["parameters:update"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "catalog",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "document-types",
+                "countries",
+                "departments",
+                "municipalities"
+              ]
+            }
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "expectedVersion",
+                  "parentCode"
+                ],
+                "properties": {
+                  "expectedVersion": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "parentCode": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entrada marcada inactiva y auditada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada protegida, dependencias existentes o solicitud inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso parameters:update requerido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Versión desactualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Catálogo no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "parameters:update"
+        ],
         "x-authorization-scope": "global"
       }
     },
@@ -10169,22 +11253,171 @@
       "post": {
         "operationId": "issueOfflineInvoiceCredential",
         "summary": "Emitir credencial temporal de captura offline para conductor autenticado",
-        "tags": ["Invoice sync"],
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
-          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } }
+        "tags": [
+          "Invoice sync"
         ],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["assignments"], "properties": { "assignments": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "type": "object", "additionalProperties": false, "required": ["assignmentId", "vehicleId"], "properties": { "assignmentId": { "type": "string", "pattern": "^[a-f0-9]{24}$" }, "vehicleId": { "type": "string", "pattern": "^[a-f0-9]{24}$" } } } } } } } } },
-        "responses": {
-          "201": { "description": "Ticket ES256 de captura local válido por un máximo de 72 horas", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["credential", "expiresAt", "subject", "thirdPartyId", "assignmentIds"], "properties": { "credential": { "type": "string", "description": "JWS ES256 de alcance invoice:offline-capture; no es bearer de API" }, "expiresAt": { "type": "string", "format": "date-time" }, "subject": { "type": "string" }, "thirdPartyId": { "type": "string", "pattern": "^[a-f0-9]{24}$" }, "assignmentIds": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "type": "string", "pattern": "^[a-f0-9]{24}$" } } } } } } },
-          "400": { "description": "Solicitud o asignaciones inválidas", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
-          "401": { "description": "No autenticado" },
-          "403": { "description": "No es DRIVER autorizado" },
-          "409": { "description": "Asignación ya no disponible" },
-          "503": { "description": "Servicio o clave de firma no disponible" }
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "assignments"
+                ],
+                "properties": {
+                  "assignments": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "assignmentId",
+                        "vehicleId"
+                      ],
+                      "properties": {
+                        "assignmentId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$"
+                        },
+                        "vehicleId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         },
-        "x-required-permissions": ["invoices:create"],
+        "responses": {
+          "201": {
+            "description": "Ticket ES256 de captura local válido por un máximo de 72 horas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "credential",
+                    "expiresAt",
+                    "subject",
+                    "thirdPartyId",
+                    "assignmentIds"
+                  ],
+                  "properties": {
+                    "credential": {
+                      "type": "string",
+                      "description": "JWS ES256 de alcance invoice:offline-capture; no es bearer de API"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "thirdPartyId": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{24}$"
+                    },
+                    "assignmentIds": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{24}$"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud o asignaciones inválidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es DRIVER autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Asignación ya no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio o clave de firma no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "invoices:create"
+        ],
         "x-authorization-scope": "Tercero activo explícito; solo el ticket firmado permite captura local y nunca llamadas de API"
       }
     },
@@ -10192,44 +11425,241 @@
       "get": {
         "operationId": "listOfflineInvoiceSubmissionHistory",
         "summary": "Consultar el historial paginado de envíos offline del tercero activo",
-        "tags": ["Invoice sync"],
-        "security": [{ "bearerAuth": [] }],
+        "tags": [
+          "Invoice sync"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
-          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
-          { "name": "page", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "default": 1 } },
-          { "name": "pageSize", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Historial con resumen, estado y decisión administrativa si existe; DRIVER recibe solo sus envíos y THIRD_PARTY_ADMIN recibe los del tercero activo", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceSubmissionHistoryPage" } } } },
-          "401": { "description": "No autenticado" },
-          "403": { "description": "Requiere DRIVER o THIRD_PARTY_ADMIN autorizado para el tercero activo" },
-          "503": { "description": "Fallo temporal al consultar el historial" }
+          "200": {
+            "description": "Historial con resumen, estado y decisión administrativa si existe; DRIVER recibe solo sus envíos y THIRD_PARTY_ADMIN recibe los del tercero activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineInvoiceSubmissionHistoryPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requiere DRIVER o THIRD_PARTY_ADMIN autorizado para el tercero activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fallo temporal al consultar el historial",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
         },
-        "x-required-permissions": ["invoices:read"],
+        "x-required-permissions": [
+          "invoices:read"
+        ],
         "x-authorization-scope": "DRIVER ve sus propios envíos; THIRD_PARTY_ADMIN ve los envíos de su tercero activo. El tercero se valida contra el contexto autorizado y no se expone el sujeto propietario"
       },
       "post": {
         "operationId": "submitOfflineInvoice",
         "summary": "Presentar factura capturada offline de forma idempotente",
-        "tags": ["Invoice sync"],
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
-          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
-          { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 128 } }
+        "tags": [
+          "Invoice sync"
         ],
-        "requestBody": { "required": true, "content": { "multipart/form-data": { "schema": { "type": "object", "additionalProperties": false, "required": ["payload"], "properties": { "payload": { "type": "string", "description": "JSON MANUAL o QR con asignación, vehículo y campos de factura o contenido QR original" }, "image": { "type": "string", "format": "binary", "description": "Imagen JPEG o PNG opcional para QR y obligatoria para MANUAL" } } } } } },
-        "responses": {
-          "201": { "description": "Resultado actual del envío; usa la misma identidad para reintentar respuestas inciertas", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceSubmission" } } } },
-          "400": { "description": "Solicitud, campos o imagen inválidos", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
-          "401": { "description": "No autenticado" },
-          "403": { "description": "Sin permiso de creación" },
-          "409": { "description": "La misma clave se usó con un contenido diferente o hubo una actualización concurrente" },
-          "413": { "description": "Imagen demasiado grande" },
-          "503": { "description": "Fallo temporal; conserva el envío y reintenta con la misma clave" }
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "payload"
+                ],
+                "properties": {
+                  "payload": {
+                    "type": "string",
+                    "description": "JSON MANUAL o QR con asignación, vehículo y campos de factura o contenido QR original"
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Imagen JPEG o PNG opcional para QR y obligatoria para MANUAL"
+                  }
+                }
+              }
+            }
+          }
         },
-        "x-required-permissions": ["invoices:create"],
+        "responses": {
+          "201": {
+            "description": "Resultado actual del envío; usa la misma identidad para reintentar respuestas inciertas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineInvoiceSubmission"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud, campos o imagen inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso de creación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La misma clave se usó con un contenido diferente o hubo una actualización concurrente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Imagen demasiado grande",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Fallo temporal; conserva el envío y reintenta con la misma clave",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "invoices:create"
+        ],
         "x-authorization-scope": "Tercero explícito; identidad DRIVER y tercero se validan nuevamente online"
       }
     },
@@ -10237,21 +11667,97 @@
       "get": {
         "operationId": "readOwnOfflineInvoiceSubmission",
         "summary": "Consultar el estado de un envío propio de factura",
-        "tags": ["Invoice sync"],
-        "security": [{ "bearerAuth": [] }],
+        "tags": [
+          "Invoice sync"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
-          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
-          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Estado y resultado sin payload ni ubicación de imagen", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceSubmission" } } } },
-          "401": { "description": "No autenticado" },
-          "403": { "description": "Sin permiso" },
-          "404": { "description": "Envío ajeno o inexistente" },
-          "503": { "description": "Servicio no disponible" }
+          "200": {
+            "description": "Estado y resultado sin payload ni ubicación de imagen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineInvoiceSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sin permiso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Envío ajeno o inexistente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
         },
-        "x-required-permissions": ["invoices:read"],
+        "x-required-permissions": [
+          "invoices:read"
+        ],
         "x-authorization-scope": "Solo sujeto propietario y tercero del envío"
       }
     },
@@ -10259,22 +11765,107 @@
       "get": {
         "operationId": "listOfflineInvoiceConflicts",
         "summary": "Consultar conflictos de factura del tercero autorizado",
-        "tags": ["Invoice sync"],
-        "security": [{ "bearerAuth": [] }],
+        "tags": [
+          "Invoice sync"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
-          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
-          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
-          { "name": "pageSize", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } }
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Conflictos vigentes y datos mínimos de comparación; nunca incluye el QR original", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceConflictPage" } } } },
-          "400": { "description": "Paginación o ámbito inválido", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
-          "401": { "description": "No autenticado" },
-          "403": { "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero" },
-          "503": { "description": "Bandeja no disponible" }
+          "200": {
+            "description": "Conflictos vigentes y datos mínimos de comparación; nunca incluye el QR original",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineInvoiceConflictPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Paginación o ámbito inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Bandeja no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
         },
-        "x-required-permissions": ["invoices:read"],
+        "x-required-permissions": [
+          "invoices:read"
+        ],
         "x-authorization-scope": "Solo tercero activo explícito y rol THIRD_PARTY_ADMIN"
       }
     },
@@ -10282,21 +11873,104 @@
       "get": {
         "operationId": "readOfflineInvoiceConflictImage",
         "summary": "Consultar imagen temporal de un conflicto",
-        "tags": ["Invoice sync"],
-        "security": [{ "bearerAuth": [] }],
+        "tags": [
+          "Invoice sync"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
-          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
-          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Imagen de conflicto con respuesta privada y sin caché", "content": { "image/jpeg": { "schema": { "type": "string", "format": "binary" } }, "image/png": { "schema": { "type": "string", "format": "binary" } } } },
-          "401": { "description": "No autenticado" },
-          "403": { "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero" },
-          "404": { "description": "Imagen inexistente o conflicto no vigente" },
-          "503": { "description": "Imagen no disponible" }
+          "200": {
+            "description": "Imagen de conflicto con respuesta privada y sin caché",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Imagen inexistente o conflicto no vigente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Imagen no disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
         },
-        "x-required-permissions": ["invoices:read"],
+        "x-required-permissions": [
+          "invoices:read"
+        ],
         "x-authorization-scope": "Solo conflicto del tercero activo y rol THIRD_PARTY_ADMIN"
       }
     },
@@ -10304,24 +11978,127 @@
       "post": {
         "operationId": "resolveOfflineInvoiceConflict",
         "summary": "Resolver un conflicto offline con control optimista de versión",
-        "tags": ["Invoice sync"],
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
-          { "name": "scope", "in": "query", "required": true, "schema": { "const": "organization" } },
-          { "name": "thirdPartyId", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{24}$" } }
+        "tags": [
+          "Invoice sync"
         ],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceResolution" } } } },
-        "responses": {
-          "200": { "description": "Conflicto resuelto o resultado original de un reintento idempotente", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineInvoiceSubmission" } } } },
-          "400": { "description": "Acción, candidato, causa o motivo inválido", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
-          "401": { "description": "No autenticado" },
-          "403": { "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero" },
-          "404": { "description": "Envío inexistente o ajeno al tercero" },
-          "409": { "description": "La versión cambió o la decisión no es compatible con las causas vigentes" },
-          "503": { "description": "No fue posible registrar la decisión" }
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "organization"
+            }
+          },
+          {
+            "name": "thirdPartyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfflineInvoiceResolution"
+              }
+            }
+          }
         },
-        "x-required-permissions": ["invoices:update"],
+        "responses": {
+          "200": {
+            "description": "Conflicto resuelto o resultado original de un reintento idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineInvoiceSubmission"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Acción, candidato, causa o motivo inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requiere THIRD_PARTY_ADMIN autorizado para el tercero",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Envío inexistente o ajeno al tercero",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La versión cambió o la decisión no es compatible con las causas vigentes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No fue posible registrar la decisión",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-permissions": [
+          "invoices:update"
+        ],
         "x-authorization-scope": "Vincular duplicado, aprobar asignación cerrada sin duplicidad o rechazar; decisión y auditoría atómicas"
       }
     }
@@ -10331,16 +12108,31 @@
       "ApiError": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["code", "message"],
+            "required": [
+              "code",
+              "message"
+            ],
             "properties": {
-              "code": { "type": "string" },
-              "message": { "type": "string" },
-              "fields": { "type": "array", "items": { "type": "string" }, "description": "Campos permitidos con errores de validación; no incluye valores enviados ni detalles internos." }
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Campos permitidos con errores de validación; no incluye valores enviados ni detalles internos."
+              }
             }
           }
         }
@@ -10348,81 +12140,507 @@
       "OfflineInvoiceSubmission": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "thirdPartyId", "origin", "assignmentId", "vehicleId", "causes", "candidateInvoiceIds", "status", "version", "createdAt", "expiresAt", "resultInvoiceId", "resolutionReason"],
+        "required": [
+          "id",
+          "thirdPartyId",
+          "origin",
+          "assignmentId",
+          "vehicleId",
+          "causes",
+          "candidateInvoiceIds",
+          "status",
+          "version",
+          "createdAt",
+          "expiresAt",
+          "resultInvoiceId",
+          "resolutionReason"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
-          "thirdPartyId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
-          "origin": { "type": "string", "enum": ["MANUAL", "QR"] },
-          "assignmentId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
-          "vehicleId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
-          "causes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["BUSINESS_DUPLICATE", "CUFE_DUPLICATE", "ASSIGNMENT_CLOSED"] } },
-          "candidateInvoiceIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-f0-9]{24}$" } },
-          "status": { "type": "string", "enum": ["PENDING", "CONFLICT", "REQUIRES_CORRECTION", "SYNCHRONIZED", "LINKED", "REJECTED"] },
-          "version": { "type": "integer", "minimum": 1 },
-          "createdAt": { "type": "string", "format": "date-time" },
-          "expiresAt": { "type": ["string", "null"], "format": "date-time" },
-          "resultInvoiceId": { "type": ["string", "null"], "pattern": "^[a-f0-9]{24}$" },
-          "resolutionReason": { "type": ["string", "null"], "maxLength": 500 }
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "thirdPartyId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "QR"
+            ]
+          },
+          "assignmentId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "vehicleId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "causes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "BUSINESS_DUPLICATE",
+                "CUFE_DUPLICATE",
+                "ASSIGNMENT_CLOSED"
+              ]
+            }
+          },
+          "candidateInvoiceIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFLICT",
+              "REQUIRES_CORRECTION",
+              "SYNCHRONIZED",
+              "LINKED",
+              "REJECTED"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "resultInvoiceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "resolutionReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          }
         }
       },
       "InvoiceConflictCandidate": {
-        "type": "object", "additionalProperties": false, "required": ["id", "invoiceNumber", "issuerNit", "invoiceDate", "cause"],
-        "properties": { "id": { "type": "string", "pattern": "^[a-f0-9]{24}$" }, "invoiceNumber": { "type": "string" }, "issuerNit": { "type": "string" },
-          "invoiceDate": { "type": "string", "format": "date" }, "cause": { "type": "string", "enum": ["BUSINESS_DUPLICATE", "CUFE_DUPLICATE"] } }
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "invoiceNumber",
+          "issuerNit",
+          "invoiceDate",
+          "cause"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "invoiceNumber": {
+            "type": "string"
+          },
+          "issuerNit": {
+            "type": "string"
+          },
+          "invoiceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "cause": {
+            "type": "string",
+            "enum": [
+              "BUSINESS_DUPLICATE",
+              "CUFE_DUPLICATE"
+            ]
+          }
+        }
       },
       "OfflineInvoiceConflictItem": {
-        "type": "object", "additionalProperties": false, "required": ["submission", "reviewFields", "candidates", "imageAvailable"],
-        "properties": { "submission": { "$ref": "#/components/schemas/OfflineInvoiceSubmission" },
-          "reviewFields": { "type": "object", "additionalProperties": false, "properties": { "invoiceDate": { "type": "string", "format": "date" },
-            "invoiceTime": { "type": "string", "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$" },
-            "invoiceNumber": { "type": "string" }, "issuerNit": { "type": "string" }, "buyerDocument": { "type": "string" }, "amount": { "type": "string" },
-            "vatAmount": { "type": "string" }, "otherTaxesAmount": { "type": "string" }, "totalAmount": { "type": "string" } } },
-          "candidates": { "type": "array", "items": { "$ref": "#/components/schemas/InvoiceConflictCandidate" } }, "imageAvailable": { "type": "boolean" } }
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "submission",
+          "reviewFields",
+          "candidates",
+          "imageAvailable"
+        ],
+        "properties": {
+          "submission": {
+            "$ref": "#/components/schemas/OfflineInvoiceSubmission"
+          },
+          "reviewFields": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "invoiceDate": {
+                "type": "string",
+                "format": "date"
+              },
+              "invoiceTime": {
+                "type": "string",
+                "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$"
+              },
+              "invoiceNumber": {
+                "type": "string"
+              },
+              "issuerNit": {
+                "type": "string"
+              },
+              "buyerDocument": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "string"
+              },
+              "vatAmount": {
+                "type": "string"
+              },
+              "otherTaxesAmount": {
+                "type": "string"
+              },
+              "totalAmount": {
+                "type": "string"
+              }
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceConflictCandidate"
+            }
+          },
+          "imageAvailable": {
+            "type": "boolean"
+          }
+        }
       },
       "OfflineInvoiceConflictPage": {
-        "type": "object", "additionalProperties": false, "required": ["items", "total", "page", "pageSize"],
-        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/OfflineInvoiceConflictItem" } }, "total": { "type": "integer", "minimum": 0 },
-          "page": { "type": "integer", "minimum": 1 }, "pageSize": { "type": "integer", "minimum": 1, "maximum": 100 } }
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfflineInvoiceConflictItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
       },
       "OfflineInvoiceSubmissionHistoryItem": {
-        "type": "object", "additionalProperties": false,
-        "required": ["id", "thirdPartyId", "origin", "status", "createdAt", "updatedAt", "causes", "invoiceNumber", "invoiceDate", "issuerNit", "totalAmount", "resolutionReason", "resolution"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "thirdPartyId",
+          "origin",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "causes",
+          "invoiceNumber",
+          "invoiceDate",
+          "issuerNit",
+          "totalAmount",
+          "resolutionReason",
+          "resolution"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-f0-9]{24}$" }, "thirdPartyId": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
-          "origin": { "type": "string", "enum": ["MANUAL", "QR"] },
-          "status": { "type": "string", "enum": ["PENDING", "CONFLICT", "REQUIRES_CORRECTION", "SYNCHRONIZED", "LINKED", "REJECTED"] },
-          "driverName": { "type": ["string", "null"], "maxLength": 200 }, "vehiclePlate": { "type": ["string", "null"], "maxLength": 32 },
-          "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" },
-          "causes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["BUSINESS_DUPLICATE", "CUFE_DUPLICATE", "ASSIGNMENT_CLOSED"] } },
-          "invoiceNumber": { "type": ["string", "null"] }, "invoiceDate": { "type": ["string", "null"], "format": "date" },
-          "issuerNit": { "type": ["string", "null"] }, "totalAmount": { "type": ["string", "null"] },
-          "resolutionReason": { "type": ["string", "null"], "maxLength": 500 },
-          "resolution": { "oneOf": [{ "$ref": "#/components/schemas/OfflineInvoiceSubmissionDecision" }, { "type": "null" }] }
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "thirdPartyId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{24}$"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "QR"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFLICT",
+              "REQUIRES_CORRECTION",
+              "SYNCHRONIZED",
+              "LINKED",
+              "REJECTED"
+            ]
+          },
+          "driverName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "vehiclePlate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 32
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "causes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "BUSINESS_DUPLICATE",
+                "CUFE_DUPLICATE",
+                "ASSIGNMENT_CLOSED"
+              ]
+            }
+          },
+          "invoiceNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "invoiceDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "issuerNit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "totalAmount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolutionReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "resolution": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OfflineInvoiceSubmissionDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
         }
       },
       "OfflineInvoiceSubmissionDecision": {
-        "type": "object", "additionalProperties": false,
-        "required": ["action", "at", "reason", "resultInvoiceNumber", "resultInvoiceDate"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "at",
+          "reason",
+          "resultInvoiceNumber",
+          "resultInvoiceDate"
+        ],
         "properties": {
-          "action": { "type": "string", "enum": ["LINK_DUPLICATE", "APPROVE_CLOSED_ASSIGNMENT", "REJECT"] },
-          "at": { "type": "string", "format": "date-time" }, "reason": { "type": "string", "maxLength": 500 },
-          "resultInvoiceNumber": { "type": ["string", "null"] }, "resultInvoiceDate": { "type": ["string", "null"], "format": "date" }
+          "action": {
+            "type": "string",
+            "enum": [
+              "LINK_DUPLICATE",
+              "APPROVE_CLOSED_ASSIGNMENT",
+              "REJECT"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "resultInvoiceNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resultInvoiceDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
         }
       },
       "OfflineInvoiceSubmissionHistoryPage": {
-        "type": "object", "additionalProperties": false, "required": ["items", "total", "page", "pageSize"],
-        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/OfflineInvoiceSubmissionHistoryItem" } },
-          "total": { "type": "integer", "minimum": 0 }, "page": { "type": "integer", "minimum": 1 }, "pageSize": { "type": "integer", "minimum": 1, "maximum": 100 } }
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfflineInvoiceSubmissionHistoryItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
       },
       "OfflineInvoiceResolution": {
         "oneOf": [
-          { "type": "object", "additionalProperties": false, "required": ["action", "expectedVersion", "reason", "resultInvoiceId"],
-            "properties": { "action": { "const": "LINK_DUPLICATE" }, "expectedVersion": { "type": "integer", "minimum": 1 }, "reason": { "type": "string", "minLength": 1, "maxLength": 500 }, "resultInvoiceId": { "type": "string", "pattern": "^[a-f0-9]{24}$" } } },
-          { "type": "object", "additionalProperties": false, "required": ["action", "expectedVersion", "reason"],
-            "properties": { "action": { "const": "APPROVE_CLOSED_ASSIGNMENT" }, "expectedVersion": { "type": "integer", "minimum": 1 }, "reason": { "type": "string", "minLength": 1, "maxLength": 500 } } },
-          { "type": "object", "additionalProperties": false, "required": ["action", "expectedVersion", "reason"],
-            "properties": { "action": { "const": "REJECT" }, "expectedVersion": { "type": "integer", "minimum": 1 }, "reason": { "type": "string", "minLength": 1, "maxLength": 500 } } }
-        ], "discriminator": { "propertyName": "action" }
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "expectedVersion",
+              "reason",
+              "resultInvoiceId"
+            ],
+            "properties": {
+              "action": {
+                "const": "LINK_DUPLICATE"
+              },
+              "expectedVersion": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "resultInvoiceId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{24}$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "expectedVersion",
+              "reason"
+            ],
+            "properties": {
+              "action": {
+                "const": "APPROVE_CLOSED_ASSIGNMENT"
+              },
+              "expectedVersion": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "expectedVersion",
+              "reason"
+            ],
+            "properties": {
+              "action": {
+                "const": "REJECT"
+              },
+              "expectedVersion": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "action"
+        }
       },
       "Invitation": {
         "type": "object",
@@ -13597,7 +15815,14 @@
             ],
             "type": "string"
           },
-          "captureChannel": { "type": "string", "enum": ["ONLINE", "OFFLINE"], "description": "Canal por el que se capturó la factura, independiente del origen MANUAL o QR." },
+          "captureChannel": {
+            "type": "string",
+            "enum": [
+              "ONLINE",
+              "OFFLINE"
+            ],
+            "description": "Canal por el que se capturó la factura, independiente del origen MANUAL o QR."
+          },
           "thirdPartyId": {
             "type": "string",
             "pattern": "^[a-f0-9]{24}$"
@@ -13907,6 +16132,283 @@
           "cufe": {
             "pattern": "^[a-f0-9]{96}$",
             "type": "string"
+          }
+        }
+      },
+      "Parameter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "name",
+          "description",
+          "type",
+          "unit",
+          "initialValue",
+          "minimum",
+          "maximum",
+          "scope",
+          "value",
+          "version",
+          "effectiveFrom",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "const": "invoice.manual-edit-window-seconds"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "const": "integer"
+          },
+          "unit": {
+            "type": "string",
+            "const": "seconds"
+          },
+          "initialValue": {
+            "type": "integer",
+            "const": 43200
+          },
+          "minimum": {
+            "type": "integer",
+            "const": 1
+          },
+          "maximum": {
+            "type": "integer",
+            "const": 31536000
+          },
+          "scope": {
+            "type": "string",
+            "const": "global"
+          },
+          "value": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        }
+      },
+      "ParameterPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Parameter"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "ParameterHistoryItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "correlationId",
+          "key",
+          "actor",
+          "at",
+          "previousValue",
+          "value",
+          "previousVersion",
+          "version"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "const": "invoice.manual-edit-window-seconds"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "previousValue": {
+            "type": "integer"
+          },
+          "value": {
+            "type": "integer"
+          },
+          "previousVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ParameterHistoryPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParameterHistoryItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "CatalogEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "catalog",
+          "code",
+          "label",
+          "parentCode",
+          "territoryType",
+          "active",
+          "version",
+          "source",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "properties": {
+          "catalog": {
+            "type": "string",
+            "enum": [
+              "document-types",
+              "countries",
+              "departments",
+              "municipalities",
+              "statuses"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "parentCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "territoryType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "Municipio",
+              "Isla",
+              "Área no municipalizada",
+              null
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogEntry"
+            }
           }
         }
       }
