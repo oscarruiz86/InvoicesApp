@@ -46,6 +46,8 @@
     "test:http": "node scripts/test-http.mjs && node scripts/test-vehicles-http.mjs",
     "test:production-secrets": "node scripts/test-production-secrets.mjs",
     "openapi:lint": "redocly lint openapi/openapi.json",
+    "openapi:routes": "node scripts/check-openapi-routes.mjs",
+    "openapi:check": "npm run openapi:lint && npm run openapi:routes",
     "postbuild": "node scripts/prepare-standalone.mjs",
     "authorization:init": "node --env-file-if-exists=.env.local scripts/initialize-authorization.mjs",
     "audit:worker": "node --experimental-loader ./scripts/typescript-loader.mjs src/bootstrap/run-audit-outbox-worker.ts",
