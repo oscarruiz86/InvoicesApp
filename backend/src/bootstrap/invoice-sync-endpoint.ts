@@ -11,9 +11,10 @@ import { connectMongo } from '@/shared/infrastructure/mongodb/connection';
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
 import { invoiceImageStorage, invoiceImageStorageCompanyId, invoices } from './invoice-endpoint';
 import type { AuthenticatedActor } from '@/modules/identity/domain/actor';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
-const repository = createMongoInvoiceSubmissionRepository(connect);
+const repository = createMongoInvoiceSubmissionRepository(connect, createMongoAuditWriter);
 const imageStorage = createSubmissionImageStorage({ storage: invoiceImageStorage, companyId: invoiceImageStorageCompanyId });
 const service = createOfflineInvoiceSubmissions({ repository, invoices, authorization: createInvoiceAuthorizationPort({ authorization, policies: policyRepository }),
   images: imageStorage, facts: createMongoInvoiceSyncFactsReader(connect), clock: { now: () => new Date() }, ids: { next: () => new Types.ObjectId().toString() } });

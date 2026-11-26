@@ -4,29 +4,29 @@ import { connectMongo, closeMongo } from '@/shared/infrastructure/mongodb/connec
 import { createMongoKeycloakAdminCursor } from '@/modules/identity/infrastructure/mongodb/keycloak-admin-cursor';
 import { createKeycloakAdminEventApi } from '@/modules/identity/infrastructure/keycloak/admin-event-api';
 import { createKeycloakAdminEventCollector, type KeycloakAdminAuditWriter } from '@/modules/identity/infrastructure/keycloak/admin-event-collector';
-
-const required = (name: string): string => {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error('KEYCLOAK_ADMIN_AUDIT_CONFIG_MISSING');
-  return value;
-};
+import { resolveKeycloakAdminAuditRuntimeConfiguration } from '@/modules/identity/infrastructure/keycloak/admin-audit-runtime-configuration';
 
 async function main(): Promise<void> {
-  const environment = {
-    uri: required('MONGODB_URI'), realm: required('KEYCLOAK_ADMIN_AUDIT_REALM'),
-    baseUrl: required('KEYCLOAK_ADMIN_AUDIT_BASE_URL'), clientId: required('KEYCLOAK_ADMIN_AUDIT_CLIENT_ID'),
-    secretFile: required('KEYCLOAK_ADMIN_AUDIT_CLIENT_SECRET_FILE'), auditModule: required('KEYCLOAK_ADMIN_AUDIT_WRITER_MODULE'),
-  };
+  const environment = resolveKeycloakAdminAuditRuntimeConfiguration(process.env);
+  if (environment.mode === 'disabled') {
+    process.stdout.write(JSON.stringify({ event: 'keycloak_admin_audit_worker_disabled', reason: 'production_configuration_absent' }) + '\n');
+    return;
+  }
   const secret = (await readFile(environment.secretFile, 'utf8')).trim();
   if (!secret || secret.length > 4096) throw new Error('KEYCLOAK_ADMIN_AUDIT_CONFIG_INVALID');
-  const moduleUrl = pathToFileURL(environment.auditModule).href;
+  const moduleUrl = pathToFileURL(environment.writerModule).href;
   const auditAdapter = await import(moduleUrl) as { createMongoAuditWriter?: (connection: import('mongoose').Connection) => KeycloakAdminAuditWriter };
   if (typeof auditAdapter.createMongoAuditWriter !== 'function') throw new Error('KEYCLOAK_ADMIN_AUDIT_WRITER_UNAVAILABLE');
-  const connection = await connectMongo({ uri: environment.uri });
+  const connection = await connectMongo(environment.mode === 'production' ? { file: environment.mongoUriFile } : { uri: environment.mongoUri });
+  const cursor = createMongoKeycloakAdminCursor(connection, environment.realm);
   const collector = createKeycloakAdminEventCollector({ realm: environment.realm,
     source: createKeycloakAdminEventApi({ baseUrl: environment.baseUrl, realm: environment.realm, clientId: environment.clientId, clientSecret: secret }),
-    cursor: createMongoKeycloakAdminCursor(connection, environment.realm), audit: auditAdapter.createMongoAuditWriter(connection),
+    cursor, audit: auditAdapter.createMongoAuditWriter(connection),
   });
+  const lagMs = async (): Promise<number | null> => {
+    try { const lastAccepted = await cursor.load(); return lastAccepted === null ? null : Math.max(0, Date.now() - lastAccepted); }
+    catch { return null; }
+  };
   let stopping = false;
   const stop = () => { stopping = true; };
   process.once('SIGINT', stop); process.once('SIGTERM', stop);
@@ -35,10 +35,10 @@ async function main(): Promise<void> {
     try {
       const delivered = await collector.pollOnce();
       failures = 0;
-      process.stdout.write(JSON.stringify({ event: 'keycloak_admin_audit_poll', delivered }) + '\n');
+      process.stdout.write(JSON.stringify({ event: 'keycloak_admin_audit_poll', delivered, lagMs: await lagMs() }) + '\n');
     } catch {
       failures = Math.min(failures + 1, 6);
-      process.stderr.write(JSON.stringify({ event: 'keycloak_admin_audit_poll_failed', retry: failures }) + '\n');
+      process.stderr.write(JSON.stringify({ event: 'keycloak_admin_audit_poll_failed', category: 'source_or_audit_unavailable', retry: failures, lagMs: await lagMs() }) + '\n');
     }
     if (!stopping) await new Promise(resolve => setTimeout(resolve, failures ? Math.min(60_000, 1_000 * (2 ** failures)) : 10_000));
   }

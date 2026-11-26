@@ -1,4 +1,5 @@
 import { Types, type Connection } from 'mongoose';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 import { DriverRepositoryError, driverModel, provisionDriverInSession } from './driver-repository';
 
 export class DriverMigrationError extends Error {
@@ -115,7 +116,7 @@ export async function inspectDriverMigration(connection: Connection) {
   };
 }
 
-export async function migrateDriverMemberships(connection: Connection, now = new Date()) {
+export async function migrateDriverMemberships(connection: Connection, auditFactory: (connection: Connection, session: import('mongoose').ClientSession) => AuditWriter, now = new Date()) {
   const inventory = await inspectDriverMigration(connection);
   if (!inventory.ready) throw new DriverMigrationError('MIGRATION_CONFLICT');
   try {
@@ -127,7 +128,7 @@ export async function migrateDriverMemberships(connection: Connection, now = new
       await connection.transaction(async session => {
         await provisionDriverInSession(connection, session, {
           id: new Types.ObjectId().toString(), ...candidate, actor: 'system:driver-migration', now, source: 'MIGRATION',
-        });
+        }, auditFactory(connection, session));
       }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
       migrated++;
     }

@@ -318,3 +318,20 @@ $env:MONGODB_TEST_URI='mongodb://127.0.0.1:27018/invoices_test?replicaSet=rs0&di
 También pasaron las suites de auditoría compartida, Organizations/outbox, membresías/contexto y Fleet durante la implementación: el escritor y outbox verifican idempotencia, reintentos y rollback; las mutaciones de Fleet verifican identidad común y fallo transaccional. Los comandos de integración se repiten desde `backend` con el URI configurado arriba.
 
 `audit:read` está en el catálogo de permisos disponible, pero no se concede en `grantCeiling`; no hay controlador/ruta de lectura para el journal ni interfaz transversal. La evidencia central contiene metadatos de la lista permitida. Los eventos de factura, parámetros y catálogos conservan los valores operativos en sus colecciones locales y mantienen sus consultas existentes.
+
+## Verificación de `enable-production-keycloak-admin-audit` — 2026-11-26
+
+Se revisó la propuesta y se corrigió un hueco de validación: el normalizador de acciones dividía nombres por el último guion bajo, rechazando recursos compuestos de Keycloak como `CLIENT_SCOPE_CLIENT_MAPPING`. Ahora reconoce primero el verbo permitido y valida el recurso completo contra una lista cerrada.
+
+| Comando / comprobación | Resultado |
+| --- | --- |
+| `npm run keycloak:admin-audit:production-worker` con `NODE_ENV=production` y grupo productivo ausente | Salida limpia con `keycloak_admin_audit_worker_disabled`; no intentó conectar a MongoDB. |
+| `npm test -- tests/unit/audit-event.test.ts tests/unit/keycloak-admin-audit-runtime-configuration.test.ts tests/unit/keycloak-admin-audit.test.ts` | 22 pruebas pasaron. |
+| `npm run typecheck` | Pasó. |
+| `npm run test:integration -- tests/integration/keycloak-admin-feed.test.ts` | 1 prueba pasó contra MongoDB de prueba y Keycloak desechable 26.8.2: eventos normalizados y persistidos, cursor durable leído por una nueva instancia del colector, replay idempotente y sin representación/detalles/IP almacenados. |
+| `npm run test:keycloak:admin-audit-reader` | Pasó contra el realm local desechable: lectura permitida, escrituras de realm/cliente/roles denegadas y solo `view-events`. |
+| `openspec validate enable-production-keycloak-admin-audit --strict` | Cambio válido. |
+| `npm run check` | Lint (10 warnings preexistentes, 0 errores), typecheck y 565 pruebas unitarias pasaron; `test:architecture` pasó tras extraer la creación del writer al composition root e inyectarlo en los repositorios. |
+| `npm run test:integration -- tests/integration/configuration-parameters.test.ts tests/integration/parametric-catalog-audit.test.ts tests/integration/invoice-repository.test.ts tests/integration/invoice-migration.test.ts tests/integration/driver-management.test.ts tests/integration/driver-migration.test.ts tests/integration/vehicle-management.test.ts tests/integration/assignment-repository.test.ts tests/integration/invitation-acceptance.test.ts tests/integration/membership-administration.test.ts` | 61 pruebas pasaron en 9 archivos; se comprobó persistencia y atomicidad de auditoría con inyección desde el composition root. |
+
+No se desplegó Keycloak real ni se realizó backfill. La configuración productiva permanece opt-in y documentada; la activación se reserva para cuando exista un runtime productivo y secretos montados externamente. Logs operativos limitados a conteos, retraso, categoría neutra y número de reintento; rotar el secreto requiere actualización coordinada y reinicio del worker.

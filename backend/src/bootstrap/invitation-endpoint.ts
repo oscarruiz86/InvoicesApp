@@ -21,6 +21,7 @@ import { thirdPartyUseCases } from './third-party-endpoint';
 import { invitationResponse, type InvitationOperation } from '@/modules/organizations/presentation/invitations';
 import { membershipResponse, membershipUserSearchQuery, type MembershipOperation } from '@/modules/organizations/presentation/memberships';
 import { errorResponse } from '@/shared/presentation/http/errors';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
 const identityConfiguration = async () => {
@@ -38,19 +39,21 @@ const driverProvisioning: DriverProvisioningPort = {
     if (!input.roles.includes('DRIVER')) return;
     const session = transaction as ClientSession;
     if (typeof session?.inTransaction !== 'function' || !session.inTransaction()) throw new Error('DRIVER_PROVISIONING_TRANSACTION_REQUIRED');
-    await provisionDriverInSession(await connect(), session, {
+    const connection = await connect();
+    await provisionDriverInSession(connection, session, {
       id: new Types.ObjectId().toString(), subject: input.membership.subject, membershipId: input.membership.id,
       thirdPartyId: input.membership.organizationId, actor: input.actorSubject, now: input.now, source: input.source,
-    });
+    }, createMongoAuditWriter(connection, session));
   },
   async synchronizeRoles(input, transaction) {
     const session = transaction as ClientSession;
     if (typeof session?.inTransaction !== 'function' || !session.inTransaction()) throw new Error('DRIVER_PROVISIONING_TRANSACTION_REQUIRED');
-    await synchronizeDriverMembershipInSession(await connect(), session, {
+    const connection = await connect();
+    await synchronizeDriverMembershipInSession(connection, session, {
       membershipId: input.membership.id, subject: input.membership.subject, thirdPartyId: input.membership.organizationId,
       beforeRoles: input.beforeRoles, afterRoles: input.afterRoles, membershipStatus: input.membership.status,
       actor: input.actorSubject, now: input.now,
-    });
+    }, createMongoAuditWriter(connection, session));
   },
 };
 

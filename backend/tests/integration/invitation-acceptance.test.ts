@@ -6,6 +6,7 @@ import type { Invitation } from '@/modules/organizations/domain/invitations';
 import type { DriverProvisioningPort } from '@/modules/organizations/application/driver-provisioning';
 import { issueInvitationToken } from '@/modules/organizations/infrastructure/invitation-tokens';
 import { driverModel, provisionDriverInSession } from '@/modules/fleet/infrastructure/mongodb/driver-repository';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
@@ -60,7 +61,7 @@ function driverProvisioning(failAfterWrite = false): DriverProvisioningPort {
       if (!input.roles.includes('DRIVER')) return;
       await provisionDriverInSession(connection, transaction as ClientSession, { id: new Types.ObjectId().toHexString(),
         subject: input.membership.subject, membershipId: input.membership.id, thirdPartyId: input.membership.organizationId,
-        actor: input.actorSubject, now: input.now, source: input.source });
+        actor: input.actorSubject, now: input.now, source: input.source }, createMongoAuditWriter(connection, transaction as ClientSession));
       if (failAfterWrite) throw new Error('forced driver provisioning failure');
     },
     async synchronizeRoles() { throw new Error('not used by invitation acceptance'); },

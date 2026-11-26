@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { ClientSession, Connection } from 'mongoose';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
-import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 import { CatalogError, isCatalogName, validateCatalogCode, validateEntry, type CatalogEntry, type CatalogName } from '../../domain/catalogs';
 
 const collectionName = 'parametric_catalog_entries';
 const eventCollectionName = 'parametric_catalog_events';
 type Row = Record<string, unknown>;
-async function writeCatalogAudit(connection: Connection, session: ClientSession, input: { eventId: string; at: Date; actor: string; action: string; catalog: string; code: string; beforeVersion: number | null; afterVersion: number }) {
-  await createMongoAuditWriter(connection, session).record({ eventId: input.eventId, occurredAt: input.at.toISOString(), source: 'parametric-catalogs',
+async function writeCatalogAudit(audit: AuditWriter, input: { eventId: string; at: Date; actor: string; action: string; catalog: string; code: string; beforeVersion: number | null; afterVersion: number }) {
+  await audit.record({ eventId: input.eventId, occurredAt: input.at.toISOString(), source: 'parametric-catalogs',
     actor: { kind: 'user', subject: input.actor }, action: input.action, result: 'allowed', reason: 'CATALOG_ENTRY_CHANGE', correlationId: input.eventId,
     resource: { type: 'catalog-entry', id: `${input.catalog}:${input.code}` },
     ...(input.beforeVersion !== null ? { beforeVersion: String(input.beforeVersion) } : {}), afterVersion: String(input.afterVersion) });
@@ -35,7 +35,8 @@ function match(entry: Pick<CatalogSeedEntry, 'catalog' | 'code' | 'parentCode'>)
   return { catalog: entry.catalog, code: entry.code, parentCode: entry.parentCode };
 }
 
-export function createCatalogRepository(connect: () => Promise<Connection>, policyFactory: (connection: Connection, session: ClientSession) => PolicyConfirmation) {
+export function createCatalogRepository(connect: () => Promise<Connection>, policyFactory: (connection: Connection, session: ClientSession) => PolicyConfirmation,
+  auditFactory: (connection: Connection, session: ClientSession) => AuditWriter) {
   let initialized: Promise<void> | undefined;
   async function ready(connection: Connection) {
     if (!initialized) initialized = Promise.all([
@@ -106,7 +107,7 @@ export function createCatalogRepository(connect: () => Promise<Connection>, poli
           const eventId = randomUUID();
           await connection.collection(eventCollectionName).insertOne({ eventId, catalog: input.catalog, code: input.code, parentCode: input.parentCode,
             actor: input.actor, at, previousLabel: previous.label, label: input.label.trim(), previousVersion: previous.version, version }, { session });
-          await writeCatalogAudit(connection, session, { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_UPDATED', catalog: input.catalog, code: input.code, beforeVersion: previous.version, afterVersion: version });
+          await writeCatalogAudit(auditFactory(connection, session), { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_UPDATED', catalog: input.catalog, code: input.code, beforeVersion: previous.version, afterVersion: version });
           return { ...previous, label: input.label.trim(), updatedAt: at.toISOString(), updatedBy: input.actor, version };
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
       } catch (error) { if (error instanceof CatalogError) throw error; throw new CatalogError('STORAGE_UNAVAILABLE'); }
@@ -126,14 +127,14 @@ export function createCatalogRepository(connect: () => Promise<Connection>, poli
             await entries.updateOne({ ...key, version: (existing as Row).version }, { $set: { active: true, label: input.label.trim(), version, updatedAt: at, updatedBy: input.actor } }, { session });
             const eventId = randomUUID();
             await connection.collection(eventCollectionName).insertOne({ eventId, ...key, actor: input.actor, at, previousLabel: (existing as Row).label, label: input.label.trim(), previousVersion: (existing as Row).version, version, action: 'reactivated' }, { session });
-            await writeCatalogAudit(connection, session, { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_REACTIVATED', catalog: input.catalog, code: input.code, beforeVersion: Number((existing as Row).version), afterVersion: version });
+            await writeCatalogAudit(auditFactory(connection, session), { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_REACTIVATED', catalog: input.catalog, code: input.code, beforeVersion: Number((existing as Row).version), afterVersion: version });
             return decode({ ...(existing as Row), active: true, label: input.label.trim(), version, updatedAt: at, updatedBy: input.actor });
           }
           const at = new Date(); const row = { ...key, label: input.label.trim(), territoryType: null, active: true, version: 1, source: 'managed', updatedAt: at, updatedBy: input.actor };
           await entries.insertOne(row, { session });
           const eventId = randomUUID();
           await connection.collection(eventCollectionName).insertOne({ eventId, ...key, actor: input.actor, at, previousLabel: null, label: input.label.trim(), previousVersion: null, version: 1, action: 'created' }, { session });
-          await writeCatalogAudit(connection, session, { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_CREATED', catalog: input.catalog, code: input.code, beforeVersion: null, afterVersion: 1 });
+          await writeCatalogAudit(auditFactory(connection, session), { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_CREATED', catalog: input.catalog, code: input.code, beforeVersion: null, afterVersion: 1 });
           return decode(row);
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
       } catch (error) { if (error instanceof CatalogError) throw error; throw new CatalogError('STORAGE_UNAVAILABLE'); }
@@ -150,7 +151,7 @@ export function createCatalogRepository(connect: () => Promise<Connection>, poli
           await entries.updateOne(key, { $set: { active: false, version, updatedAt: at, updatedBy: input.actor } }, { session });
           const eventId = randomUUID();
           await connection.collection(eventCollectionName).insertOne({ eventId, catalog: 'document-types', code: input.code, parentCode: null, actor: input.actor, at, previousLabel: previous.label, label: previous.label, previousVersion: previous.version, version, action: 'deactivated' }, { session });
-          await writeCatalogAudit(connection, session, { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_DEACTIVATED', catalog: 'document-types', code: input.code, beforeVersion: previous.version, afterVersion: version });
+          await writeCatalogAudit(auditFactory(connection, session), { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_DEACTIVATED', catalog: 'document-types', code: input.code, beforeVersion: previous.version, afterVersion: version });
           return { ...previous, active: false, version, updatedAt: at.toISOString(), updatedBy: input.actor };
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
       } catch (error) { if (error instanceof CatalogError) throw error; throw new CatalogError('STORAGE_UNAVAILABLE'); }
@@ -172,7 +173,7 @@ export function createCatalogRepository(connect: () => Promise<Connection>, poli
           await entries.updateOne(key, { $set: { active: false, version, updatedAt: at, updatedBy: input.actor } }, { session });
           const eventId = randomUUID();
           await connection.collection(eventCollectionName).insertOne({ eventId, catalog: input.catalog, code: input.code, parentCode: input.parentCode, actor: input.actor, at, previousLabel: previous.label, label: previous.label, previousVersion: previous.version, version, action: 'deactivated' }, { session });
-          await writeCatalogAudit(connection, session, { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_DEACTIVATED', catalog: input.catalog, code: input.code, beforeVersion: previous.version, afterVersion: version });
+          await writeCatalogAudit(auditFactory(connection, session), { eventId, at, actor: input.actor, action: 'CATALOG_ENTRY_DEACTIVATED', catalog: input.catalog, code: input.code, beforeVersion: previous.version, afterVersion: version });
           return { ...previous, active: false, version, updatedAt: at.toISOString(), updatedBy: input.actor };
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
       } catch (error) { if (error instanceof CatalogError) throw error; throw new CatalogError('STORAGE_UNAVAILABLE'); }

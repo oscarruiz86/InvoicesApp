@@ -22,6 +22,12 @@ describe('audit event contract', () => {
     expect(() => normalizeAuditEvent({ ...event(), source: 'fleet', action: 'VEHICLE_SECRET_EXPORTED' })).toThrow(InvalidAuditEvent);
   });
 
+  it('accepts Keycloak role-mapping actions while rejecting unapproved resource types', () => {
+    expect(normalizeAuditEvent({ ...event(), source: 'keycloak-admin', action: 'KEYCLOAK_ADMIN_CREATE_CLIENT_SCOPE_CLIENT_MAPPING' }))
+      .toMatchObject({ source: 'keycloak-admin', action: 'KEYCLOAK_ADMIN_CREATE_CLIENT_SCOPE_CLIENT_MAPPING' });
+    expect(() => normalizeAuditEvent({ ...event(), source: 'keycloak-admin', action: 'KEYCLOAK_ADMIN_CREATE_SECRET_EXPORT' })).toThrow(InvalidAuditEvent);
+  });
+
   it('accepts only the normalized invoice origin and approved field names', () => {
     expect(normalizeAuditEvent({ ...event(), source: 'invoices', action: 'INVOICE_CREATED', captureOrigin: 'QR', changedFields: ['invoiceNumber', 'qrMetadata'] }))
       .toMatchObject({ source: 'invoices', captureOrigin: 'QR', changedFields: ['invoiceNumber', 'qrMetadata'] });
