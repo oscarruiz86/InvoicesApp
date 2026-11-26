@@ -6,7 +6,7 @@ Este documento reúne las pruebas focalizadas y sus prerrequisitos para el cambi
 
 - Node.js 24.15.x y npm 11.x.
 - Docker Desktop/Engine con Docker Compose v2 para la integración MongoDB.
-- Chromium de Playwright para las pruebas E2E.
+- Docker Desktop/Engine con Linux containers; la imagen E2E incluye Chromium y no instala navegadores en el host.
 - Dependencias instaladas con `npm --prefix backend ci` y `npm --prefix frontend ci`.
 
 ## Pruebas unitarias
@@ -41,16 +41,16 @@ Si el puerto 27019 está ocupado, selecciona otro `MONGO_TEST_PORT` y usa ese pu
 
 ## E2E en navegador
 
-Instalar Chromium una vez (requiere acceso a la descarga de Playwright):
+Construir la imagen E2E (incluye Chromium dentro del contenedor):
 
 ```powershell
-npm --prefix frontend run test:e2e:install
+docker compose -f compose.e2e.yaml build frontend-e2e
 ```
 
 Ejecutar captura offline y resolución administrativa:
 
 ```powershell
-npm --prefix frontend run test:e2e:offline-invoice-sync -- --workers=1
+docker compose -f compose.e2e.yaml run --rm frontend-e2e run test:e2e:offline-invoice-sync -- --workers=1
 ```
 
 Playwright inicia Vite automáticamente. La prueba offline abre primero el formulario, simula la pérdida de conexión, captura y guarda sin llamadas `/api`, y confirma que IndexedDB conserva el registro al recargar. El QR del harness usa un decodificador simulado y conserva texto que no se puede interpretar localmente; esto comprueba el flujo UI, no la cámara física ni una inspección tributaria del QR. Los casos de administración prueban vincular duplicados, aprobar asignaciones cerradas, rechazar y pedir actualización ante versiones obsoletas.
@@ -58,7 +58,7 @@ Playwright inicia Vite automáticamente. La prueba offline abre primero el formu
 Probar el shell de producción, la caída de red con la aplicación abierta y el lector QR real incluso después de recargar sin conexión:
 
 ```powershell
-npm --prefix frontend run test:e2e:offline-shell -- --workers=1
+docker compose -f compose.e2e.yaml run --rm frontend-e2e run test:e2e:offline-shell -- --workers=1
 ```
 
 Esta prueba construye entradas E2E separadas, crea una credencial ES256 efímera para el navegador y levanta `vite preview`. La clave privada se guarda temporalmente en `frontend/test-results` para compartirla entre el build y el worker de Playwright; el `globalTeardown` la elimina. El artefacto de build de esta prueba no se debe desplegar. El lector procesa una imagen PNG de QR generada para la prueba; no requiere cámara ni validación fiscal real. La prueba también comprueba que, al recuperar la red, se abandona la vista offline y se carga de nuevo el shell normal.
@@ -84,7 +84,7 @@ Se intentó repetir Playwright después de los arreglos, pero el proceso no inic
 
 El 24 de noviembre de 2026 se corrigió una regresión reportada en la pantalla de facturas: un error temporal `NETWORK`/`TIMEOUT` al renovar permisos ya no borra la última decisión verificada del mismo contexto ni desmonta la navegación. Se muestra un aviso, se reintenta con espera creciente y, si el servidor responde después con permisos revocados, el contexto vuelve a bloquearse inmediatamente. La regresión quedó incluida en la suite frontend completa y en las pruebas focalizadas anteriores.
 
-Para esta revisión se levantó el Compose MongoDB con un puerto libre (57904) y se retiró al terminar. Chromium de Playwright se instaló en `frontend/node_modules` (ignorado por Git), y se retiró también el servidor temporal que lanzó Playwright.
+Para esta revisión se levantó el Compose MongoDB con un puerto libre (57904) y se retiró al terminar. Chromium queda encapsulado en la imagen `frontend-e2e`; no se instala ni se conserva en `frontend/node_modules` o en el host.
 
 En la revisión final se movió la cola local a la pestaña `Pendientes (n)`, visible solo cuando hay registros que requieren acción, y se dejó la captura en una pestaña separada. El historial del administrador tercero ahora muestra el nombre de conductor y la placa del vehículo de la asignación sin exponer el sujeto interno. La tabla desktop conserva paginación y el historial usa presentación responsive.
 

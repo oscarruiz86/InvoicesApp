@@ -1,0 +1,11 @@
+name: invoices-e2e
+
+services:
+  frontend-e2e:
+    image: invoices-frontend-e2e:local
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.e2e
+    environment:
+      VITE_API_BASE_URL: /api
+      CI: "true"

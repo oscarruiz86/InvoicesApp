@@ -35,7 +35,7 @@ for (const width of [360, 1280]) test(`QR capture review and confirmation fit ${
   await page.getByRole('button', { name: 'Abrir cámara' }).click();
   await expect(dialog.getByRole('textbox', { name: 'Número de factura' })).toHaveValue('QR-E2E-1');
   await expect(dialog.getByText(/no acredita autenticidad fiscal/i)).toBeVisible();
-  await dialog.getByLabel('Vehículo y asignación propia').click();
+  await dialog.getByLabel('Vehículo y asignación').click();
   await page.getByRole('option', { name: /ABC123/ }).click();
   await expect(dialog.getByRole('textbox', { name: 'Número de factura' })).toHaveAttribute('readonly');
   await dialog.getByLabel('Adjunto opcional de la factura').setInputFiles({ name: 'adjunto.png', mimeType: 'image/png', buffer: Buffer.from('separate attachment') });
@@ -48,7 +48,7 @@ for (const width of [360, 1280]) test(`QR capture review and confirmation fit ${
 test('third-party admin links a duplicate with an explicit reason', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/tests/e2e/invoice-management-harness.html?admin=duplicate');
-  await expect(page.getByText('Causas: BUSINESS_DUPLICATE')).toBeVisible();
+  await expect(page.getByText('Causas: Factura duplicada')).toBeVisible();
   await page.getByRole('button', { name: /Vincular con FAC-E2E-1/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Resolver conflicto' });
   await dialog.getByLabel('Motivo de la decisión').fill('La factura ya estaba registrada.');
@@ -60,7 +60,7 @@ test('third-party admin links a duplicate with an explicit reason', async ({ pag
 test('third-party admin approves a closed assignment after reviewing its image', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/tests/e2e/invoice-management-harness.html?admin=1');
-  await expect(page.getByText('Causas: ASSIGNMENT_CLOSED')).toBeVisible();
+  await expect(page.getByText('Causas: Asignación cerrada')).toBeVisible();
   await page.getByRole('button', { name: 'Revisar imagen' }).click();
   await expect(page.getByRole('dialog', { name: 'Imagen del registro en conflicto' })).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar' }).last().click();

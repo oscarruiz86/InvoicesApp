@@ -1,5 +1,8 @@
 import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
 import type { OfflineInvoiceQueuePort, OfflineInvoiceRecord } from '@/modules/invoices/application/offline-invoice-ports';
+import type { PermissionScope } from '@/modules/authentication/domain/permissions';
+import type { InvoiceApi } from '@/modules/invoices/application/invoice-api';
+import { synchronizeOfflineInvoices } from '@/modules/invoices/application/offline-invoice-sync';
 
 const terminalStatuses: readonly OfflineInvoiceRecord['status'][] = ['SYNCHRONIZED', 'LINKED', 'REJECTED'];
 
@@ -42,4 +45,29 @@ export function subscribeOfflineInvoiceLifecycle(authentication: AuthenticationS
     }
     previous = state;
   });
+}
+
+/** Re-attempts the authenticated queue whenever the PWA becomes active. */
+export function subscribeOfflineInvoiceSyncLifecycle(options: {
+  readonly authentication: AuthenticationStore;
+  readonly queue: OfflineInvoiceQueuePort;
+  readonly api: InvoiceApi;
+  readonly readContext: () => { scope: PermissionScope; subject: string; thirdPartyId: string } | null;
+}): () => void {
+  let running = false;
+  const sync = async () => {
+    if (running || !navigator.onLine || !['authenticated', 'refreshing'].includes(options.authentication.getState().status)) return;
+    const context = options.readContext();
+    if (!context) return;
+    running = true;
+    try { await synchronizeOfflineInvoices({ api: options.api, queue: options.queue, scope: context.scope, subject: context.subject, thirdPartyId: context.thirdPartyId, signal: new AbortController().signal }); }
+    catch { /* records retain their retryable state */ }
+    finally { running = false; }
+  };
+  const onOnline = () => { void sync(); };
+  const onFocus = () => { void sync(); };
+  const onVisibility = () => { if (document.visibilityState === 'visible') void sync(); };
+  window.addEventListener('online', onOnline); window.addEventListener('focus', onFocus); window.addEventListener('visibilitychange', onVisibility);
+  void sync();
+  return () => { window.removeEventListener('online', onOnline); window.removeEventListener('focus', onFocus); window.removeEventListener('visibilitychange', onVisibility); };
 }

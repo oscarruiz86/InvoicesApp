@@ -247,30 +247,11 @@ export function InvoicesPage({ api, assignments, context, authorization, loadQrD
     const subject = current.activeContext?.authorization.subject;
     const thirdPartyId = current.activeContext?.kind === 'ORGANIZATION' && current.activeContext.organizationType === 'THIRD_PARTY' ? current.activeContext.organizationId : null;
     if (!canCaptureOffline || !subject || !thirdPartyId || !offlineCredentialPublicJwks?.length) { setOfflineCredentialStatus('unavailable'); return; }
-    const activeAssignments = options.filter(value => value.status === 'ACTIVE' && value.thirdPartyId === thirdPartyId);
-    if (!activeAssignments.length || typeof navigator === 'undefined' || !navigator.onLine) {
-      void offlineQueue.getCredential(subject, thirdPartyId).then(async record => {
-        const valid = record && await verifyCredential(record, offlineCredentialPublicJwks);
-        setOfflineCredentialStatus(valid ? 'ready' : 'unavailable');
-      }).catch(() => setOfflineCredentialStatus('unavailable'));
-      return;
-    }
-    let capture: ReturnType<ContextStore['capture']>;
-    try { capture = context.capture(); } catch { setOfflineCredentialStatus('unavailable'); return; }
-    const controller = new AbortController();
-    void api.issueOfflineCredential(capture.scope, activeAssignments.map(value => ({ assignmentId: value.id, vehicleId: value.vehicleId })),
-      AbortSignal.any([capture.signal, controller.signal])).then(async result => {
-      if (controller.signal.aborted || !capture.isCurrent() || result.subject !== subject || result.thirdPartyId !== thirdPartyId) return;
-      const record = { id: `${subject}:${thirdPartyId}`, subject, thirdPartyId, credential: result.credential, expiresAt: result.expiresAt,
-        assignmentIds: result.assignmentIds, assignments: activeAssignments.filter(value => result.assignmentIds.includes(value.id)).map(value => ({ ...value, status: 'ACTIVE' as const, endedAt: null })), updatedAt: new Date().toISOString() };
-      if (!await verifyCredential(record, offlineCredentialPublicJwks)) throw new Error('INVALID_OFFLINE_CREDENTIAL');
-      await (await loadQrDecoder()).preload?.();
-      await offlineQueue.saveCredential(record);
-      if (!controller.signal.aborted) setOfflineCredentialStatus('ready');
-    }).catch(() => { if (!controller.signal.aborted) setOfflineCredentialStatus('unavailable'); })
-      .finally(() => capture.release());
-    return () => { controller.abort(); capture.release(); };
-  }, [api, canCaptureOffline, context, current.activeContext, current.generation, loadQrDecoder, offlineCredentialPublicJwks, offlineQueue, options, verifyCredential]);
+    void offlineQueue.getCredential(subject, thirdPartyId).then(async record => {
+      const valid = record && await verifyCredential(record, offlineCredentialPublicJwks);
+      setOfflineCredentialStatus(valid ? 'ready' : 'unavailable');
+    }).catch(() => setOfflineCredentialStatus('unavailable'));
+  }, [canCaptureOffline, current.activeContext, current.generation, offlineCredentialPublicJwks, offlineQueue, verifyCredential]);
   const loadConflicts = useCallback(async (signal?: AbortSignal, requestedPage = conflictPageNumber) => {
     if (!canReviewConflicts || !navigator.onLine) { setConflicts([]); setConflictsTotal(0); setConflictAssignments({}); return; }
     let capture: ReturnType<ContextStore['capture']>;

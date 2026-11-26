@@ -1,6 +1,7 @@
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import type { AuthenticationStore } from '@/modules/authentication/presentation/authentication-store';
 import { PageHeader } from '@/shared/components/page-header';
+import { InstallPwaButton } from '@/shared/components/install-pwa-button';
 
 export function LandingPage({ authentication }: { authentication: AuthenticationStore }) {
   return <Box component="section" sx={{ minHeight: '100dvh', display: 'grid', alignItems: 'center', px: { xs: 2, sm: 4 }, py: { xs: 5, md: 8 }, background: theme => `linear-gradient(135deg, ${theme.palette.background.default} 0%, ${theme.palette.action.hover} 100%)` }}>
@@ -10,6 +11,7 @@ export function LandingPage({ authentication }: { authentication: Authentication
         <Typography color="text.secondary" sx={{ maxWidth: 650 }}>Consulta la información de tu organización y administra los procesos operativos con los permisos de tu cuenta.</Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
           <Button variant="contained" size="large" onClick={() => void authentication.getState().login('/')}>Iniciar sesión</Button>
+          <InstallPwaButton />
         </Stack>
       </Stack>
     </Paper>

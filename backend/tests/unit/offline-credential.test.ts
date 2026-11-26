@@ -19,12 +19,12 @@ describe('offline credential issuance', () => {
       assignments: { readOwnActive: vi.fn(async input => ({ assignmentId: input.assignmentId, thirdPartyId: input.thirdPartyId,
         vehicleId: input.vehicleId, driverId: id('e'), subject: actor.subject, assignmentVersion: 1, vehicleVersion: 1, driverVersion: 1, vehiclePlate: null })) },
       signer, clock: { now: () => now } });
-    const result = await service.issue(actor, { thirdPartyId: id('f'), assignments, ttlHours: 8 });
+    const result = await service.issue(actor, { thirdPartyId: id('f'), assignments, ttlHours: 72 });
     const verified = await jwtVerify(result.credential, publicKey, { algorithms: ['ES256'], issuer: 'invoice-app', audience: 'invoice-offline-capture', currentDate: now });
     expect(verified.protectedHeader).toMatchObject({ alg: 'ES256', kid: 'offline-v1' });
-    expect(verified.payload).toMatchObject({ sub: actor.subject, thirdPartyId: id('f'), assignmentIds: assignments.map(value => value.assignmentId), scope: 'invoice:offline-capture', exp: Math.floor(now.getTime() / 1000) + 8 * 3600 });
+    expect(verified.payload).toMatchObject({ sub: actor.subject, thirdPartyId: id('f'), assignmentIds: assignments.map(value => value.assignmentId), scope: 'invoice:offline-capture', exp: Math.floor(now.getTime() / 1000) + 72 * 3600 });
     expect(publicJwk).not.toHaveProperty('d');
-    expect(result.expiresAt).toBe(new Date((Math.floor(now.getTime() / 1000) + 8 * 3600) * 1000).toISOString());
+    expect(result.expiresAt).toBe(new Date((Math.floor(now.getTime() / 1000) + 72 * 3600) * 1000).toISOString());
     expect(Date.parse(result.expiresAt) / 1000).toBe(verified.payload.exp);
   });
 
@@ -38,11 +38,11 @@ describe('offline credential issuance', () => {
     await expect(driverService.issue(actor, { thirdPartyId: id('f'), assignments: [assignments[0]!, assignments[0]!], ttlHours: 8 })).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
   });
 
-  it('rejects a lifetime above the hard eight hour limit', async () => {
+  it('rejects a lifetime above the hard 72 hour limit', async () => {
     const service = createOfflineCredentialIssuer({ authorization: { authorize: async () => ({ roles: ['DRIVER'], policyVersion: '1', contextRevision: '1' }) },
       assignments: { readOwnActive: async input => ({ assignmentId: input.assignmentId, thirdPartyId: input.thirdPartyId, vehicleId: input.vehicleId,
         driverId: id('e'), subject: actor.subject, assignmentVersion: 1, vehicleVersion: 1, driverVersion: 1, vehiclePlate: null }) },
       signer: { sign: async () => 'signed' }, clock: { now: () => now } });
-    await expect(service.issue(actor, { thirdPartyId: id('f'), assignments, ttlHours: 9 })).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+    await expect(service.issue(actor, { thirdPartyId: id('f'), assignments, ttlHours: 73 })).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
   });
 });

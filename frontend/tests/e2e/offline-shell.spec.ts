@@ -60,23 +60,25 @@ test('switches offline and online, and keeps real QR scanning after an offline r
   await expect(page.getByRole('heading', { name: 'Captura offline de facturas' })).toBeVisible();
 
   const scanAndSave = async (expectedCount: number) => {
-    await page.getByRole('combobox', { name: 'Tipo de captura' }).click();
-    await page.getByRole('option', { name: 'Código QR' }).click();
-    await page.getByRole('combobox', { name: 'Asignación disponible' }).click();
+    await page.getByRole('tab', { name: 'Captura' }).click();
+    await page.getByRole('tab', { name: 'Código QR' }).click();
+    await page.getByRole('combobox', { name: 'Vehículo y asignación' }).click();
     await page.getByRole('option', { name: /ABC123/ }).click();
     await page.getByRole('button', { name: 'Leer imagen QR' }).locator('input').setInputFiles(await qrImage(page, 'OFFLINEQR01'));
-    await expect(page.getByRole('textbox', { name: 'Contenido QR capturado' })).toHaveValue('OFFLINEQR01');
+    await expect(page.getByText(/El contenido se conservará sin validar localmente/)).toBeVisible();
     await page.getByRole('button', { name: 'Guardar en este dispositivo' }).click();
-    await expect(page.getByText(new RegExp(`Registros locales \\(${expectedCount}\\)`))).toBeVisible();
+    await page.getByRole('tab', { name: new RegExp(`Pendientes \\(${expectedCount}\\)`) }).click();
+    await expect(page.getByRole('cell', { name: 'Factura QR' }).first()).toBeVisible();
   };
 
   await scanAndSave(1);
-  await expect(page.getByText(/Factura QR · Pendiente de envío/)).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Factura QR' }).first()).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Captura offline de facturas' })).toBeVisible();
-  await expect(page.getByText(/Factura QR · Pendiente de envío/)).toBeVisible();
+  await page.getByRole('tab', { name: /Pendientes \(1\)/ }).click();
+  await expect(page.getByRole('cell', { name: 'Factura QR' }).first()).toBeVisible();
   await scanAndSave(2);
-  await expect(page.getByText(/Factura QR · Pendiente de envío/)).toHaveCount(2);
+  await expect(page.getByRole('cell', { name: 'Factura QR' })).toHaveCount(2);
 
   const onlineReload = page.waitForEvent('load');
   await context.setOffline(false);

@@ -37,4 +37,10 @@ describe('offline credential verification', () => {
     expect(await verifyOfflineCredential(record(token({ exp: Math.floor(now / 1000) - 1 })), [publicJwk], now)).toBeNull();
     expect(await verifyOfflineCredential(record(token({ assignmentIds: ['d'.repeat(24)] })), [publicJwk], now)).toBeNull();
   });
+  it('accepts the configured 72 hour maximum and rejects a wider token', async () => {
+    const long = token({ exp: Math.floor(now / 1000) + 72 * 3600 - 10 });
+    const wide = token({ exp: Math.floor(now / 1000) + 73 * 3600 });
+    expect(await verifyOfflineCredential({ ...record(long), expiresAt: new Date(now + (72 * 3600_000 - 10_000)).toISOString() }, [publicJwk], now)).not.toBeNull();
+    expect(await verifyOfflineCredential({ ...record(wide), expiresAt: new Date(now + 73 * 3600_000).toISOString() }, [publicJwk], now)).toBeNull();
+  });
 });

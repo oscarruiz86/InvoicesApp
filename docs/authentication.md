@@ -43,9 +43,9 @@ Para aplicaciones en host, iniciar `npm --prefix backend run dev` y `npm --prefi
 | `VITE_KEYCLOAK_REALM` | frontend: `invoices` | Realm público. |
 | `VITE_KEYCLOAK_CLIENT_ID` | frontend: `invoices-web` | Cliente público, sin secreto. |
 | `VITE_API_BASE_URL` | frontend: `/api` | API por proxy del mismo origen. |
-| `VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS` | frontend: conjunto JSON de JWK públicas ES256 | Incluye `kid` para la clave actual y las anteriores aún vigentes; nunca incluir `d`. Retira una clave anterior después de 8 horas como mínimo desde que el servidor dejó de emitirla. |
+| `VITE_OFFLINE_CREDENTIAL_PUBLIC_JWKS` | frontend: conjunto JSON de JWK públicas ES256 | Incluye `kid` para la clave actual y las anteriores aún vigentes; nunca incluir `d`. Retira una clave anterior después de 72 horas como mínimo desde que el servidor dejó de emitirla. |
 | `OFFLINE_CREDENTIAL_SIGNING_KEY_FILE` | backend: ruta al archivo PKCS#8 | Clave privada ES256 firmante, montada como archivo de solo lectura; no pasarla en texto plano. |
-| `OFFLINE_CREDENTIAL_KEY_ID`, `OFFLINE_CREDENTIAL_TTL_HOURS` | backend: `offline-v1`, `8` | Identifica la clave y limita el ticket; máximo 8 horas. El ticket solo autoriza captura local, no llamadas a la API. |
+| `OFFLINE_CREDENTIAL_KEY_ID`, `OFFLINE_CREDENTIAL_TTL_HOURS` | backend: `offline-v1`, `72` | Identifica la clave y limita el ticket; máximo 72 horas. El ticket solo autoriza captura local, no llamadas a la API. |
 | `API_PROXY_TARGET` | frontend host: `http://localhost:3000` | En Compose: `http://backend:3000`; no se publica. |
 | `KEYCLOAK_ISSUER_URL` | backend: `http://localhost:8080/realms/invoices` | Coincidencia exacta con `iss`, también en Compose. |
 | `KEYCLOAK_AUDIENCE` | backend: `invoices-api` | Audiencia exigida, distinta del ID de cliente frontend. |
@@ -101,7 +101,11 @@ La primera prueba levanta un contenedor aislado con puerto libre y administrador
 
 La segunda prueba ejecuta el recorrido completo con navegador y API, en host y Compose. Usa los mismos principios de aislamiento y desactiva trazas/capturas con credenciales. Las pruebas específicas de expiración modifican solo el realm efímero. Los resultados efectivos se registran en `docs/verification.md`; disponer de los scripts no acredita que ya se hayan ejecutado.
 
-Se puede seleccionar un entorno con `--mode=host` o `--mode=compose`. Instalar antes Chromium con `npm --prefix frontend exec -- playwright install chromium`. La prueba host necesita disponer de la caché de Next del proyecto: no ejecutarla junto a otro Next host del mismo backend. Si Windows informa `EPERM` sobre `backend/.next/dev`, detener esos procesos y retirar únicamente esa caché generada antes de repetir; no borrar código ni volúmenes de datos.
+Se puede seleccionar un entorno con `--mode=host` o `--mode=compose`. Las pruebas de navegador se ejecutan en el contenedor `frontend-e2e`, que ya incluye Chromium; no se instala el navegador en el host. La prueba host necesita disponer de la caché de Next del proyecto: no ejecutarla junto a otro Next host del mismo backend. Si Windows informa `EPERM` sobre `backend/.next/dev`, detener esos procesos y retirar únicamente esa caché generada antes de repetir; no borrar código ni volúmenes de datos.
+
+La PWA recupera la sesión existente mediante `check-sso` silencioso y `frontend/public/silent-check-sso.html`; no guarda tokens en almacenamiento persistente. En Keycloak, el cliente web debe permitir el origen HTTPS de la PWA en `Web Origins` y la ruta `/silent-check-sso.html` en `Valid Redirect URIs`. Para conservar el SSO al cerrar el navegador, el realm habilita «Remember Me» y el usuario debe marcar «Recordarme» en el formulario de Keycloak. La sesión recordada vence tras 7 días de inactividad o 30 días desde el inicio, lo que ocurra primero; el cierre de sesión explícito la revoca.
+
+En el entorno Compose, `keycloak-profile-init` aplica estas opciones y actualiza las URI allowlist en realms ya existentes. Para aplicar cambios en una instalación activa: `docker compose up -d --force-recreate keycloak-profile-init`; luego cierra la sesión actual de Keycloak y vuelve a entrar marcando «Recordarme». El inicio silencioso puede estar limitado por navegadores que bloqueen cookies de terceros; cuando no hay cookie SSO disponible, se solicita autenticación normal.
 
 ## Operación y límites
 

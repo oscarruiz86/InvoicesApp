@@ -46,10 +46,11 @@ for role in manage-realm manage-clients view-clients query-clients; do
   "$kcadm" add-roles -r invoices --uusername "$service_user" --cclientid realm-management --rolename "$role" --config "$config"
 done
 
-"$kcadm" update realms/invoices -s registrationAllowed=true -s registrationEmailAsUsername=true -s loginWithEmailAllowed=true -s verifyEmail=true -s editUsernameAllowed=false -s 'attributes."actionTokenGeneratedByUserLifespan.verify-email"=3600' --config "$config"
+"$kcadm" update realms/invoices -s registrationAllowed=true -s registrationEmailAsUsername=true -s loginWithEmailAllowed=true -s verifyEmail=true -s rememberMe=true -s loginTheme=invoices -s ssoSessionIdleTimeoutRememberMe=604800 -s ssoSessionMaxLifespanRememberMe=2592000 -s editUsernameAllowed=false -s 'attributes."actionTokenGeneratedByUserLifespan.verify-email"=3600' --config "$config"
 web_uuid=$("$kcadm" get clients -r invoices -q clientId=invoices-web --fields id --format csv --noquotes --config "$config")
 [[ -n "$web_uuid" ]] || { echo "Could not resolve the invoices-web client" >&2; exit 1; }
-"$kcadm" update "clients/$web_uuid" -r invoices -s "baseUrl=${INVOICES_WEB_ORIGIN:-http://localhost:5173}/login" --config "$config"
+origin="${INVOICES_WEB_ORIGIN:-http://localhost:5173}"
+"$kcadm" update "clients/$web_uuid" -r invoices -s "baseUrl=$origin/login" -s "redirectUris=[\"$origin/auth/callback\",\"$origin/silent-check-sso.html\"]" --config "$config"
 "$kcadm" update users/profile -r invoices -f /opt/keycloak/data/import/invoices-user-profile.json --config "$config"
 
 "$kcadm" config credentials --config "$client_config" --server http://keycloak:8080 --realm invoices --client "$client_id"
