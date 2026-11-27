@@ -1,7 +1,7 @@
 import { Alert, Stack, Typography } from '@mui/material';
 import type { Permission } from '@/modules/authentication/domain/permissions';
 
-export type ModuleContextRequirement = 'active' | 'organization';
+export type ModuleContextRequirement = 'active' | 'organization' | 'global';
 export interface MarkerModuleDefinition {
   readonly key: string; readonly path: string; readonly label: string; readonly permission: Permission;
   readonly context: ModuleContextRequirement; readonly description: string;
@@ -15,7 +15,7 @@ export const markerModules = [
   { key: 'assignments', path: '/assignments', label: 'Asignaciones', permission: 'assignments:read', context: 'organization', description: 'Administración del historial de asignaciones de vehículos y conductores.' },
   { key: 'invoices', path: '/invoices', label: 'Facturas', permission: 'invoices:read', context: 'organization', description: 'Registro manual y consulta de facturas.' },
   { key: 'parameters', path: '/parameters', label: 'Parámetros', permission: 'parameters:read', context: 'active', description: 'Punto de integración para la configuración de parámetros.' },
-  { key: 'audit', path: '/audit', label: 'Auditoría', permission: 'audit:read', context: 'active', description: 'Punto de integración para la consulta de auditoría.' },
+  { key: 'audit', path: '/audit', label: 'Auditoría', permission: 'audit:read', context: 'global', description: 'Historial central de eventos normalizados; cada consulta queda registrada.' },
 ] as const satisfies readonly MarkerModuleDefinition[];
 
 export function MarkerModulePage({ module }: { readonly module: MarkerModuleDefinition }) {

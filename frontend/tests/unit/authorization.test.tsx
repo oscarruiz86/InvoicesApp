@@ -81,6 +81,16 @@ describe('public permissions contract and authenticated transport', () => {
       await expect(Promise.resolve().then(() => http.organization('GET', 'roles'))).rejects.toMatchObject({ code: 'CONFIGURATION' });
     } finally { http.dispose(); }
   });
+  it('sends the actor audit filter instead of rejecting it as a client configuration error', async () => {
+    const { port } = session();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ items: [], nextCursor: null, pageSize: 20 }));
+    const http = createProtectedHttp('/api', { getAccessToken: async () => 'VERIFIED_SESSION_TOKEN' }, port, fetcher);
+    try {
+      await http.audit('GET', 'audit', 'scope=global&pageSize=20&actor=d12b5dab-4b8c-4526-affb-0a88bf30b92e');
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(new URL(String(fetcher.mock.calls[0][0])).searchParams.get('actor')).toBe('d12b5dab-4b8c-4526-affb-0a88bf30b92e');
+    } finally { http.dispose(); }
+  });
   it('cancels before sending and discards an ignored cancellation after response', async () => {
     const { port } = session(); const credentials = { getAccessToken: vi.fn(async () => 'SECRET') };
     let complete!: (value: Response) => void;

@@ -1,7 +1,7 @@
 import { Types } from 'mongoose';
 import { describe, expect, it } from 'vitest';
 import { createMongoInvoiceSubmissionRepository } from '@/modules/invoice-sync/infrastructure/mongodb/submission-repository';
-import { offlineResolutionAuditEvent } from '@/modules/invoice-sync/infrastructure/mongodb/audit-event';
+import { offlineResolutionAuditEvent } from '@/modules/invoice-sync/application/audit-event';
 import { normalizeAuditEvent } from '@/modules/audit/domain/audit-event';
 
 const id = (digit: string) => digit.repeat(24);

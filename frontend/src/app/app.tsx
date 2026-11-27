@@ -47,6 +47,8 @@ import { CatalogsPage } from '@/modules/parameter-management/presentation/catalo
 import { prepareOfflineLogout, subscribeOfflineInvoiceLifecycle, subscribeOfflineInvoiceSyncLifecycle } from './offline-invoice-lifecycle';
 import { createOfflinePreparation, type OfflinePreparationSnapshot } from '@/modules/invoices/application/offline-preparation';
 import { InstallPwaButton } from '@/shared/components/install-pwa-button';
+import type { AuditHistoryReadPort } from '@/modules/audit/application/audit-history-api';
+import { AuditHistoryPage } from '@/modules/audit/presentation/audit-history-page';
 
 const driverModule = markerModules.find(module => module.key === 'drivers')!;
 
@@ -78,12 +80,13 @@ function OrganizationManagementNavigation({ authorization, context, invitationsA
 }
 
 
-function MarkerModuleContext({ module, context, children }: { module: MarkerModuleDefinition; context: ContextStore; children: ReactNode }) {
+export function MarkerModuleContext({ module, context, children }: { module: MarkerModuleDefinition; context: ContextStore; children: ReactNode }) {
   const state = useStore(context);
   if (state.status !== 'ready' || !state.activeContext) return null;
   if (module.context === 'organization' && state.activeContext.kind !== 'ORGANIZATION') {
     return <Alert severity="warning">Selecciona una organización para continuar.</Alert>;
   }
+  if (module.context === 'global' && state.activeContext.kind !== 'GLOBAL') return <Alert severity="warning">Auditoría solo está disponible en el contexto GLOBAL.</Alert>;
   return children;
 }
 
@@ -169,7 +172,7 @@ function RouteAppFrame({ authenticated, sessionStatus, navigation, account, chil
   return <Box component="main" sx={{ minHeight: '100dvh', px: { xs: 2, sm: 3, md: 6 }, py: { xs: 3, md: 6 } }}>{children}</Box>;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, assignmentApi, invoices, notificationDeliveries, rolePolicy, parameters, catalogs, offlineCredentialPublicJwks, offlineQueue, verifyOfflineCredential }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; assignmentApi?: AssignmentApi; invoices?: InvoiceApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi; parameters?: ParameterApi; catalogs?: CatalogApi; offlineCredentialPublicJwks?: readonly OfflineCredentialPublicJwk[]; offlineQueue?: OfflineInvoiceQueuePort; verifyOfflineCredential?: OfflineCredentialVerifier }) {
+export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, assignmentApi, invoices, notificationDeliveries, rolePolicy, parameters, catalogs, auditHistory, offlineCredentialPublicJwks, offlineQueue, verifyOfflineCredential }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; assignmentApi?: AssignmentApi; invoices?: InvoiceApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi; parameters?: ParameterApi; catalogs?: CatalogApi; auditHistory?: AuditHistoryReadPort; offlineCredentialPublicJwks?: readonly OfflineCredentialPublicJwk[]; offlineQueue?: OfflineInvoiceQueuePort; verifyOfflineCredential?: OfflineCredentialVerifier }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
   const content = <><RouteHeadingFocus />{authenticated && <Stack direction="row" sx={{ justifyContent: 'flex-end' }}><InstallPwaButton /></Stack>}<ServiceWorkerUpdateNotice /><OfflineInvoiceLifecycle authentication={authentication} offlineQueue={offlineQueue} /><OfflineInvoiceSyncLifecycle authentication={authentication} context={organizationContext} invoices={invoices} offlineQueue={offlineQueue} /><OfflinePreparationLifecycle authentication={authentication} authorization={authorization} context={organizationContext} invoices={invoices} assignments={assignmentApi} offlineQueue={offlineQueue} publicJwks={offlineCredentialPublicJwks} verifyCredential={verifyOfflineCredential} /><AuthenticationActions store={authentication} authorization={authorization} />{authorization && <AuthorizationConnectivityNotice authorization={authorization} />}
@@ -206,6 +209,7 @@ export function App({ store, authentication, authorization, organizationContext,
                     loadQrDecoder={() => import('@/modules/invoices/infrastructure/qr-scanner-adapter').then(adapter => adapter.createQrScannerAdapter())} />
                 : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} />
                 : module.key === 'parameters' && parameters && authorization ? <ParametersPage api={parameters} authorization={authorization} context={organizationContext} />
+                : module.key === 'audit' && auditHistory ? <AuditHistoryPage api={auditHistory} />
                 : <MarkerModulePage module={module} />}
           </MarkerModuleContext>
         </OrganizationContextGuard>

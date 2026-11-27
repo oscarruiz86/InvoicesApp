@@ -6,8 +6,8 @@ import type { InvoiceAuditEvent, InvoiceAuditPort, InvoicePage, InvoiceRepositor
   InvoiceImageDocumentInput, InvoiceTransactionAuthorityPort, InvoiceEditPolicyConfirmationPort, InvoiceImageReference } from '../../application/invoice-ports';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
 import { inventoryInvoices } from './invoice-inventory';
-import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
-import { offlineResolutionAuditEvent } from '@/modules/invoice-sync/infrastructure/mongodb/audit-event';
+import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
+import { offlineResolutionAuditEvent } from '@/modules/invoice-sync/application/audit-event';
 
 const collectionName = 'invoices';
 const imageCollectionName = 'invoice_images';

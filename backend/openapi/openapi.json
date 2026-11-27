@@ -12101,6 +12101,342 @@
         ],
         "x-authorization-scope": "Vincular duplicado, aprobar asignación cerrada sin duplicidad o rechazar; decisión y auditoría atómicas"
       }
+    },
+    "/api/audit": {
+      "get": {
+        "operationId": "listAuditHistory",
+        "summary": "Consultar eventos del journal central",
+        "tags": [
+          "Audit"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "global"
+            },
+            "description": "Contexto global explícito."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+            },
+            "description": "Límite UTC inclusivo; el rango máximo es dos años."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+            },
+            "description": "Límite UTC inclusivo; no puede preceder a from."
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "authorization",
+                "organizations",
+                "keycloak-admin",
+                "fleet",
+                "invoices",
+                "invoice-sync",
+                "configuration",
+                "parametric-catalogs",
+                "audit"
+              ]
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 96,
+              "pattern": "^[A-Z][A-Z0-9_:-]*$"
+            },
+            "description": "Acción del catálogo cerrado; debe pertenecer a source cuando se indica."
+          },
+          {
+            "name": "result",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "allowed",
+                "denied"
+              ]
+            }
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "description": "Nombre completo o ID de sujeto; el término no se conserva en el evento de lectura."
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "description": "Cursor opaco ligado a los filtros de la primera página."
+          }
+        ],
+        "x-required-permissions": [
+          "audit:read"
+        ],
+        "x-authorization-scope": "global",
+        "responses": {
+          "200": {
+            "description": "Página segura; no incluye total ni el hecho de lectura de esta solicitud.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditHistoryPage"
+                },
+                "examples": {
+                  "firstPage": {
+                    "value": {
+                      "items": [
+                        {
+                          "eventId": "evt-01",
+                          "occurredAt": "2026-11-26T10:30:00.000Z",
+                          "source": "fleet",
+                          "actor": {
+                            "kind": "user",
+                            "subject": "subject-01"
+                          },
+                          "action": "VEHICLE_UPDATED",
+                          "result": "allowed",
+                          "reason": "BUSINESS_MUTATION",
+                          "correlationId": "corr-01",
+                          "scope": {
+                            "companyId": null,
+                            "thirdPartyId": "0123456789abcdef01234567"
+                          },
+                          "resource": {
+                            "type": "vehicle",
+                            "id": "abcdef0123456789abcdef01"
+                          },
+                          "beforeVersion": "1",
+                          "afterVersion": "2"
+                        }
+                      ],
+                      "nextCursor": null,
+                      "pageSize": 20
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros, cursor o ámbito no válidos; no se consultan documentos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso audit:read global insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización o journal de auditoría no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audit/{eventId}": {
+      "get": {
+        "operationId": "getAuditHistoryEvent",
+        "summary": "Consultar detalle seguro de un evento de auditoría",
+        "tags": [
+          "Audit"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_:@-]+$"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "global"
+            },
+            "description": "Contexto global explícito."
+          }
+        ],
+        "x-required-permissions": [
+          "audit:read"
+        ],
+        "x-authorization-scope": "global",
+        "responses": {
+          "200": {
+            "description": "Evento dentro de la retención, con campos normalizados allowlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditHistoryEvent"
+                },
+                "examples": {
+                  "safeEvent": {
+                    "value": {
+                      "eventId": "evt-01",
+                      "occurredAt": "2026-11-26T10:30:00.000Z",
+                      "source": "fleet",
+                      "actor": {
+                        "kind": "user",
+                        "subject": "subject-01"
+                      },
+                      "action": "VEHICLE_UPDATED",
+                      "result": "allowed",
+                      "reason": "BUSINESS_MUTATION",
+                      "correlationId": "corr-01",
+                      "scope": {
+                        "companyId": null,
+                        "thirdPartyId": "0123456789abcdef01234567"
+                      },
+                      "resource": {
+                        "type": "vehicle",
+                        "id": "abcdef0123456789abcdef01"
+                      },
+                      "beforeVersion": "1",
+                      "afterVersion": "2"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros, cursor o ámbito no válidos; no se consultan documentos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permiso audit:read global insuficiente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Evento no disponible; no distingue inexistente de vencido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Autorización o journal de auditoría no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16409,6 +16745,214 @@
             "items": {
               "$ref": "#/components/schemas/CatalogEntry"
             }
+          }
+        }
+      },
+      "AuditHistoryActor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "subject"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "user",
+              "service",
+              "system"
+            ]
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_:-]+$"
+          },
+          "displayName": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Nombre completo actual del usuario cuando Identity Directory lo resuelve; puede omitirse.",
+            "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+          }
+        }
+      },
+      "AuditHistoryScope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "companyId",
+          "thirdPartyId"
+        ],
+        "properties": {
+          "companyId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          },
+          "thirdPartyId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        }
+      },
+      "AuditHistoryResource": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "id"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 128
+          }
+        }
+      },
+      "AuditHistoryEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "occurredAt",
+          "source",
+          "actor",
+          "action",
+          "result",
+          "reason",
+          "correlationId"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_:@-]+$"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "authorization",
+              "organizations",
+              "keycloak-admin",
+              "fleet",
+              "invoices",
+              "invoice-sync",
+              "configuration",
+              "parametric-catalogs",
+              "audit"
+            ]
+          },
+          "actor": {
+            "$ref": "#/components/schemas/AuditHistoryActor"
+          },
+          "action": {
+            "type": "string",
+            "maxLength": 96,
+            "pattern": "^[A-Z][A-Z0-9_:-]*$"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "allowed",
+              "denied"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Z][A-Z0-9_:-]*$"
+          },
+          "correlationId": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_:@-]+$"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AuditHistoryScope"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/AuditHistoryResource"
+          },
+          "beforeVersion": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_:-]+$"
+          },
+          "afterVersion": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_:-]+$"
+          },
+          "suppressed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "displayNames": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "company": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "thirdParty": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "resource": {
+                "type": "string",
+                "maxLength": 256
+              }
+            }
+          }
+        }
+      },
+      "AuditHistoryPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "nextCursor",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/AuditHistoryEvent"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
           }
         }
       }

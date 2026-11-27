@@ -1,8 +1,8 @@
 import { Types, type ClientSession, type Connection } from 'mongoose';
 import { createInvoiceSubmission, InvoiceSubmissionError, transitionInvoiceSubmission, type InvoiceSubmission, type InvoiceSubmissionStatus } from '../../domain/submission';
-import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
 import type { AuditWriter } from '@/modules/audit/application/audit-ports';
-import { offlineResolutionAuditEvent } from './audit-event';
+import { offlineResolutionAuditEvent } from '../../application/audit-event';
 
 const collectionName = 'invoice_sync_submissions';
 const imageCleanupCollectionName = 'invoice_sync_image_cleanup';

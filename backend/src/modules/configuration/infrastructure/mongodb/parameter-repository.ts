@@ -4,7 +4,7 @@ import { isParameterKey, parameterCatalog, validateParameterValue, type Paramete
 import type { ParameterEvent, ParameterRepository, ParameterRow } from '../../application/parameters';
 import { ParameterError } from '../../application/parameters';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
-import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
 
 const parameters = 'functional_parameters';
 const events = 'configuration_events';

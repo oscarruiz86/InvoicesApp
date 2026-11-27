@@ -4,7 +4,7 @@ import type { PolicyConfirmation } from '@/modules/identity/application/policy-c
 import type { AssignmentConfirmation, VehicleAuthorityConfirmation, VehicleFactsReader, VehicleMutation, VehicleRepository } from '../../application/vehicle-ports';
 import { VehicleUseCaseError, vehicleFailure } from '../../application/vehicles';
 import { changeVehicle, createVehicle, isVehicleEligible, normalizeVehicleFields, type Vehicle } from '../../domain/vehicle';
-import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
 import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 import { mapFleetAuditEvent } from './fleet-audit';
 const schema = new Schema({

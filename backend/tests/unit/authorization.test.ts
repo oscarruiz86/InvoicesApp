@@ -22,7 +22,7 @@ function service(options: Partial<Parameters<typeof createAuthorization>[0]> = {
 }
 describe('authorization matrix and evidence contracts', () => {
   const expected: Record<ApplicationRole, string[]> = {
-    APP_ADMIN: ['companies:create', 'companies:read', 'companies:update', 'companies:deactivate', 'third-parties:create', 'third-parties:read', 'third-parties:update', 'third-parties:deactivate', 'users:create', 'users:read', 'users:update', 'users:associate', 'parameters:read', 'parameters:update', 'roles:read', 'roles:manage', 'associations:read', 'associations:manage'],
+    APP_ADMIN: ['companies:create', 'companies:read', 'companies:update', 'companies:deactivate', 'third-parties:create', 'third-parties:read', 'third-parties:update', 'third-parties:deactivate', 'users:create', 'users:read', 'users:update', 'users:associate', 'parameters:read', 'parameters:update', 'roles:read', 'roles:manage', 'associations:read', 'associations:manage', 'audit:read'],
     COMPANY_ADMIN: ['companies:read', 'companies:update', 'third-parties:create', 'third-parties:read', 'third-parties:update', 'third-parties:deactivate', 'users:create', 'users:read', 'users:associate', 'associations:read', 'associations:manage'],
     THIRD_PARTY_ADMIN: ['third-parties:read', 'third-parties:update', 'drivers:create', 'drivers:read', 'drivers:update', 'drivers:deactivate', 'vehicles:create', 'vehicles:read', 'vehicles:update', 'vehicles:deactivate', 'vehicles:assign', 'vehicles:unassign', 'assignments:read', 'invoices:read', 'invoices:update'],
     DRIVER: ['users:read', 'drivers:read', 'vehicles:read', 'assignments:read', 'invoices:create', 'invoices:read', 'invoices:update'],
@@ -45,6 +45,9 @@ describe('authorization matrix and evidence contracts', () => {
     expect(validPolicyGrants(grantCeiling.filter(grant => grant.permission !== 'roles:read'))).toBe(false);
     expect(validPolicyGrants(grantCeiling.filter(grant => grant.permission !== 'roles:manage'))).toBe(false);
     expect(validPolicyGrants([])).toBe(false);
+  });
+  it.each(['COMPANY_ADMIN', 'THIRD_PARTY_ADMIN', 'DRIVER'] as const)('%s cannot read audit even in a requested global scope', role => {
+    expect(checkPermission(actor([role]), policy, 'audit:read', globalScope).allowed).toBe(false);
   });
   it.each([{ kind: 'organization', companyId: 'c1', thirdPartyId: null }, { kind: 'organization', companyId: null, thirdPartyId: 't1' }, scope] as OrganizationScope[])('validates explicit organization shape %j', selected => {
     const role = selected.thirdPartyId ? 'THIRD_PARTY_ADMIN' : 'COMPANY_ADMIN';

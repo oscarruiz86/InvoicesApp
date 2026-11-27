@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ClientSession, Connection } from 'mongoose';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
-import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
 import { CatalogError, isCatalogName, validateCatalogCode, validateEntry, type CatalogEntry, type CatalogName } from '../../domain/catalogs';
 
 const collectionName = 'parametric_catalog_entries';

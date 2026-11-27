@@ -18,6 +18,14 @@ describe('organization management audit outbox', () => {
     expect(acknowledge).toHaveBeenCalledWith('company_management_events', 'evt-1');
   });
 
+  it('accepts the legacy company-administrator association action and preserves it as a safe event', async () => {
+    let recorded: AuditEvent | undefined;
+    const worker = createManagementAuditOutboxWorker({ outbox: { pending: async () => [{ source:'company_management_events', capture:capture({ action:'COMPANY_ADMIN_ASSOCIATED', beforeVersion:null }) }], acknowledge:async () => undefined },
+      audit: { async record(event) { recorded = event; } } });
+    await expect(worker.deliverBatch()).resolves.toBe(1);
+    expect(recorded).toMatchObject({ source:'organizations', action:'COMPANY_ADMIN_ASSOCIATED', reason:'BUSINESS_MUTATION', resource:{type:'company',id:'company-1'} });
+  });
+
   it('retains the capture when Audit is unavailable and acknowledges only after a successful write', async () => {
     const acknowledge = vi.fn(async () => undefined);
     const worker = createManagementAuditOutboxWorker({ outbox: { pending: async () => [{ source: 'third_party_management_events',

@@ -1,5 +1,5 @@
 import type { ClientSession, Connection } from 'mongoose';
-import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
 import type { AuditEvent } from '@/modules/audit/domain/audit-event';
 
 export type FleetAuditAction = 'DRIVER_PROVISIONED' | 'DRIVER_MIGRATED' | 'DRIVER_DEACTIVATED' | 'DRIVER_ACTIVATED'
