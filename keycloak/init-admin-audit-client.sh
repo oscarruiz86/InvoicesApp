@@ -19,22 +19,22 @@ trap 'rm -f "$config" /run/kcadm/audit-client.json' EXIT
 "$kcadm" config credentials --config "$config" --server http://keycloak:8080 --realm master --user "${KC_BOOTSTRAP_ADMIN_USERNAME:-temp-admin}" >/dev/null
 
 client_id=invoices-admin-audit-reader
-client_uuid=$("$kcadm" get clients -r invoices -q "clientId=$client_id" --fields id --format csv --noquotes --config "$config" 2>/dev/null || true)
+client_uuid=$("$kcadm" get clients -r invoices -q "clientId=$client_id" --fields id --format csv --noquotes --config "$config" 2>/dev/null | tr -d '\r' || true)
 if [[ -z "$client_uuid" ]]; then
   printf '{"clientId":"%s","enabled":true,"protocol":"openid-connect","publicClient":false,"serviceAccountsEnabled":true,"standardFlowEnabled":false,"directAccessGrantsEnabled":false,"clientAuthenticatorType":"client-secret","secret":"%s"}\n' "$client_id" "$audit_secret" > /run/kcadm/audit-client.json
   chmod 600 /run/kcadm/audit-client.json
   "$kcadm" create clients -r invoices -f /run/kcadm/audit-client.json --config "$config" >/dev/null
-  client_uuid=$("$kcadm" get clients -r invoices -q "clientId=$client_id" --fields id --format csv --noquotes --config "$config")
+  client_uuid=$("$kcadm" get clients -r invoices -q "clientId=$client_id" --fields id --format csv --noquotes --config "$config" | tr -d '\r')
 fi
 [[ -n "$client_uuid" ]] || { echo "Could not resolve the Keycloak audit reader client" >&2; exit 1; }
 "$kcadm" update "clients/$client_uuid" -r invoices -s enabled=true -s publicClient=false -s serviceAccountsEnabled=true -s clientAuthenticatorType=client-secret -s "secret=$audit_secret" --config "$config" >/dev/null
-api_scope_uuid=$("$kcadm" get client-scopes -r invoices -q name=kc-admin-api --fields id --format csv --noquotes --config "$config")
-[[ -n "$api_scope_uuid" ]] || { echo "Could not resolve the Keycloak Admin API client scope" >&2; exit 1; }
+api_scope_uuid=$("$kcadm" get client-scopes -r invoices -q search=kc-admin-api --fields id,name --format csv --noquotes --config "$config" | tr -d '\r' | grep ',kc-admin-api$' | cut -d, -f1)
+[[ "$api_scope_uuid" =~ ^[a-fA-F0-9-]{36}$ ]] || { echo "Could not resolve the Keycloak Admin API client scope" >&2; exit 1; }
 "$kcadm" update "clients/$client_uuid/default-client-scopes/$api_scope_uuid" -r invoices --config "$config" >/dev/null
-management_uuid=$("$kcadm" get clients -r invoices -q clientId=realm-management --fields id --format csv --noquotes --config "$config")
+management_uuid=$("$kcadm" get clients -r invoices -q clientId=realm-management --fields id --format csv --noquotes --config "$config" | tr -d '\r')
 service_user="service-account-$client_id"
 "$kcadm" add-roles -r invoices --uusername "$service_user" --cclientid realm-management --rolename view-events --config "$config" >/dev/null
-roles=$("$kcadm" get "users/$service_user/role-mappings/clients/$management_uuid" -r invoices --fields name --format csv --noquotes --config "$config")
+roles=$("$kcadm" get "users/$service_user/role-mappings/clients/$management_uuid" -r invoices --fields name --format csv --noquotes --config "$config" | tr -d '\r')
 [[ "$roles" == "view-events" ]] || { echo "Keycloak audit reader has unexpected realm-management permissions" >&2; exit 1; }
 "$kcadm" update realms/invoices -s adminEventsEnabled=true -s adminEventsDetailsEnabled=false --config "$config" >/dev/null
 unset KC_CLI_PASSWORD audit_secret

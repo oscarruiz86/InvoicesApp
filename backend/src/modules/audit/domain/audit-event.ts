@@ -47,11 +47,11 @@ const actionsBySource: Readonly<Record<Exclude<AuditEventSource, 'keycloak-admin
 };
 
 const keycloakOperations = new Set(['CREATE', 'UPDATE', 'DELETE', 'ACTION', 'ACTION_TOKEN', 'REMOVE', 'SET_PASSWORD', 'RESET_PASSWORD', 'IMPERSONATE']);
-const keycloakResources = new Set(['USER', 'REALM', 'CLIENT', 'CLIENT_SCOPE', 'ROLE', 'GROUP', 'IDENTITY_PROVIDER', 'USER_FEDERATION', 'AUTHENTICATOR', 'COMPONENT', 'PROTOCOL_MAPPER', 'AUTHORIZATION', 'SCOPE']);
+const keycloakResources = new Set(['USER', 'REALM', 'CLIENT', 'CLIENT_SCOPE', 'CLIENT_SCOPE_CLIENT_MAPPING', 'CLIENT_ROLE_MAPPING', 'REALM_ROLE_MAPPING', 'USER_ROLE_MAPPING', 'ROLE', 'GROUP', 'IDENTITY_PROVIDER', 'USER_FEDERATION', 'AUTHENTICATOR', 'COMPONENT', 'PROTOCOL_MAPPER', 'AUTHORIZATION', 'SCOPE']);
 const invoiceChangedFields = new Set(['origin', 'captureChannel', 'qrMetadata', 'assignmentId', 'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amounts', 'imageId', 'offlineException']);
 export function isAllowedAuditAction(source: AuditEventSource, action: string): boolean {
   if (source !== 'keycloak-admin') return actionsBySource[source].has(action);
-  const match = /^KEYCLOAK_ADMIN_([A-Z0-9_]+)_([A-Z0-9_]+)$/u.exec(action);
+  const match = /^KEYCLOAK_ADMIN_(CREATE|UPDATE|DELETE|ACTION|ACTION_TOKEN|REMOVE|SET_PASSWORD|RESET_PASSWORD|IMPERSONATE)_([A-Z0-9_]+)$/u.exec(action);
   return Boolean(match && keycloakOperations.has(match[1]) && keycloakResources.has(match[2]));
 }
 

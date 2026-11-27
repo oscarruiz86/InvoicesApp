@@ -9,11 +9,12 @@ import { vehicleResponse, type VehicleOperation } from '@/modules/fleet/presenta
 import { connectMongo } from '@/shared/infrastructure/mongodb/connection';
 import { readServerEnvironment } from '@/shared/infrastructure/config/server-environment';
 import { authorization, policyRepository } from './authorization-endpoint';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 import { authenticatedEndpoint } from './authenticated-endpoint';
 const connect = () => { const env = readServerEnvironment(); return connectMongo({ uri: env.MONGODB_URI, file: env.MONGODB_URI_FILE }); };
 const assignments = createMongoAssignmentAccessReader(connect);
-const repository = createVehicleRepository(connect, (connection, session) => ({ policy: policyConfirmation(connection, session), authority: vehicleAuthorityConfirmation(connection, session), assignments: createMongoAssignmentConfirmation(connection, session) }));
-const service = createVehicles({ repository, drivers: createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation), assignments, authorization, policies: policyRepository, correlationId: randomUUID });
+const repository = createVehicleRepository(connect, (connection, session) => ({ policy: policyConfirmation(connection, session), authority: vehicleAuthorityConfirmation(connection, session), assignments: createMongoAssignmentConfirmation(connection, session), audit: createMongoAuditWriter(connection, session) }));
+const service = createVehicles({ repository, drivers: createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation, createMongoAuditWriter), assignments, authorization, policies: policyRepository, correlationId: randomUUID });
 export function vehiclesEndpoint(operation: VehicleOperation, id?: string) {
   return authenticatedEndpoint((actor, request) => vehicleResponse(service, operation, actor, request, id));
 }

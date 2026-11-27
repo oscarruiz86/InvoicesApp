@@ -1,5 +1,4 @@
-import type { ClientSession, Connection } from 'mongoose';
-import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 import type { AuditEvent } from '@/modules/audit/domain/audit-event';
 
 export type FleetAuditAction = 'DRIVER_PROVISIONED' | 'DRIVER_MIGRATED' | 'DRIVER_DEACTIVATED' | 'DRIVER_ACTIVATED'
@@ -15,6 +14,6 @@ export function mapFleetAuditEvent(input: { eventId: string; correlationId: stri
     afterVersion: String(input.afterVersion) };
 }
 
-export async function recordFleetAudit(connection: Connection, session: ClientSession, input: Parameters<typeof mapFleetAuditEvent>[0]): Promise<void> {
-  await createMongoAuditWriter(connection, session).record(mapFleetAuditEvent(input));
+export async function recordFleetAudit(audit: AuditWriter, input: Parameters<typeof mapFleetAuditEvent>[0]): Promise<void> {
+  await audit.record(mapFleetAuditEvent(input));
 }

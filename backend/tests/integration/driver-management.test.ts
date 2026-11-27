@@ -5,6 +5,7 @@ import { createDriverRepository, driverModel, provisionDriverInSession } from '@
 import { createMongoAssignmentConfirmation, createMongoAssignmentPresenceReader } from '@/modules/fleet/infrastructure/mongodb/assignment-repository';
 import { createPolicyRepository, policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
 import { grantCeiling } from '@/modules/identity/domain/permissions';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
@@ -12,7 +13,7 @@ const database = 'driver_management_' + randomUUID().replaceAll('-', '') + '_tes
 const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 5000 });
 const connect = async () => connection;
 const policies = createPolicyRepository(connect);
-const repository = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation);
+const repository = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation, createMongoAuditWriter);
 const assignmentPresence = createMongoAssignmentPresenceReader(connect);
 const now = new Date('2026-11-19T12:00:00.000Z');
 const adminSubject = 'third-party-admin';
@@ -53,7 +54,7 @@ async function createEligibleDriver(label: string) {
   let driver;
   await connection.transaction(async session => {
     driver = await provisionDriverInSession(connection, session, { id: driverId, subject, membershipId, thirdPartyId,
-      actor: adminSubject, now, source: 'INVITATION' });
+      actor: adminSubject, now, source: 'INVITATION' }, createMongoAuditWriter(connection, session));
   });
   return { driver: driver!, thirdPartyId, subject, membershipId };
 }
@@ -72,12 +73,12 @@ it('enforces unique membership ownership and records a durable local provisionin
   const duplicate = await connection.transaction(session => provisionDriverInSession(connection, session, {
     id: new mongoose.Types.ObjectId().toString(), subject: first.subject, membershipId: first.membershipId,
     thirdPartyId: first.thirdPartyId, actor: adminSubject, now, source: 'MEMBERSHIP',
-  }));
+  }, createMongoAuditWriter(connection, session)));
   expect(duplicate.id).toBe(first.driver.id);
   await expect(connection.transaction(session => provisionDriverInSession(connection, session, {
     id: new mongoose.Types.ObjectId().toString(), subject: 'other-subject', membershipId: first.membershipId,
     thirdPartyId: first.thirdPartyId, actor: adminSubject, now, source: 'MEMBERSHIP',
-  }))).rejects.toMatchObject({ code: 'DUPLICATE_MEMBERSHIP' });
+  }, createMongoAuditWriter(connection, session)))).rejects.toMatchObject({ code: 'DUPLICATE_MEMBERSHIP' });
   expect(await connection.collection('drivers').countDocuments({ membershipId: first.membershipId })).toBe(1);
   expect(await connection.collection('driver_management_events').countDocuments({ membershipId: first.membershipId })).toBe(1);
   expect(await connection.collection('audit_events').countDocuments({ membershipId: first.membershipId })).toBe(0);

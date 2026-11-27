@@ -1,6 +1,5 @@
 import { Types, type ClientSession, type Connection } from 'mongoose';
 import { createInvoiceSubmission, InvoiceSubmissionError, transitionInvoiceSubmission, type InvoiceSubmission, type InvoiceSubmissionStatus } from '../../domain/submission';
-import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
 import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 import { offlineResolutionAuditEvent } from '../../application/audit-event';
 
@@ -26,7 +25,7 @@ function decode(row: Row): InvoiceSubmission {
   } catch { throw new Error('SUBMISSION_STORAGE_UNAVAILABLE'); }
 }
 
-export function createMongoInvoiceSubmissionRepository(connect: () => Promise<Connection>, auditFactory: (connection: Connection, session: ClientSession) => AuditWriter = createMongoAuditWriter) {
+export function createMongoInvoiceSubmissionRepository(connect: () => Promise<Connection>, auditFactory: (connection: Connection, session: ClientSession) => AuditWriter) {
   const ready = new WeakSet<Connection>();
   async function database() {
     const connection = await connect();

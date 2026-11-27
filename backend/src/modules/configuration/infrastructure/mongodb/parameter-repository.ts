@@ -4,7 +4,7 @@ import { isParameterKey, parameterCatalog, validateParameterValue, type Paramete
 import type { ParameterEvent, ParameterRepository, ParameterRow } from '../../application/parameters';
 import { ParameterError } from '../../application/parameters';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
-import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 
 const parameters = 'functional_parameters';
 const events = 'configuration_events';
@@ -50,7 +50,8 @@ export async function inventoryParameters(connection: Connection) {
 }
 
 export function createMongoParameterRepository(connect: () => Promise<Connection>, ids: { next(): string } = { next: randomUUID },
-  confirmPolicy?: (connection: Connection, session: ClientSession) => PolicyConfirmation): ParameterRepository {
+  confirmPolicy: ((connection: Connection, session: ClientSession) => PolicyConfirmation) | undefined,
+  auditFactory: (connection: Connection, session: ClientSession) => AuditWriter): ParameterRepository {
   async function ready(connection: Connection) {
     const inventory = await inventoryParameters(connection);
     if (!inventory.ready) throw new ParameterError('STORAGE_UNAVAILABLE');
@@ -97,7 +98,7 @@ export function createMongoParameterRepository(connect: () => Promise<Connection
         const eventId = ids.next();
         await connection.collection(events).insertOne({ eventId, correlationId: input.correlationId, key: input.key, actor: input.actor,
           at: now, previousValue: previous.value, value: input.value, previousVersion: previous.version, version }, { session });
-        await createMongoAuditWriter(connection, session).record({ eventId, occurredAt: now.toISOString(), source: 'configuration',
+        await auditFactory(connection, session).record({ eventId, occurredAt: now.toISOString(), source: 'configuration',
           actor: { kind: 'user', subject: input.actor }, action: 'PARAMETER_UPDATED', result: 'allowed', reason: 'PARAMETER_CHANGE',
           correlationId: input.correlationId, resource: { type: 'functional-parameter', id: input.key.replaceAll('.', ':') },
           beforeVersion: String(previous.version), afterVersion: String(version) });
@@ -119,7 +120,7 @@ export function createMongoParameterRepository(connect: () => Promise<Connection
         await connection.collection(parameters).insertOne({ key, scope: 'global', value, version: 1, mutationFence: 0, effectiveFrom: now, createdAt: now, createdBy: actor, updatedAt: now, updatedBy: actor }, { session });
         const eventId = ids.next();
         await connection.collection(events).insertOne({ eventId, correlationId, key, actor, at: now, previousValue: value, value, previousVersion: 0, version: 1 }, { session });
-        await createMongoAuditWriter(connection, session).record({ eventId, occurredAt: now.toISOString(), source: 'configuration',
+        await auditFactory(connection, session).record({ eventId, occurredAt: now.toISOString(), source: 'configuration',
           actor: { kind: 'user', subject: actor }, action: 'PARAMETER_INITIALIZED', result: 'allowed', reason: 'PARAMETER_INITIALIZATION',
           correlationId, resource: { type: 'functional-parameter', id: key.replaceAll('.', ':') }, beforeVersion: '0', afterVersion: '1' });
         return true;

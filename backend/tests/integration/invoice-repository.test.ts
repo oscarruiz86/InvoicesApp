@@ -15,6 +15,7 @@ import { createMongoParameterRepository } from '@/modules/configuration/infrastr
 import { createParameterUseCases } from '@/modules/configuration/application/parameters';
 import { createLocalInvoiceImageStorage } from '@/modules/invoices/infrastructure/images/local-image-storage';
 import { createMongoInvoiceSubmissionRepository } from '@/modules/invoice-sync/infrastructure/mongodb/submission-repository';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
@@ -26,19 +27,19 @@ const connect = async () => connection;
 let policyVersion = '1', failAudit = false;
 let serverNow = new Date('2026-11-20T12:30:00.000Z');
 let onEditPolicyConfirm: (() => void | Promise<void>) | null = null;
-const parameters = createMongoParameterRepository(connect, undefined, policyConfirmation);
+const parameters = createMongoParameterRepository(connect, undefined, policyConfirmation, createMongoAuditWriter);
 const parameterUseCases = createParameterUseCases(parameters, { now: () => new Date(serverNow) }, { next: randomUUID });
 const assignments = createMongoInvoiceAssignmentAuthority(connect);
 const repository = createMongoInvoiceRepository(connect, (c, session) => ({ policy: policyConfirmation(c, session),
   authority: invoiceAuthorityConfirmation(c, session), assignments,
   editPolicy: { async confirm() { onEditPolicyConfirm?.(); } },
-  audit: { async record(event) { if (failAudit) throw new Error('simulated durable audit failure'); await createMongoInvoiceAudit(c, session).record(event); } },
-}), { clock: { now: () => new Date(serverNow) } });
+  audit: { async record(event) { if (failAudit) throw new Error('simulated durable audit failure'); await createMongoInvoiceAudit(c, session, createMongoAuditWriter(c, session)).record(event); } },
+}), { clock: { now: () => new Date(serverNow) }, auditFactory: createMongoAuditWriter });
 const configuredRepository = createMongoInvoiceRepository(connect, (c, session) => ({ policy: policyConfirmation(c, session),
   authority: invoiceAuthorityConfirmation(c, session), assignments,
   editPolicy: { async confirm(input) { await parameterUseCases.confirm({ thirdPartyId: input.thirdPartyId, revision: input.revision, scope: input.scope, transactionContext: input.transactionContext }); await onEditPolicyConfirm?.(); } },
-  audit: createMongoInvoiceAudit(c, session),
-}), { clock: { now: () => new Date(serverNow) } });
+  audit: createMongoInvoiceAudit(c, session, createMongoAuditWriter(c, session)),
+}), { clock: { now: () => new Date(serverNow) }, auditFactory: createMongoAuditWriter });
 
 beforeAll(async () => { await connection.asPromise(); policyVersion = (await createPolicyRepository(connect).initialize()).version; });
 beforeEach(() => { serverNow = new Date('2026-11-20T12:30:00.000Z'); onEditPolicyConfirm = null; });
@@ -213,7 +214,7 @@ it('records closed-assignment approval atomically without copying its reason or 
   const input = command(owner, { number: 'FAC-OFFLINE-APPROVAL' });
   const approvalRepository = createMongoInvoiceRepository(connect, (c, session) => ({ policy: policyConfirmation(c, session),
     authority: { async confirm() {} }, assignments: { ...assignments, async confirmClosedInTransaction() {} },
-    editPolicy: { async confirm() {} }, audit: createMongoInvoiceAudit(c, session) }), { clock: { now: () => new Date(serverNow) } });
+    editPolicy: { async confirm() {} }, audit: createMongoInvoiceAudit(c, session, createMongoAuditWriter(c, session)) }), { clock: { now: () => new Date(serverNow) }, auditFactory: createMongoAuditWriter });
   const invoice = await approvalRepository.create({ invoice: input.invoice, actorSubject: input.actorSubject, idempotencyKey: input.idempotencyKey,
     requestHash: input.requestHash, authority: { ...owner.authority, roles: ['THIRD_PARTY_ADMIN'] }, assignment: input.assignment, correlationId: input.correlationId,
     offlineSubmission: { id: submissionId, expectedVersion: 2,
@@ -228,7 +229,7 @@ it('records closed-assignment approval atomically without copying its reason or 
 
 it('records administrative offline resolutions centrally with the same durable event identity', async () => {
   const owner = await seed(); const targetInvoice = await createWithImage(command(owner, { number: 'FAC-OFFLINE-LINK-TARGET' }));
-  const submissions = createMongoInvoiceSubmissionRepository(connect);
+  const submissions = createMongoInvoiceSubmissionRepository(connect, createMongoAuditWriter);
   const created = await submissions.create({ id: new mongoose.Types.ObjectId().toString(), ownerSubject: owner.subject, thirdPartyId: owner.thirdPartyId,
     origin: 'MANUAL', assignmentId: owner.assignmentId, vehicleId: owner.vehicleId, idempotencyKey: randomUUID(), requestHash: 'a'.repeat(64),
     payload: { invoiceNumber: 'offline-value-not-central' }, now: new Date(serverNow) });

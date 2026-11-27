@@ -6,7 +6,7 @@ import type { InvoiceAuditEvent, InvoiceAuditPort, InvoicePage, InvoiceRepositor
   InvoiceImageDocumentInput, InvoiceTransactionAuthorityPort, InvoiceEditPolicyConfirmationPort, InvoiceImageReference } from '../../application/invoice-ports';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
 import { inventoryInvoices } from './invoice-inventory';
-import { createMongoAuditWriter } from '@/shared/infrastructure/mongodb/audit-writer';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 import { offlineResolutionAuditEvent } from '@/modules/invoice-sync/application/audit-event';
 
 const collectionName = 'invoices';
@@ -138,10 +138,10 @@ function ensureReady(connection: Connection): Promise<void> {
   return pending;
 }
 
-export function createMongoInvoiceAudit(connection: Connection, session: ClientSession): InvoiceAuditPort {
+export function createMongoInvoiceAudit(connection: Connection, session: ClientSession, audit: AuditWriter): InvoiceAuditPort {
   return { async record(event: InvoiceAuditEvent) {
     await connection.collection(eventCollectionName).insertOne({ ...event, at: new Date(event.at) }, { session });
-    await createMongoAuditWriter(connection, session).record({ eventId: event.eventId, occurredAt: event.at, source: 'invoices',
+    await audit.record({ eventId: event.eventId, occurredAt: event.at, source: 'invoices',
       actor: { kind: 'user', subject: event.actorSubject }, action: event.action, captureOrigin: event.captureOrigin, changedFields: event.changedFields,
       result: 'allowed', reason: event.captureOrigin === 'QR' ? 'INVOICE_QR' : 'INVOICE_MANUAL', correlationId: event.correlationId,
       scope: { companyId: null, thirdPartyId: event.thirdPartyId }, resource: { type: 'invoice', id: event.invoiceId }, afterVersion: String(event.version) });
@@ -157,7 +157,7 @@ function imageDocument(invoice: Invoice, image: InvoiceImageDocumentInput): Row 
 }
 
 export function createMongoInvoiceRepository(connect: () => Promise<Connection>, participants: InvoiceTransactionParticipants,
-  options: { readonly clock?: { now(): Date } } = {}): InvoiceRepositoryPort {
+  options: { readonly clock?: { now(): Date }; readonly auditFactory: (connection: Connection, session: ClientSession) => AuditWriter }): InvoiceRepositoryPort {
   const clock = options.clock ?? { now: () => new Date() };
   async function transaction<T>(fn: (connection: Connection, session: ClientSession, ports: InvoiceTransactionPorts) => Promise<T>): Promise<T> {
     try {
@@ -199,7 +199,7 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
         actorSubject, thirdPartyId: invoice.thirdPartyId, submissionId: value.id, action: value.resolution.action,
         reason: value.resolution.reason, at: resolvedAt, fromVersion: value.expectedVersion, toVersion: value.expectedVersion + 1,
         resultInvoiceId: invoice.id }, { session });
-      await createMongoAuditWriter(connection, session).record(offlineResolutionAuditEvent({ eventId, at: resolvedAt, actorSubject,
+      await options.auditFactory(connection, session).record(offlineResolutionAuditEvent({ eventId, at: resolvedAt, actorSubject,
         action: value.resolution.action, submissionId: value.id, thirdPartyId: invoice.thirdPartyId,
         beforeVersion: value.expectedVersion, afterVersion: value.expectedVersion + 1 }));
     }
