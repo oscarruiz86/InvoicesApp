@@ -1,0 +1,157 @@
+name: invoices-production
+services:
+  frontend:
+    image: ${DOCKERHUB_NAMESPACE:?Set the public Docker Hub namespace}/invoices-frontend:${IMAGE_TAG:?Set an immutable commit tag}
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 256m
+    pids_limit: 64
+    healthcheck:
+      test: [CMD, nginx, -t]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [private, traefik]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.invoices.rule: Host(`invoice.oarg.casa`)
+      traefik.http.routers.invoices.entrypoints: websecure
+      traefik.http.routers.invoices.tls: "true"
+      traefik.http.services.invoices.loadbalancer.server.port: "8080"
+  backend:
+    image: ${DOCKERHUB_NAMESPACE:?Set the public Docker Hub namespace}/invoices-backend:${IMAGE_TAG:?Set an immutable commit tag}
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 2.0
+    mem_limit: 1g
+    pids_limit: 128
+    environment:
+      NODE_ENV: production
+      MONGODB_URI_FILE: /run/secrets/mongodb-uri
+      KEYCLOAK_ISSUER_URL: https://auth.oarg.casa/realms/invoices
+      KEYCLOAK_JWKS_URL: ${KEYCLOAK_PRIVATE_JWKS_URL:?Set the private HTTPS JWKS URL}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:?Set the API audience}
+      KEYCLOAK_DIRECTORY_ISSUER_URL: ${KEYCLOAK_PRIVATE_ISSUER_URL:?Set private Keycloak issuer URL}
+      KEYCLOAK_DIRECTORY_CLIENT_ID: ${KEYCLOAK_DIRECTORY_CLIENT_ID:?Set the private directory client id}
+      KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE: /run/secrets/keycloak-directory-client
+      INVOICE_IMAGE_STORAGE_PROVIDER: local
+      INVOICE_IMAGE_STORAGE_LOCAL_ROOT: /var/lib/invoices/images
+      INVOICE_IMAGE_STORAGE_COMPANY_ID: ${INVOICE_IMAGE_STORAGE_COMPANY_ID:?Set image namespace}
+    secrets: [mongodb-uri, keycloak-directory-client]
+    volumes:
+      - type: bind
+        source: ${INVOICE_IMAGES_PATH:?Set private dataset path for invoice images}
+        target: /var/lib/invoices/images
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 45s
+    networks: [private]
+  notification-worker:
+    image: ${DOCKERHUB_NAMESPACE:?Set the public Docker Hub namespace}/invoices-workers:${IMAGE_TAG:?Set an immutable commit tag}
+    command: [node, --experimental-loader, ./scripts/typescript-loader.mjs, ./scripts/notification-worker-production-entrypoint.mjs]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 150s
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8090/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    environment:
+      NODE_ENV: production
+      MONGODB_URI_FILE: /run/secrets/mongodb-uri
+      NOTIFICATION_WORKER_HEALTH_PORT: "8090"
+      SMTP_ENABLED: "true"
+      SMTP_HOST: ${SMTP_HOST:?Set SMTP host}
+      SMTP_PORT: ${SMTP_PORT:?Set SMTP port}
+      SMTP_USERNAME: ${SMTP_USERNAME:?Set SMTP user}
+      SMTP_PASSWORD_FILE: /run/secrets/smtp-password
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:?Set sender address}
+      INVITATION_PUBLIC_ORIGIN: https://invoice.oarg.casa
+      NOTIFICATION_PAYLOAD_KEY_FILES: 1=/run/secrets/notification-payload-keys/v1
+    secrets: [mongodb-uri, smtp-password]
+    volumes:
+      - type: bind
+        source: ${NOTIFICATION_KEYS_PATH:?Set private notification key directory}
+        target: /run/secrets/notification-payload-keys
+        read_only: true
+    networks: [private]
+  audit-outbox-worker:
+    image: ${DOCKERHUB_NAMESPACE:?Set the public Docker Hub namespace}/invoices-workers:${IMAGE_TAG:?Set an immutable commit tag}
+    command: [node, --experimental-loader, ./scripts/typescript-loader.mjs, src/bootstrap/run-audit-outbox-worker.ts]
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    environment:
+      NODE_ENV: production
+      MONGODB_URI_FILE: /run/secrets/mongodb-uri
+    secrets: [mongodb-uri]
+    networks: [private]
+  invoice-sync-retention-worker:
+    image: ${DOCKERHUB_NAMESPACE:?Set the public Docker Hub namespace}/invoices-workers:${IMAGE_TAG:?Set an immutable commit tag}
+    command: [node, --experimental-loader, ./scripts/typescript-loader.mjs, src/bootstrap/run-invoice-sync-retention-worker.ts]
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    environment:
+      NODE_ENV: production
+      MONGODB_URI_FILE: /run/secrets/mongodb-uri
+      INVOICE_IMAGE_STORAGE_PROVIDER: local
+      INVOICE_IMAGE_STORAGE_LOCAL_ROOT: /var/lib/invoices/images
+      INVOICE_IMAGE_STORAGE_COMPANY_ID: ${INVOICE_IMAGE_STORAGE_COMPANY_ID:?Set image namespace}
+    secrets: [mongodb-uri]
+    volumes:
+      - type: bind
+        source: ${INVOICE_IMAGES_PATH:?Set private dataset path for invoice images}
+        target: /var/lib/invoices/images
+    networks: [private]
+secrets:
+  mongodb-uri:
+    file: ${MONGODB_URI_SECRET_FILE:?Set host path to Mongo URI secret file}
+  keycloak-directory-client:
+    file: ${KEYCLOAK_DIRECTORY_SECRET_FILE:?Set host path to private Keycloak client secret}
+  smtp-password:
+    file: ${SMTP_PASSWORD_SECRET_FILE:?Set host path to SMTP secret file}
+networks:
+  private:
+    driver: bridge
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:?Set the existing Traefik network name}

@@ -4,6 +4,7 @@
 
 - Guía de selección, comandos, capas y aislamiento: [testing-quality.md](testing-quality.md).
 - Registro de esta implementación documental: [implement-testing-quality — 2026-11-26](#implement-testing-quality--2026-11-26).
+- Registro de producción y endurecimiento: [implement-production-hardening — 2026-11-27](#implement-production-hardening--2026-11-27).
 - Evidencia previa: las secciones fechadas por cambio que siguen son registros históricos de sus respectivas corridas. No describen el estado de la rama actual; cuando exista un registro posterior, prevalece para el cambio indicado sin borrar la evidencia anterior.
 
 ## Plantilla para una corrida
@@ -426,3 +427,25 @@ Se revisó la propuesta y se corrigió un hueco de validación: el normalizador 
 | `npm run test:integration -- tests/integration/configuration-parameters.test.ts tests/integration/parametric-catalog-audit.test.ts tests/integration/invoice-repository.test.ts tests/integration/invoice-migration.test.ts tests/integration/driver-management.test.ts tests/integration/driver-migration.test.ts tests/integration/vehicle-management.test.ts tests/integration/assignment-repository.test.ts tests/integration/invitation-acceptance.test.ts tests/integration/membership-administration.test.ts` | 61 pruebas pasaron en 9 archivos; se comprobó persistencia y atomicidad de auditoría con inyección desde el composition root. |
 
 No se desplegó Keycloak real ni se realizó backfill. La configuración productiva permanece opt-in y documentada; la activación se reserva para cuando exista un runtime productivo y secretos montados externamente. Logs operativos limitados a conteos, retraso, categoría neutra y número de reintento; rotar el secreto requiere actualización coordinada y reinicio del worker.
+
+## implement-production-hardening — 2026-11-27
+
+Entorno: Windows 11, Node 24.15.0, Docker Desktop 4.79.0 / Engine 29.5.3. Las operaciones Docker se ejecutaron con acceso local elevado. Secretos productivos reales no se usaron.
+
+| Capa | Comando / verificación | Resultado observado |
+| --- | --- | --- |
+| Backend | `npm --prefix backend run check` | Aprobado: 68 archivos, 580 pruebas pasaron y 1 se omitió; TypeScript y arquitectura pasaron. Lint sin errores y 13 advertencias existentes. |
+| Frontend | `npm --prefix frontend run check` | Aprobado: 47 archivos, 266 pruebas; TypeScript y arquitectura pasaron. Lint sin errores y 13 advertencias existentes. Vitest usa timeout de 30 s para dos casos UI que superaban los 10 s en este entorno. |
+| Contrato | `npm --prefix backend run openapi:check` | Aprobado: 60 rutas y 76 métodos; OpenAPI válido. |
+| Perfil Compose | `docker compose -f compose.production.yaml config --quiet` con rutas y nombres de ejemplo | Aprobado; cinco servicios configurados, sin puertos publicados para API, workers o MongoDB. |
+| Imágenes | `docker build --target production -f frontend/Dockerfile .` y backend `production`/`worker` | Tres imágenes compiladas. Backend usa `npm run build -- --webpack` porque Turbopack no resolvió `@shared/*` en el contenedor. |
+| Nginx | `npm --prefix frontend run production:http-check` | Aprobado en contenedor no root, filesystem solo lectura, sin capabilities y con límites; HTTP 200 y cabeceras CSP, MIME, framing, referrer y permisos. |
+| API / readiness | Backend restringido con Mongo inaccesible y luego Mongo replica set efímero aislado | Liveness HTTP 200 y readiness 503 neutro al fallar Mongo; readiness HTTP 200 al estar disponible. |
+| Proxy | Frontend y backend en red aislada | Página y CSP respondieron; `/api/health` se proxied en el mismo origen. MongoDB no publicó puertos. |
+| Secretos | `npm --prefix backend run test:production-secrets` | Aprobado: secreto montado disponible, lectura denegada bajo UID del worker y URI ausente de entorno, logs y métricas. |
+| Revisión de imágenes | `docker image inspect`, historial y rutas runtime de las imágenes locales | Usuarios `101:101` / `node`; sin variables secretas en metadata/historial ni archivos `.env`/secretos en rutas runtime revisadas. Tamaños locales: frontend 72.8 MB, backend 96.6 MB, workers 202.7 MB. |
+
+Advertencias: ninguna prueba falló en la última corrida de calidad.
+Fallos corregidos durante la verificación: `pid` duplicado en Nginx y build Turbopack sin resolver el alias compartido; se reemplazó la configuración Nginx y se fijó Webpack para la imagen backend.
+Omisiones: no se descargaron imágenes publicadas de Docker Hub ni se probó publicación con `DOCKERHUB_TOKEN`.
+Límites: no se validó en TrueNAS SCALE 25.10.2.1, no se cambió MongoDB productivo ni se probó login real Keycloak, certificado Tunnel/Traefik, rollback manual o el flujo completo de producción.

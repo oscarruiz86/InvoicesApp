@@ -13,7 +13,7 @@ CMD ["npm", "run", "dev"]
 FROM dependencies AS build
 COPY backend/ ./
 COPY shared/ /shared/
-RUN npm run build
+RUN npm run build -- --webpack
 
 FROM dependencies AS worker-dependencies
 RUN npm prune --omit=dev --no-audit

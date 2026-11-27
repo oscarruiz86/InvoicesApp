@@ -68,10 +68,16 @@ async function inspect(base) {
   assert.equal(health.status, 200); assert.match(health.headers.get('content-type'), /application\/json/);
   assert.equal(health.headers.get('cache-control'), 'no-store');
   assert.deepEqual(await health.json(), { status: 'ok' });
+  const readiness = await fetch(base + '/api/ready');
+  assert([200, 503].includes(readiness.status));
+  const readinessBody = await readiness.json();
+  assert(readiness.status === 200 ? readinessBody.status === 'ready' : readinessBody.status === 'not_ready');
   const specification = await (await fetch(base + '/api/openapi')).json();
   assert.equal(specification.openapi, '3.1.0');
   assert.equal(specification.components.schemas.Health.properties.status.const, 'ok');
   assert(specification.paths['/api/health'].get.responses['503']);
+  assert(specification.paths['/api/ready'].get.responses['200']);
+  assert(specification.paths['/api/ready'].get.responses['503']);
   assert.deepEqual(specification.paths['/api/auth/me'].get.security, [{ bearerAuth: [] }]);
   assert.equal(specification.components.securitySchemes.bearerAuth.scheme, 'bearer');
   for (const status of ['200', '401', '503', '500']) assert(specification.paths['/api/auth/me'].get.responses[status]);
@@ -136,8 +142,13 @@ async function inspect(base) {
 }
 
 if (process.env.TEST_API_BASE_URL) await inspect(process.env.TEST_API_BASE_URL);
-// An unreachable MongoDB proves that liveness does not connect to external services.
-await withServer('mongodb://127.0.0.1:1/unreachable', inspect);
+// An unreachable MongoDB proves that liveness remains up while readiness is unavailable.
+await withServer('mongodb://127.0.0.1:1/unreachable', async base => {
+  await inspect(base);
+  const readiness = await fetch(base + '/api/ready');
+  assert.equal(readiness.status, 503);
+  assert.deepEqual(await readiness.json(), { status: 'not_ready' });
+});
 await withServer(null, async base => {
   for (const endpoint of ['health', 'openapi', 'docs']) {
     const response = await fetch(base + '/api/' + endpoint); assert.equal(response.status, 503);
