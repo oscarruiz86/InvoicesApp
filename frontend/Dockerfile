@@ -21,7 +21,10 @@ ENV VITE_KEYCLOAK_URL=$VITE_KEYCLOAK_URL VITE_KEYCLOAK_REALM=$VITE_KEYCLOAK_REAL
 RUN npm run build
 
 FROM nginx:stable-bookworm@sha256:552e7481ca93ffccd046aa658dbbed22caefbc09c66fa7cd247cbb90b8a5c609 AS production
-ENV API_UPSTREAM=http://backend:3000
-COPY frontend/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY frontend/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY frontend/nginx/default.conf.template /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+USER 101:101
 EXPOSE 8080
+ENTRYPOINT ["nginx"]
+CMD ["-g", "daemon off;"]

@@ -1546,6 +1546,19 @@
         "x-authorization-scope": "APP_ADMIN global o COMPANY_ADMIN de la empresa indicada."
       }
     },
+    "/api/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "summary": "Comprobar preparación del backend",
+        "description": "Comprueba MongoDB y, cuando la validación de identidad está configurada, disponibilidad de JWKS. No reemplaza la señal de liveness.",
+        "tags": ["Runtime"],
+        "security": [],
+        "responses": {
+          "200": { "description": "El backend está preparado", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "const": "ready" } }, "required": ["status"] } } } },
+          "503": { "description": "Una dependencia requerida no está disponible", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "const": "not_ready" } }, "required": ["status"] } } } }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "getHealth",

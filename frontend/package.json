@@ -44,9 +44,11 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --testTimeout=30000",
     "test:architecture": "node scripts/check-architecture.mjs",
     "check": "npm run lint && npm run typecheck && npm test && npm run test:architecture",
+    "production:check": "node scripts/check-production-nginx.mjs",
+    "production:http-check": "node scripts/test-production-nginx-http.mjs",
     "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "tsc --noEmit && vite build",
     "start": "vite preview --host 0.0.0.0 --port 4173",

@@ -45,6 +45,7 @@
     "test:integration:offline-invoice-sync": "vitest run --config vitest.integration.config.ts tests/integration/invoice-repository.test.ts",
     "test:http": "node scripts/test-http.mjs && node scripts/test-vehicles-http.mjs",
     "test:production-secrets": "node scripts/test-production-secrets.mjs",
+    "production:check": "node scripts/check-production-config.mjs --self-test && node scripts/check-production-config.mjs",
     "openapi:lint": "redocly lint openapi/openapi.json",
     "openapi:routes": "node scripts/check-openapi-routes.mjs",
     "openapi:check": "npm run openapi:lint && npm run openapi:routes",
