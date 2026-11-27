@@ -317,7 +317,35 @@ $env:MONGODB_TEST_URI='mongodb://127.0.0.1:27018/invoices_test?replicaSet=rs0&di
 
 También pasaron las suites de auditoría compartida, Organizations/outbox, membresías/contexto y Fleet durante la implementación: el escritor y outbox verifican idempotencia, reintentos y rollback; las mutaciones de Fleet verifican identidad común y fallo transaccional. Los comandos de integración se repiten desde `backend` con el URI configurado arriba.
 
-`audit:read` está en el catálogo de permisos disponible, pero no se concede en `grantCeiling`; no hay controlador/ruta de lectura para el journal ni interfaz transversal. La evidencia central contiene metadatos de la lista permitida. Los eventos de factura, parámetros y catálogos conservan los valores operativos en sus colecciones locales y mantienen sus consultas existentes.
+`audit:read` se concede solo a APP_ADMIN en ámbito global; el endpoint registra las consultas y expone campos allowlist. Los eventos de negocio conservan sus historiales funcionales en las colecciones locales. La captura de administración de Keycloak se activa por configuración y sus eventos se normalizan en el journal central.
+
+## implement-audit-history-access — 2026-11-26
+
+### Verificaciones ejecutadas
+
+| Comando / área | Resultado |
+| --- | --- |
+| `npm --prefix backend test -- --pool=forks --maxWorkers=1` | 569 pruebas aprobadas en 66 archivos; 1 prueba omitida. |
+| `npm --prefix backend run typecheck` | Aprobado. |
+| `npm --prefix backend run test:architecture` | Aprobado; sin dependencias prohibidas ni ciclos. Se resolvieron las siete referencias directas a `audit-writer.ts` detectadas al inicio. |
+| `npm --prefix backend run openapi:check` | Aprobado; contrato válido y cobertura de 59 archivos de rutas, 75 métodos y 59 paths. |
+| `npm --prefix backend run build -- --webpack` | Aprobado; Next compiló y preparó la salida standalone. El build predeterminado de Turbopack había fallado en Windows al crear un junction de Mongoose ya existente en `.next`; se limpió únicamente esa salida generada y Webpack completó la compilación. |
+| `NEXT_DIST_DIR=.next-audit-verification npx next build --webpack` | Aprobado con las últimas modificaciones, compilación, TypeScript y 22 páginas generadas. Se usó una salida temporal independiente porque el servidor local mantiene bloqueada `.next`; la salida temporal se retiró y se restauró `tsconfig.json`. |
+| `npm --prefix backend run test:integration -- --pool=forks --maxWorkers=1 tests/integration/audit-history.test.ts` | Aprobado: 1 prueba contra la replica set `rs0` del contenedor local dedicado. El test usó una base aleatoria terminada en `_test`, verificó persistencia/autorregistro y cursor estable, y eliminó esa base al finalizar. |
+| `npm --prefix frontend test -- --pool=forks --maxWorkers=1 tests/unit/audit-labels.test.ts tests/unit/audit-history.test.tsx tests/unit/audit-access.test.tsx` | Aprobado: 7 pruebas en 3 archivos; incluye etiquetas naturales, conversión UTC→COT y nombre visible/fallback de actor. |
+| `E2E_BASE_URL=http://localhost:5173 npm --prefix frontend run test:e2e -- tests/e2e/audit-history-responsive.spec.ts tests/e2e/audit-access.spec.ts --workers=1` | Aprobado en Chromium: 7 escenarios; APP_ADMIN global autorizado, otros tres roles y contexto organizacional denegados, teclado/foco, hora COT y layout a 360/1280 px. Tras el ajuste horario se repitieron ambos tamaños responsive: 2/2 aprobados. |
+| Frontend lint y typecheck | Typecheck aprobado. Lint sin errores; 13 advertencias React Hooks preexistentes en otros módulos. |
+| `npm --prefix frontend run build` | Aprobado; Vite compiló 1.184 módulos. Permanece advertencia de chunk mayor a 500 kB. |
+| `openspec validate implement-audit-history-access --strict` | Aprobado después de actualizar la propuesta para nombres actuales y etiquetas naturales de acciones. |
+
+### Límites y comportamiento de identidad
+
+- La tabla muestra acciones en español natural y mantiene el código normalizado en el detalle. El backend intenta resolver el nombre completo actual en Identity Directory, lo cachea cinco minutos (máximo mil sujetos) y omite el campo si no está disponible; en ese caso la UI conserva el ID. No se devuelven correo, documento ni roles, y no se conserva una instantánea histórica del nombre.
+- Las resoluciones de nombre se limitan a ocho en paralelo; si el directorio falla, se usa un circuito de 30 segundos y el listado sigue respondiendo con los ID disponibles.
+- El error al filtrar por actor se originaba antes de la red: el allowlist del cliente `protected-http` no admitía el parámetro `actor` y levantaba `CONFIGURATION` localmente. Se añadió el parámetro a la lista y una prueba HTTP que verifica que un UUID llega a `fetch`. También se validó que UUID/IDs se consultan exactamente sin requerir búsqueda en Identity Directory. Pruebas: frontend `authorization.test.tsx` + `audit-history.test.tsx` (25 aprobadas), backend `audit-history-http.test.ts` (6 aprobadas), typecheck frontend/backend aprobado. Se reiniciaron `backend` y `frontend` locales; backend quedó healthy. El sandbox no pudo abrir localhost para verificar visualmente la página.
+- Diagnóstico del worker en desarrollo: capturas heredadas `COMPANY_ADMIN_ASSOCIATED` quedaban al inicio de `company_management_events`, pero esa acción no estaba en el catálogo normalizado. `normalizeAuditEvent` lanzaba `AUDIT_EVENT_INVALID` y el worker repetía el lote antes de llegar a `COMPANY_UPDATED`. Se añadió la acción al allowlist y a la etiqueta de UI; pruebas unitarias aprobaron, el worker reinició y registró 36 entregas. Conteos agregados después: cero ediciones/asociaciones pendientes, ocho ediciones de empresa y dos asociaciones presentes en el journal.
+
+La consulta restringe lectura a APP_ADMIN con contexto global, persiste la evidencia de consulta antes de responder y devuelve únicamente campos allowlist. La interfaz presenta la limitación de cobertura de productores y el control de paginación sigue el patrón compartido: primera/anterior/número/siguiente/última/actualizar, rango de registros y tamaño de página.
 
 ## Verificación de `enable-production-keycloak-admin-audit` — 2026-11-26
 

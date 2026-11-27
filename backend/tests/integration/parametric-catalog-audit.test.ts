@@ -8,7 +8,13 @@ const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
 const database = `catalog_audit_${randomUUID().replaceAll('-', '')}_test`;
 const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 5000 });
-const repository = createCatalogRepository(async () => connection, () => ({ async read() { return { version: '1', grants: [] }; }, async confirm() {} }), createMongoAuditWriter);
+const repository = createCatalogRepository(async () => connection, () => ({
+  async read() { return { version: '1', grants: [
+    { role: 'APP_ADMIN', permission: 'roles:read', scope: 'global' },
+    { role: 'APP_ADMIN', permission: 'roles:manage', scope: 'global' },
+  ] }; },
+  async confirm() {},
+}), createMongoAuditWriter);
 
 beforeAll(async () => { await connection.asPromise(); });
 beforeEach(async () => {

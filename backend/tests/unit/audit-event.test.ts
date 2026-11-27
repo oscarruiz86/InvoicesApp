@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auditExpiresAt, InvalidAuditEvent, normalizeAuditEvent } from '@/modules/audit/domain/audit-event';
+import { auditExpiresAt, InvalidAuditEvent, isAllowedAuditAction, normalizeAuditEvent, type AuditEventSource } from '@/modules/audit/domain/audit-event';
 
 const event = () => ({ eventId: 'event-1', occurredAt: '2026-01-31T12:00:00.000Z', source: 'authorization',
   actor: { kind: 'user', subject: 'subject-1' }, action: 'POLICY_CHANGED', result: 'allowed', reason: 'POLICY', correlationId: 'correlation-1',
@@ -33,6 +33,24 @@ describe('audit event contract', () => {
       .toMatchObject({ source: 'invoices', captureOrigin: 'QR', changedFields: ['invoiceNumber', 'qrMetadata'] });
     expect(() => normalizeAuditEvent({ ...event(), source: 'invoices', action: 'INVOICE_UPDATED', changedFields: ['payload'] })).toThrow(InvalidAuditEvent);
     expect(() => normalizeAuditEvent({ ...event(), source: 'invoices', action: 'INVOICE_CREATED', captureOrigin: 'QR', qrPayload: 'secret' })).toThrow(InvalidAuditEvent);
+  });
+
+  it('keeps all central producer action catalogs closed and integrated with audit read events', () => {
+    const catalogs: Partial<Record<AuditEventSource, string[]>> = {
+      authorization: ['ACCESS_DENIED','POLICY_CHANGED'],
+      organizations: ['ACCESS_DENIED','COMPANY_CREATED','COMPANY_UPDATED','COMPANY_ACTIVATED','COMPANY_DEACTIVATED','COMPANY_ADMIN_ASSOCIATED','THIRD_PARTY_CREATED','THIRD_PARTY_UPDATED','THIRD_PARTY_ACTIVATED','THIRD_PARTY_DEACTIVATED','RELATIONSHIP_ACTIVATED','RELATIONSHIP_DEACTIVATED','INVITATION_CREATED','INVITATION_RESENT','INVITATION_ACCEPTED','INVITATION_REJECTED','INVITATION_CANCELLED','INVITATION_EXPIRED','INVITATION_DELIVERY_UNKNOWN','INVITATION_DELIVERY_LOGGED','INVITATION_DELIVERY_FAILED','MEMBERSHIP_UPDATED','CONTEXT_SELECTED','CONTEXT_SWITCH_REQUESTED','CONTEXT_RESTORED','CONTEXT_DENIED','CONTEXT_INVALIDATED'],
+      fleet: ['DRIVER_PROVISIONED','DRIVER_MIGRATED','DRIVER_DEACTIVATED','DRIVER_ACTIVATED','VEHICLE_CREATED','VEHICLE_UPDATED','VEHICLE_ACTIVATED','VEHICLE_DEACTIVATED','ASSIGNMENT_CREATED','ASSIGNMENT_CLOSED'],
+      invoices: ['INVOICE_CREATED','INVOICE_UPDATED'],
+      'invoice-sync': ['SUBMISSION_LINKED_DUPLICATE','SUBMISSION_CLOSED_ASSIGNMENT_APPROVED','SUBMISSION_REJECTED'],
+      configuration: ['PARAMETER_INITIALIZED','PARAMETER_UPDATED'],
+      'parametric-catalogs': ['CATALOG_ENTRY_CREATED','CATALOG_ENTRY_UPDATED','CATALOG_ENTRY_REACTIVATED','CATALOG_ENTRY_DEACTIVATED'],
+      audit: ['AUDIT_HISTORY_READ'],
+    };
+    for (const [source, actions] of Object.entries(catalogs) as [AuditEventSource, string[]][]) for (const action of actions) expect(isAllowedAuditAction(source, action), `${source}/${action}`).toBe(true);
+    expect(isAllowedAuditAction('audit','POLICY_CHANGED')).toBe(false);
+    expect(isAllowedAuditAction('fleet','AUDIT_HISTORY_READ')).toBe(false);
+    expect(isAllowedAuditAction('keycloak-admin','KEYCLOAK_ADMIN_UPDATE_USER')).toBe(true);
+    expect(isAllowedAuditAction('keycloak-admin','KEYCLOAK_ADMIN_EXPORT_TOKEN')).toBe(false);
   });
 
   it('rejects personally identifying actor values in place of an opaque subject identifier', () => {

@@ -28,6 +28,14 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
     get(path: 'auth/me' | 'auth/permissions' | 'organization-contexts', query = '', signal?: AbortSignal): Promise<unknown> {
       return request(path, query, signal);
     },
+    audit(method: 'GET', path: string, query = '', signal?: AbortSignal): Promise<unknown> {
+      if (!(path === 'audit' || /^audit\/[A-Za-z0-9_:@-]{1,128}$/.test(path))) throw new ApplicationError('CONFIGURATION');
+      const params = new URLSearchParams(query);
+      const allowed = path === 'audit' ? ['scope', 'from', 'to', 'source', 'action', 'result', 'actor', 'pageSize', 'cursor'] : ['scope'];
+      for (const [key] of params) if (!allowed.includes(key) || params.getAll(key).length !== 1) throw new ApplicationError('CONFIGURATION');
+      if (params.get('scope') !== 'global') throw new ApplicationError('CONFIGURATION');
+      return request(path, query, signal, undefined, method);
+    },
     post(path: 'organization-contexts/resolve', body: unknown, signal?: AbortSignal): Promise<unknown> {
       return request(path, '', signal, body);
     },
@@ -178,7 +186,7 @@ export function createProtectedHttp(baseUrl: string, credentials: AccessTokenPor
             const failure = await response.json().catch(() => null);
             if (['IDENTITY_MISMATCH', 'EMAIL_UNVERIFIED', 'PROFILE_INCOMPLETE'].includes(failure?.error?.code)) throw new RequestError(failure.error.code);
           }
-          if (path === 'auth/me' || path === 'roles' || companyMethod) denied.forEach(listener => listener());
+          if (path === 'auth/me' || path === 'roles' || path.startsWith('audit') || companyMethod) denied.forEach(listener => listener());
           throw new ApplicationError('FORBIDDEN');
         }
         if (response.status === 404) throw new ApplicationError('NOT_FOUND');

@@ -122,6 +122,10 @@ describe('permissions HTTP boundary', () => {
           expect(value['x-authorization-scope']).toBe('global');
           expect(value['x-required-permissions']).toEqual([['patch', 'post', 'put'].includes(method) ? 'parameters:update' : 'parameters:read']);
         }
+      } else if (path === '/api/audit' || path.startsWith('/api/audit/')) {
+        expect(operation.security).toEqual([{ bearerAuth: [] }]);
+        expect(operation['x-authorization-scope']).toBe('global');
+        expect(operation['x-required-permissions']).toEqual(['audit:read']);
       } else expect(operation.security).toEqual([]);
     }
   });

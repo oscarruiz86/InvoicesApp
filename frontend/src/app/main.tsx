@@ -35,6 +35,7 @@ import { createHttpCatalogApi } from '@/modules/parameter-management/infrastruct
 import { offlineInvoiceQueue } from '@/modules/invoices/infrastructure/offline-invoice-queue';
 import { findValidOfflineCredential, verifyOfflineCredential } from '@/modules/invoices/infrastructure/offline-credential';
 import { OfflineInvoiceCapturePage } from '@/modules/invoices/presentation/offline-invoice-capture-page';
+import { createAuditHistoryApi } from '@/modules/audit/application/audit-history-api';
 
 function clientEnvironment() {
   let testJwks: string | undefined;
@@ -78,7 +79,7 @@ async function composeApplication() {
     const rolePolicy = createRolePolicyApi(createHttpRolePolicy(http));
     const verifyCredential = (record: Parameters<typeof verifyOfflineCredential>[0], publicJwks: readonly Parameters<typeof verifyOfflineCredential>[1][number][], now?: number) =>
       verifyOfflineCredential(record, publicJwks, now, environment.offlineCredentialMaxTtlHours);
-    return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} thirdParties={createThirdPartyApi(http)} invitations={createInvitationApi(http)} rolePolicy={rolePolicy} fleet={createDriverApi(http)} vehicles={createVehicleApi(http)} assignmentApi={createAssignmentApi(http)} invoices={createInvoiceApi(http)} parameters={createHttpParameters(http)} catalogs={createHttpCatalogApi(http)} offlineCredentialPublicJwks={environment.offlineCredentialPublicJwks}
+    return <App store={createHealthStore(read)} authentication={authentication} authorization={authorization} organizationContext={organizationContext} companies={createCompanyApi(http)} thirdParties={createThirdPartyApi(http)} invitations={createInvitationApi(http)} rolePolicy={rolePolicy} fleet={createDriverApi(http)} vehicles={createVehicleApi(http)} assignmentApi={createAssignmentApi(http)} invoices={createInvoiceApi(http)} parameters={createHttpParameters(http)} catalogs={createHttpCatalogApi(http)} auditHistory={createAuditHistoryApi(http)} offlineCredentialPublicJwks={environment.offlineCredentialPublicJwks}
       offlineQueue={offlineInvoiceQueue} verifyOfflineCredential={verifyCredential} />;
   } catch {
     return <ThemeProvider theme={theme}><CssBaseline /><Alert severity="error">{errorMessage('CONFIGURATION')}</Alert></ThemeProvider>;
