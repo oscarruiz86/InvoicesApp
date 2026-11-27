@@ -1,8 +1,71 @@
 # Evidencias de verificación
 
-La primera sección conserva el registro histórico de `initialize-foundations`. Las verificaciones del incremento de autenticación se registran por separado al final.
+## Estado actual e índice
 
-# initialize-foundations (histórico)
+- Guía de selección, comandos, capas y aislamiento: [testing-quality.md](testing-quality.md).
+- Registro de esta implementación documental: [implement-testing-quality — 2026-11-26](#implement-testing-quality--2026-11-26).
+- Evidencia previa: las secciones fechadas por cambio que siguen son registros históricos de sus respectivas corridas. No describen el estado de la rama actual; cuando exista un registro posterior, prevalece para el cambio indicado sin borrar la evidencia anterior.
+
+## Plantilla para una corrida
+
+Copiar para cada cambio verificado y reemplazar todos los campos. Registrar el comando exacto ejecutado, entorno sin secretos, resultado observado por capa, fallos, advertencias, omisiones y límites. Escribir “No ejecutado” con motivo cuando corresponda.
+
+```markdown
+## <cambio o commit> — <AAAA-MM-DD>
+
+Entorno: <SO, versiones relevantes, servicios/fixtures; nunca valores secretos>
+
+| Capa | Comando exacto | Resultado observado |
+| --- | --- | --- |
+| Checks | `<comando>` | <resultado o No ejecutado + motivo> |
+| Integración | `<comando>` | <resultado o No ejecutado + motivo> |
+| HTTP/OpenAPI/build/E2E | `<comando>` | <resultado o No ejecutado + motivo> |
+
+Advertencias: <ninguna o detalle>
+Fallos: <ninguno o suite/caso y síntoma>
+Omisiones: <ninguna o suite y motivo>
+Límites: <qué no demuestra esta evidencia>
+```
+
+### Ejemplo ilustrativo — no es una corrida real
+
+#### cambio-ejemplo — 2026-01-01
+
+Entorno: ejemplo hipotético, sin servicios iniciados.
+
+| Capa | Comando exacto | Resultado observado |
+| --- | --- | --- |
+| Checks | `npm --prefix backend run check` | 12/12 pruebas de la corrida ilustrativa; check aprobado. |
+| Integración | `npm --prefix backend run test:integration:prepared -- tests/integration/example.test.ts` | No ejecutado: ejemplo sin Docker. |
+| HTTP/OpenAPI/build/E2E | `npm --prefix backend run openapi:check` | No ejecutado: fuera del alcance ilustrativo. |
+
+Advertencias: ninguna en este ejemplo.
+Fallos: ninguno observado; no se ejecutó una corrida real.
+Omisiones: integración, HTTP, build y E2E.
+Límites: los conteos son ficticios y no acreditan el repositorio ni garantizan resultados futuros.
+
+Los conteos de pruebas y cualquier porcentaje son observaciones de una corrida concreta. No representan garantía, criterio de aceptación permanente ni gate. Este repositorio no define umbrales de cobertura en esta guía.
+
+## implement-testing-quality — 2026-11-26
+
+Entorno: inspección estática de `backend/package.json`, `frontend/package.json`, configs Vitest/Playwright y scripts/fixtures; no se iniciaron servicios ni se ejecutaron suites o builds.
+
+| Capa | Comando exacto | Resultado observado |
+| --- | --- | --- |
+| Checks | `npm --prefix backend run check`; `npm --prefix frontend run check` | Scripts verificados en sus manifiestos; no ejecutados en esta implementación. |
+| Integración | `npm --prefix backend run test:integration:prepared` | Script y orquestador verificados; no ejecutados. |
+| HTTP/OpenAPI/build/E2E | `npm --prefix backend run test:http:prepared`; `npm --prefix backend run openapi:check`; `npm --prefix backend run build`; `npm --prefix frontend run build`; `npm --prefix frontend run test:e2e:prepared` | Scripts y configuraciones verificados estáticamente; no ejecutados. |
+
+Advertencias: ninguna observada en la revisión estática.
+Fallos: no se ejecutaron pruebas, por lo tanto esta entrada no declara suites aprobadas ni fallidas.
+Omisiones: todas las suites y builds, deliberadamente fuera de la revisión documental.
+Límites: la existencia y lectura de comandos no prueba que compilen ni que pasen en el entorno actual.
+
+## Evidencia histórica
+
+Las entradas siguientes se conservan para trazabilidad. Cada una refleja el cambio y la corrida descritos en su fecha; no se debe extrapolar conteos, porcentajes, advertencias o resultados a cambios posteriores.
+
+### initialize-foundations (histórico)
 
 ## Verificaciones completadas
 
