@@ -11,11 +11,12 @@ let close;
 try {
   const { readServerEnvironment } = await server.ssrLoadModule('/src/shared/infrastructure/config/server-environment.ts');
   const { connectMongo, closeMongo } = await server.ssrLoadModule('/src/shared/infrastructure/mongodb/connection.ts');
+  const { createMongoAuditWriter } = await server.ssrLoadModule('/src/modules/audit/infrastructure/mongodb/audit-writer.ts');
   const { inspectDriverMigration, migrateDriverMemberships } = await server.ssrLoadModule('/src/modules/fleet/infrastructure/mongodb/driver-migration.ts');
   close = closeMongo;
   const environment = readServerEnvironment();
   const connection = await connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE });
-  const result = process.argv.includes('--apply') ? await migrateDriverMemberships(connection) : await inspectDriverMigration(connection);
+  const result = process.argv.includes('--apply') ? await migrateDriverMemberships(connection, createMongoAuditWriter) : await inspectDriverMigration(connection);
   const { candidates, ...summary } = result;
   console.log(JSON.stringify(summary, null, 2));
   if ('ready' in result && !result.ready) process.exitCode = 2;

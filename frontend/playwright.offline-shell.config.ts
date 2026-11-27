@@ -23,13 +23,13 @@ export default defineConfig({
   testMatch: 'offline-shell.spec.ts',
   globalTeardown: './tests/e2e/offline-shell-global-teardown.ts',
   fullyParallel: false,
-  timeout: 90_000,
-  expect: { timeout: 15_000 },
+  timeout: 45_000,
+  expect: { timeout: 5_000 },
   use: { baseURL, browserName: 'chromium', trace: 'retain-on-failure' },
   webServer: {
     command: 'npm run build:e2e:offline-shell && npm run start:e2e:offline-shell',
     url: baseURL,
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
 });

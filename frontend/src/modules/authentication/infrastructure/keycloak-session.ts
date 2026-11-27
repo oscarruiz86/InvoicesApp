@@ -88,6 +88,8 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
             return;
           }
         } catch { publish({ status: 'error', error: 'LOGOUT_UNCONFIRMED' }); return; }
+        // Prefer the hidden same-origin iframe. Keycloak can fall back to its
+        // callback redirect where browsers block third-party cookies.
         const checkSsoCallback = callback && sessionStorage.getItem(checkSsoCallbackKey) === '1';
         if (checkSsoCallback) sessionStorage.removeItem(checkSsoCallbackKey);
         if (checkSso) {
@@ -106,12 +108,16 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
         publish({ status: 'initializing' });
         instance.onTokenExpired = () => { void port.getAccessToken().catch(() => {}); };
         try {
-          const operation = instance.init({ flow: 'standard', pkceMethod: 'S256', useNonce: true, responseMode: 'query', scope: 'openid profile email', ...(checkSso ? { onLoad: 'check-sso' as const, redirectUri: `${window.location.origin}/auth/callback` } : {}), checkLoginIframe: false, enableLogging: false });
+          const operation = instance.init({ flow: 'standard', pkceMethod: 'S256', useNonce: true, responseMode: 'query', scope: 'openid profile email',
+            ...(checkSso ? { onLoad: 'check-sso' as const, redirectUri: `${window.location.origin}/auth/callback`,
+              silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`, silentCheckSsoFallback: true } : {}),
+            checkLoginIframe: false, enableLogging: false });
           void operation.then(() => { if (epoch !== generation) clear(instance); }, () => {});
           const authenticated = await bounded(operation);
           if (epoch !== generation) return;
           if (callback && !authenticated && !checkSsoCallback) throw new Error('INVALID_CALLBACK');
           if (callback) cleanCallbackUrl();
+          else if (checkSso) sessionStorage.removeItem(checkSsoCallbackKey);
           publish(authenticated ? { status: 'authenticated', credentialRevision: ++credentialRevision, ...(returnPath ? { returnPath } : {}) } : { status: 'anonymous', ...(checkSsoCallback && returnPath ? { returnPath } : {}) });
         } catch {
           if (checkSso) sessionStorage.removeItem(checkSsoCallbackKey);

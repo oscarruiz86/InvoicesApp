@@ -19,7 +19,7 @@ export function createOfflineCredentialSigner(input: { readonly keyFile: string;
   return {
     async sign(value) {
       const issuedAt = Math.floor(value.now.getTime() / 1000);
-      const expiresAt = issuedAt + Math.min(8, value.ttlHours) * 3600;
+      const expiresAt = issuedAt + Math.min(72, value.ttlHours) * 3600;
       return new SignJWT({ thirdPartyId: value.thirdPartyId, assignmentIds: value.assignmentIds, scope: 'invoice:offline-capture' })
         .setProtectedHeader({ alg: 'ES256', typ: 'JWT', kid: input.keyId })
         .setIssuer(issuer).setAudience(audience).setSubject(value.subject).setJti(randomUUID())

@@ -183,7 +183,18 @@ El sistema MUST aplicar las concesiones y restricciones de la tabla del escenari
 | parameters:create/deactivate | P | — | — | — |
 | roles:read/manage | Ambos globales dentro del catálogo autorizado | — | — | — |
 | associations:read/manage | Ambos administrativos globales | Ambos para sus relaciones empresa-tercero y administradores de tercero | P | — |
-| audit:read | P | P | P | — |
+| audit:read | Solo lectura global | — | — | — |
+
+#### Scenario: Consulta de auditoría con ámbito explícito
+- **GIVEN** APP_ADMIN con `audit:read`
+- **WHEN** consulta con ámbito GLOBAL
+- **THEN** se permite únicamente la consulta de eventos definida por la capacidad Audit
+- **AND** el permiso no concede escritura ni privilegios sobre recursos operativos
+
+#### Scenario: Consulta de auditoría por rol organizacional
+- **GIVEN** COMPANY_ADMIN, THIRD_PARTY_ADMIN o DRIVER con identidad válida
+- **WHEN** intenta consultar eventos de Audit
+- **THEN** recibe denegación porque no tiene `audit:read`
 
 ### Requirement: Delegación administrativa limitada al objetivo autorizado
 Registro en Keycloak, incorporación y roles MUST ser controles distintos. Las invitaciones MUST seguir `implement-user-invitations` sin ampliar ni resembrar la política. MUST NOT conceder acceso antes de aceptación, permitir autoescalamiento ni delegar APP_ADMIN.

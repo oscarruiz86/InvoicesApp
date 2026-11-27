@@ -7,6 +7,7 @@ import { createDrivers } from '@/modules/fleet/application/drivers';
 import { createVehicles } from '@/modules/fleet/application/vehicles';
 import { createMongoAssignmentAccessReader, createMongoAssignmentAudit, createMongoAssignmentConfirmation, createMongoAssignmentPresenceReader, createMongoAssignmentRepository } from '@/modules/fleet/infrastructure/mongodb/assignment-repository';
 import { createMongoInvoiceAssignmentAuthority } from '@/modules/fleet/infrastructure/mongodb/invoice-assignment-authority';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 import { createDriverRepository, driverModel } from '@/modules/fleet/infrastructure/mongodb/driver-repository';
 import { createVehicleRepository } from '@/modules/fleet/infrastructure/mongodb/vehicle-repository';
 import { createPolicyRepository, policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
@@ -19,12 +20,12 @@ const connection = mongoose.createConnection(uri, { dbName: database, serverSele
 const connect = async () => connection;
 let policyVersion = '1';
 const assignments = createMongoAssignmentRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s),
-  authority: vehicleAuthorityConfirmation(c, s), audit: createMongoAssignmentAudit(c, s) }));
-const drivers = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation);
+  authority: vehicleAuthorityConfirmation(c, s), audit: createMongoAssignmentAudit(c, s, createMongoAuditWriter(c, s)) }));
+const drivers = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation, createMongoAuditWriter);
 const presence = createMongoAssignmentPresenceReader(connect);
 const invoiceAssignmentAuthority = createMongoInvoiceAssignmentAuthority(connect);
 const vehicleRepository = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s),
-  authority: vehicleAuthorityConfirmation(c, s), assignments: createMongoAssignmentConfirmation(c, s) }));
+  authority: vehicleAuthorityConfirmation(c, s), assignments: createMongoAssignmentConfirmation(c, s), audit: createMongoAuditWriter(c, s) }));
 const now = new Date('2026-11-20T12:00:00.000Z');
 let vehicleSequence = 100;
 
@@ -98,6 +99,8 @@ it('rejects cross-third-party participant IDs without writing assignment or audi
   await expect(assignments.create(input)).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
   expect(await connection.collection('vehicle_assignments').countDocuments({ thirdPartyId: authA.thirdPartyId })).toBe(0);
   expect(await connection.collection('assignment_events').countDocuments({ thirdPartyId: authA.thirdPartyId })).toBe(0);
+  expect(await connection.collection('audit_events').countDocuments({ source: 'fleet', 'scope.thirdPartyId': authA.thirdPartyId,
+    action: { $in: ['ASSIGNMENT_CREATED', 'ASSIGNMENT_CLOSED'] } })).toBe(0);
 });
 
 it('confirms the chosen assignment only and fences close or deactivation in the same transaction', async () => {
@@ -246,6 +249,11 @@ it('smokes assignment creation, Driver and Vehicle queries, blocked deactivation
   expect(reassigned).toMatchObject({ status: 'ACTIVE', vehicleId: pair.vehicleId, driver: { id: pair.driverId } });
   const events = await connection.collection('assignment_events').find({ assignmentId: { $in: [created.id, reassigned.id] } }).toArray();
   expect(events).toHaveLength(3);
+  for (const event of events) {
+    const central = await connection.collection('audit_events').findOne({ _id: event.eventId as never });
+    expect(central).toMatchObject({ source: 'fleet', action: event.action, resource: { type: 'assignment', id: event.assignmentId }, scope: { thirdPartyId: auth.thirdPartyId } });
+    expect(central).not.toHaveProperty('driverName'); expect(central).not.toHaveProperty('subject');
+  }
   expect(events.map(event => [event.assignmentId, event.action]).sort((a, b) => String(a[0]).localeCompare(String(b[0]) || String(a[1])))
     .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))).toEqual([
       [created.id, 'ASSIGNMENT_CLOSED'], [created.id, 'ASSIGNMENT_CREATED'], [reassigned.id, 'ASSIGNMENT_CREATED'],

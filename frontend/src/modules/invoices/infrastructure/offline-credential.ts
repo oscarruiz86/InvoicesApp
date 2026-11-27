@@ -14,7 +14,7 @@ function decodeBytes(value: string): Uint8Array<ArrayBuffer> {
   return result;
 }
 
-export async function verifyOfflineCredential(record: OfflineCredentialRecord, publicJwks: readonly OfflineCredentialPublicJwk[], now = Date.now()): Promise<OfflineCredentialClaims | null> {
+export async function verifyOfflineCredential(record: OfflineCredentialRecord, publicJwks: readonly OfflineCredentialPublicJwk[], now = Date.now(), maxTtlHours = 72): Promise<OfflineCredentialClaims | null> {
   try {
     if (record.id !== `${record.subject}:${record.thirdPartyId}` || !id.test(record.thirdPartyId) || !record.subject || record.credential.length > 8192) return null;
     const parts = record.credential.split('.');
@@ -30,7 +30,8 @@ export async function verifyOfflineCredential(record: OfflineCredentialRecord, p
       || !Array.isArray(c.assignmentIds) || !c.assignmentIds.length || c.assignmentIds.length > 100 || c.assignmentIds.some(value => typeof value !== 'string' || !id.test(value))
       || !Number.isSafeInteger(c.iat) || !Number.isSafeInteger(c.exp) || !Number.isSafeInteger(now)
       || typeof c.jti !== 'string' || !c.jti || (c.iat as number) > Math.floor(now / 1000) + 60 || (c.exp as number) <= Math.floor(now / 1000)
-      || (c.exp as number) - (c.iat as number) > 8 * 3600) return null;
+      || !Number.isSafeInteger(maxTtlHours) || maxTtlHours < 1 || maxTtlHours > 72
+      || (c.exp as number) - (c.iat as number) > maxTtlHours * 3600) return null;
     const assignmentIds = [...new Set(c.assignmentIds as string[])];
     if (assignmentIds.length !== c.assignmentIds.length || record.assignmentIds.length !== assignmentIds.length
       || assignmentIds.some(value => !record.assignmentIds.includes(value)) || record.assignments.length !== assignmentIds.length
@@ -47,10 +48,10 @@ export async function verifyOfflineCredential(record: OfflineCredentialRecord, p
 }
 
 export async function findValidOfflineCredential(records: readonly OfflineCredentialRecord[], publicJwks: readonly OfflineCredentialPublicJwk[],
-  now = Date.now()): Promise<{ readonly record: OfflineCredentialRecord; readonly claims: OfflineCredentialClaims } | null> {
+  now = Date.now(), maxTtlHours = 72): Promise<{ readonly record: OfflineCredentialRecord; readonly claims: OfflineCredentialClaims } | null> {
   if (!publicJwks.length) return null;
   const valid = await Promise.all(records.map(async record => {
-    const claims = await verifyOfflineCredential(record, publicJwks, now);
+    const claims = await verifyOfflineCredential(record, publicJwks, now, maxTtlHours);
     return claims ? { record, claims } : null;
   }));
   return valid.filter((value): value is { record: OfflineCredentialRecord; claims: OfflineCredentialClaims } => value !== null)

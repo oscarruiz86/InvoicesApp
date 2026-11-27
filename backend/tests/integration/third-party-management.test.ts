@@ -10,6 +10,9 @@ import { validOrganization } from '@/modules/identity/domain/authorization-polic
 import { thirdPartyModel } from '@/modules/organizations/infrastructure/mongodb/third-party-repository';
 import { inventoryLegacyThirdParties } from '@/modules/organizations/infrastructure/mongodb/third-party-readiness';
 import { grantCeiling } from '@/modules/identity/domain/permissions';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import { createManagementAuditOutboxWorker } from '@/modules/organizations/application/management-audit-outbox-worker';
+import { createMongoManagementAuditOutbox } from '@/modules/organizations/infrastructure/mongodb/management-audit-outbox';
 
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
@@ -20,7 +23,7 @@ const serviceFor = (repo = repository) => createThirdParties({ repository: repo,
 const service = serviceFor();
 const global: ThirdPartyAccess = { actor: { subject: 'app-admin', roles: ['APP_ADMIN'], permissions: [], username: null, name: null, email: null }, scope: { kind: 'global', companyId: null, thirdPartyId: null } };
 const company = (id: string): ThirdPartyAccess => ({ actor: { subject: `admin-${id}`, roles: [], permissions: [], username: null, name: null, email: null }, scope: { kind: 'organization', companyId: id, thirdPartyId: null } });
-const profile = (documentNumber: string) => ({ documentNumber, businessName: `Tercero ${documentNumber}`, email: ' CONTACT@Example.COM ' });
+const profile = (documentNumber: string) => ({ documentNumber, verificationDigit: '1', businessName: `Tercero ${documentNumber}`, email: ' CONTACT@Example.COM ' });
 const query = { page: 1, pageSize: 20, sort: 'businessName', direction: 'asc' } as const;
 const companyIds = [new mongoose.Types.ObjectId().toString(), new mongoose.Types.ObjectId().toString()];
 
@@ -65,6 +68,20 @@ it('creates the canonical profile and projection atomically, then isolates list 
   await expect(service.update(company(companyIds[0]), first.thirdParty.id, first.version, { city: 'Cali' })).rejects.toThrow('THIRD_PARTY_VERSION_CONFLICT');
   await expect(service.update(company(companyIds[0]), first.thirdParty.id, changed.version, { businessName: 'Tercero Andino' })).resolves.toMatchObject({ version: '2' });
   await expect(service.create(global, profile('001'))).rejects.toThrow('THIRD_PARTY_DOCUMENT_CONFLICT');
+});
+
+it('delivers transactional third-party captures once without personal profile data', async () => {
+  const worker = createManagementAuditOutboxWorker({ outbox: createMongoManagementAuditOutbox(async () => connection),
+    audit: { async record(event) { await createMongoAuditWriter(connection).record(event); } } });
+  while (await worker.deliverBatch()) { /* drain captures created by preceding test cases */ }
+  const created = await service.create(company(companyIds[0]), profile('301'));
+  await service.update(company(companyIds[0]), created.thirdParty.id, created.version, { businessName: 'Audit third party' });
+  const captures = await connection.collection('third_party_management_events').find({ thirdPartyId: created.thirdParty.id }).toArray();
+  expect(await worker.deliverBatch()).toBe(captures.length);
+  const journal = await connection.collection('audit_events').find({ _id: { $in: captures.map(event => event.eventId) } }).toArray();
+  expect(journal.map(event => event._id)).toEqual(expect.arrayContaining(captures.map(event => event.eventId)));
+  expect(journal.every(event => !('documentNumber' in event) && !('email' in event) && !('before' in event) && !('after' in event))).toBe(true);
+  expect(await worker.deliverBatch()).toBe(0);
 });
 
 it('keeps many-to-many relationship transitions isolated and direct third-party context valid', async () => {

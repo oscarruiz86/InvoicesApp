@@ -1,8 +1,72 @@
 # Evidencias de verificación
 
-La primera sección conserva el registro histórico de `initialize-foundations`. Las verificaciones del incremento de autenticación se registran por separado al final.
+## Estado actual e índice
 
-# initialize-foundations (histórico)
+- Guía de selección, comandos, capas y aislamiento: [testing-quality.md](testing-quality.md).
+- Registro de esta implementación documental: [implement-testing-quality — 2026-11-26](#implement-testing-quality--2026-11-26).
+- Registro de producción y endurecimiento: [implement-production-hardening — 2026-11-27](#implement-production-hardening--2026-11-27).
+- Evidencia previa: las secciones fechadas por cambio que siguen son registros históricos de sus respectivas corridas. No describen el estado de la rama actual; cuando exista un registro posterior, prevalece para el cambio indicado sin borrar la evidencia anterior.
+
+## Plantilla para una corrida
+
+Copiar para cada cambio verificado y reemplazar todos los campos. Registrar el comando exacto ejecutado, entorno sin secretos, resultado observado por capa, fallos, advertencias, omisiones y límites. Escribir “No ejecutado” con motivo cuando corresponda.
+
+```markdown
+## <cambio o commit> — <AAAA-MM-DD>
+
+Entorno: <SO, versiones relevantes, servicios/fixtures; nunca valores secretos>
+
+| Capa | Comando exacto | Resultado observado |
+| --- | --- | --- |
+| Checks | `<comando>` | <resultado o No ejecutado + motivo> |
+| Integración | `<comando>` | <resultado o No ejecutado + motivo> |
+| HTTP/OpenAPI/build/E2E | `<comando>` | <resultado o No ejecutado + motivo> |
+
+Advertencias: <ninguna o detalle>
+Fallos: <ninguno o suite/caso y síntoma>
+Omisiones: <ninguna o suite y motivo>
+Límites: <qué no demuestra esta evidencia>
+```
+
+### Ejemplo ilustrativo — no es una corrida real
+
+#### cambio-ejemplo — 2026-01-01
+
+Entorno: ejemplo hipotético, sin servicios iniciados.
+
+| Capa | Comando exacto | Resultado observado |
+| --- | --- | --- |
+| Checks | `npm --prefix backend run check` | 12/12 pruebas de la corrida ilustrativa; check aprobado. |
+| Integración | `npm --prefix backend run test:integration:prepared -- tests/integration/example.test.ts` | No ejecutado: ejemplo sin Docker. |
+| HTTP/OpenAPI/build/E2E | `npm --prefix backend run openapi:check` | No ejecutado: fuera del alcance ilustrativo. |
+
+Advertencias: ninguna en este ejemplo.
+Fallos: ninguno observado; no se ejecutó una corrida real.
+Omisiones: integración, HTTP, build y E2E.
+Límites: los conteos son ficticios y no acreditan el repositorio ni garantizan resultados futuros.
+
+Los conteos de pruebas y cualquier porcentaje son observaciones de una corrida concreta. No representan garantía, criterio de aceptación permanente ni gate. Este repositorio no define umbrales de cobertura en esta guía.
+
+## implement-testing-quality — 2026-11-26
+
+Entorno: inspección estática de `backend/package.json`, `frontend/package.json`, configs Vitest/Playwright y scripts/fixtures; no se iniciaron servicios ni se ejecutaron suites o builds.
+
+| Capa | Comando exacto | Resultado observado |
+| --- | --- | --- |
+| Checks | `npm --prefix backend run check`; `npm --prefix frontend run check` | Scripts verificados en sus manifiestos; no ejecutados en esta implementación. |
+| Integración | `npm --prefix backend run test:integration:prepared` | Script y orquestador verificados; no ejecutados. |
+| HTTP/OpenAPI/build/E2E | `npm --prefix backend run test:http:prepared`; `npm --prefix backend run openapi:check`; `npm --prefix backend run build`; `npm --prefix frontend run build`; `npm --prefix frontend run test:e2e:prepared` | Scripts y configuraciones verificados estáticamente; no ejecutados. |
+
+Advertencias: ninguna observada en la revisión estática.
+Fallos: no se ejecutaron pruebas, por lo tanto esta entrada no declara suites aprobadas ni fallidas.
+Omisiones: todas las suites y builds, deliberadamente fuera de la revisión documental.
+Límites: la existencia y lectura de comandos no prueba que compilen ni que pasen en el entorno actual.
+
+## Evidencia histórica
+
+Las entradas siguientes se conservan para trazabilidad. Cada una refleja el cambio y la corrida descritos en su fecha; no se debe extrapolar conteos, porcentajes, advertencias o resultados a cambios posteriores.
+
+### initialize-foundations (histórico)
 
 ## Verificaciones completadas
 
@@ -298,3 +362,90 @@ La factura MANUAL conserva `createdAt` e historial cuando cambia el parámetro. 
 ## Cierre OpenSpec — 2026-11-22
 
 Las propuestas `capture-keycloak-admin-events`, `implement-audit-delivery` e `implement-authorization` quedaron traducidas al español y archivadas. Se sincronizaron sus deltas en `openspec/specs/keycloak-admin-audit/`, `openspec/specs/audit/`, `openspec/specs/identity-access/` y `openspec/specs/frontend-shell/`. Cada cambio tenía todas las tareas completadas antes del archivo; la evidencia de cierre y verificación está en `docs/authorization-progress.md` y `docs/initial-invoices-app-closure.md`.
+
+## Verificación de `implement-audit-logging` — 2026-11-26
+
+Las integraciones Mongo requieren una replica set y una base con sufijo `_test`. Ejemplo local:
+
+```powershell
+$env:MONGODB_TEST_URI='mongodb://127.0.0.1:27018/invoices_test?replicaSet=rs0&directConnection=true'
+```
+
+| Comando | Resultado |
+| --- | --- |
+| `npm run test:integration -- tests/integration/invoice-repository.test.ts tests/integration/configuration-parameters.test.ts tests/integration/parametric-catalog-audit.test.ts` | 26 pruebas pasaron. Incluye MANUAL/QR, resoluciones offline, exclusión de valores y contenido, parámetros y ciclo de vida de catálogos. |
+| `npm test -- --run tests/unit/audit-event.test.ts tests/unit/invoice-submission-repository.test.ts tests/unit/parametric-catalogs.test.ts` | 19 pruebas pasaron en 3 archivos. |
+| `npm run typecheck` | Pasó. |
+| `openspec validate implement-audit-logging --strict` | Cambio válido. |
+| `git diff --check` | Sin errores de whitespace. |
+
+También pasaron las suites de auditoría compartida, Organizations/outbox, membresías/contexto y Fleet durante la implementación: el escritor y outbox verifican idempotencia, reintentos y rollback; las mutaciones de Fleet verifican identidad común y fallo transaccional. Los comandos de integración se repiten desde `backend` con el URI configurado arriba.
+
+`audit:read` se concede solo a APP_ADMIN en ámbito global; el endpoint registra las consultas y expone campos allowlist. Los eventos de negocio conservan sus historiales funcionales en las colecciones locales. La captura de administración de Keycloak se activa por configuración y sus eventos se normalizan en el journal central.
+
+## implement-audit-history-access — 2026-11-26
+
+### Verificaciones ejecutadas
+
+| Comando / área | Resultado |
+| --- | --- |
+| `npm --prefix backend test -- --pool=forks --maxWorkers=1` | 569 pruebas aprobadas en 66 archivos; 1 prueba omitida. |
+| `npm --prefix backend run typecheck` | Aprobado. |
+| `npm --prefix backend run test:architecture` | Aprobado; sin dependencias prohibidas ni ciclos. Se resolvieron las siete referencias directas a `audit-writer.ts` detectadas al inicio. |
+| `npm --prefix backend run openapi:check` | Aprobado; contrato válido y cobertura de 59 archivos de rutas, 75 métodos y 59 paths. |
+| `npm --prefix backend run build -- --webpack` | Aprobado; Next compiló y preparó la salida standalone. El build predeterminado de Turbopack había fallado en Windows al crear un junction de Mongoose ya existente en `.next`; se limpió únicamente esa salida generada y Webpack completó la compilación. |
+| `NEXT_DIST_DIR=.next-audit-verification npx next build --webpack` | Aprobado con las últimas modificaciones, compilación, TypeScript y 22 páginas generadas. Se usó una salida temporal independiente porque el servidor local mantiene bloqueada `.next`; la salida temporal se retiró y se restauró `tsconfig.json`. |
+| `npm --prefix backend run test:integration -- --pool=forks --maxWorkers=1 tests/integration/audit-history.test.ts` | Aprobado: 1 prueba contra la replica set `rs0` del contenedor local dedicado. El test usó una base aleatoria terminada en `_test`, verificó persistencia/autorregistro y cursor estable, y eliminó esa base al finalizar. |
+| `npm --prefix frontend test -- --pool=forks --maxWorkers=1 tests/unit/audit-labels.test.ts tests/unit/audit-history.test.tsx tests/unit/audit-access.test.tsx` | Aprobado: 7 pruebas en 3 archivos; incluye etiquetas naturales, conversión UTC→COT y nombre visible/fallback de actor. |
+| `E2E_BASE_URL=http://localhost:5173 npm --prefix frontend run test:e2e -- tests/e2e/audit-history-responsive.spec.ts tests/e2e/audit-access.spec.ts --workers=1` | Aprobado en Chromium: 7 escenarios; APP_ADMIN global autorizado, otros tres roles y contexto organizacional denegados, teclado/foco, hora COT y layout a 360/1280 px. Tras el ajuste horario se repitieron ambos tamaños responsive: 2/2 aprobados. |
+| Frontend lint y typecheck | Typecheck aprobado. Lint sin errores; 13 advertencias React Hooks preexistentes en otros módulos. |
+| `npm --prefix frontend run build` | Aprobado; Vite compiló 1.184 módulos. Permanece advertencia de chunk mayor a 500 kB. |
+| `openspec validate implement-audit-history-access --strict` | Aprobado después de actualizar la propuesta para nombres actuales y etiquetas naturales de acciones. |
+
+### Límites y comportamiento de identidad
+
+- La tabla muestra acciones en español natural y mantiene el código normalizado en el detalle. El backend intenta resolver el nombre completo actual en Identity Directory, lo cachea cinco minutos (máximo mil sujetos) y omite el campo si no está disponible; en ese caso la UI conserva el ID. No se devuelven correo, documento ni roles, y no se conserva una instantánea histórica del nombre.
+- Las resoluciones de nombre se limitan a ocho en paralelo; si el directorio falla, se usa un circuito de 30 segundos y el listado sigue respondiendo con los ID disponibles.
+- El error al filtrar por actor se originaba antes de la red: el allowlist del cliente `protected-http` no admitía el parámetro `actor` y levantaba `CONFIGURATION` localmente. Se añadió el parámetro a la lista y una prueba HTTP que verifica que un UUID llega a `fetch`. También se validó que UUID/IDs se consultan exactamente sin requerir búsqueda en Identity Directory. Pruebas: frontend `authorization.test.tsx` + `audit-history.test.tsx` (25 aprobadas), backend `audit-history-http.test.ts` (6 aprobadas), typecheck frontend/backend aprobado. Se reiniciaron `backend` y `frontend` locales; backend quedó healthy. El sandbox no pudo abrir localhost para verificar visualmente la página.
+- Diagnóstico del worker en desarrollo: capturas heredadas `COMPANY_ADMIN_ASSOCIATED` quedaban al inicio de `company_management_events`, pero esa acción no estaba en el catálogo normalizado. `normalizeAuditEvent` lanzaba `AUDIT_EVENT_INVALID` y el worker repetía el lote antes de llegar a `COMPANY_UPDATED`. Se añadió la acción al allowlist y a la etiqueta de UI; pruebas unitarias aprobaron, el worker reinició y registró 36 entregas. Conteos agregados después: cero ediciones/asociaciones pendientes, ocho ediciones de empresa y dos asociaciones presentes en el journal.
+
+La consulta restringe lectura a APP_ADMIN con contexto global, persiste la evidencia de consulta antes de responder y devuelve únicamente campos allowlist. La interfaz presenta la limitación de cobertura de productores y el control de paginación sigue el patrón compartido: primera/anterior/número/siguiente/última/actualizar, rango de registros y tamaño de página.
+
+## Verificación de `enable-production-keycloak-admin-audit` — 2026-11-26
+
+Se revisó la propuesta y se corrigió un hueco de validación: el normalizador de acciones dividía nombres por el último guion bajo, rechazando recursos compuestos de Keycloak como `CLIENT_SCOPE_CLIENT_MAPPING`. Ahora reconoce primero el verbo permitido y valida el recurso completo contra una lista cerrada.
+
+| Comando / comprobación | Resultado |
+| --- | --- |
+| `npm run keycloak:admin-audit:production-worker` con `NODE_ENV=production` y grupo productivo ausente | Salida limpia con `keycloak_admin_audit_worker_disabled`; no intentó conectar a MongoDB. |
+| `npm test -- tests/unit/audit-event.test.ts tests/unit/keycloak-admin-audit-runtime-configuration.test.ts tests/unit/keycloak-admin-audit.test.ts` | 22 pruebas pasaron. |
+| `npm run typecheck` | Pasó. |
+| `npm run test:integration -- tests/integration/keycloak-admin-feed.test.ts` | 1 prueba pasó contra MongoDB de prueba y Keycloak desechable 26.8.2: eventos normalizados y persistidos, cursor durable leído por una nueva instancia del colector, replay idempotente y sin representación/detalles/IP almacenados. |
+| `npm run test:keycloak:admin-audit-reader` | Pasó contra el realm local desechable: lectura permitida, escrituras de realm/cliente/roles denegadas y solo `view-events`. |
+| `openspec validate enable-production-keycloak-admin-audit --strict` | Cambio válido. |
+| `npm run check` | Lint (10 warnings preexistentes, 0 errores), typecheck y 565 pruebas unitarias pasaron; `test:architecture` pasó tras extraer la creación del writer al composition root e inyectarlo en los repositorios. |
+| `npm run test:integration -- tests/integration/configuration-parameters.test.ts tests/integration/parametric-catalog-audit.test.ts tests/integration/invoice-repository.test.ts tests/integration/invoice-migration.test.ts tests/integration/driver-management.test.ts tests/integration/driver-migration.test.ts tests/integration/vehicle-management.test.ts tests/integration/assignment-repository.test.ts tests/integration/invitation-acceptance.test.ts tests/integration/membership-administration.test.ts` | 61 pruebas pasaron en 9 archivos; se comprobó persistencia y atomicidad de auditoría con inyección desde el composition root. |
+
+No se desplegó Keycloak real ni se realizó backfill. La configuración productiva permanece opt-in y documentada; la activación se reserva para cuando exista un runtime productivo y secretos montados externamente. Logs operativos limitados a conteos, retraso, categoría neutra y número de reintento; rotar el secreto requiere actualización coordinada y reinicio del worker.
+
+## implement-production-hardening — 2026-11-27
+
+Entorno: Windows 11, Node 24.15.0, Docker Desktop 4.79.0 / Engine 29.5.3. Las operaciones Docker se ejecutaron con acceso local elevado. Secretos productivos reales no se usaron.
+
+| Capa | Comando / verificación | Resultado observado |
+| --- | --- | --- |
+| Backend | `npm --prefix backend run check` | Aprobado: 68 archivos, 580 pruebas pasaron y 1 se omitió; TypeScript y arquitectura pasaron. Lint sin errores y 13 advertencias existentes. |
+| Frontend | `npm --prefix frontend run check` | Aprobado: 47 archivos, 266 pruebas; TypeScript y arquitectura pasaron. Lint sin errores y 13 advertencias existentes. Vitest usa timeout de 30 s para dos casos UI que superaban los 10 s en este entorno. |
+| Contrato | `npm --prefix backend run openapi:check` | Aprobado: 60 rutas y 76 métodos; OpenAPI válido. |
+| Perfil Compose | `docker compose -f compose.production.yaml config --quiet` con rutas y nombres de ejemplo | Aprobado; cinco servicios configurados, sin puertos publicados para API, workers o MongoDB. |
+| Imágenes | `docker build --target production -f frontend/Dockerfile .` y backend `production`/`worker` | Tres imágenes compiladas. Backend usa `npm run build -- --webpack` porque Turbopack no resolvió `@shared/*` en el contenedor. |
+| Nginx | `npm --prefix frontend run production:http-check` | Aprobado en contenedor no root, filesystem solo lectura, sin capabilities y con límites; HTTP 200 y cabeceras CSP, MIME, framing, referrer y permisos. |
+| API / readiness | Backend restringido con Mongo inaccesible y luego Mongo replica set efímero aislado | Liveness HTTP 200 y readiness 503 neutro al fallar Mongo; readiness HTTP 200 al estar disponible. |
+| Proxy | Frontend y backend en red aislada | Página y CSP respondieron; `/api/health` se proxied en el mismo origen. MongoDB no publicó puertos. |
+| Secretos | `npm --prefix backend run test:production-secrets` | Aprobado: secreto montado disponible, lectura denegada bajo UID del worker y URI ausente de entorno, logs y métricas. |
+| Revisión de imágenes | `docker image inspect`, historial y rutas runtime de las imágenes locales | Usuarios `101:101` / `node`; sin variables secretas en metadata/historial ni archivos `.env`/secretos en rutas runtime revisadas. Tamaños locales: frontend 72.8 MB, backend 96.6 MB, workers 202.7 MB. |
+
+Advertencias: ninguna prueba falló en la última corrida de calidad.
+Fallos corregidos durante la verificación: `pid` duplicado en Nginx y build Turbopack sin resolver el alias compartido; se reemplazó la configuración Nginx y se fijó Webpack para la imagen backend.
+Omisiones: no se descargaron imágenes publicadas de Docker Hub ni se probó publicación con `DOCKERHUB_TOKEN`.
+Límites: no se validó en TrueNAS SCALE 25.10.2.1, no se cambió MongoDB productivo ni se probó login real Keycloak, certificado Tunnel/Traefik, rollback manual o el flujo completo de producción.

@@ -14,6 +14,7 @@ import { readServerEnvironment } from '@/shared/infrastructure/config/server-env
 import { vehicleAuthorityConfirmation } from '@/modules/organizations/infrastructure/mongodb/vehicle-authority';
 import { authorization, policyRepository } from './authorization-endpoint';
 import { authenticatedEndpoint } from './authenticated-endpoint';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 
 const connect = () => { const environment = readServerEnvironment(); return connectMongo({ uri: environment.MONGODB_URI, file: environment.MONGODB_URI_FILE }); };
 const identityConfiguration = async () => {
@@ -26,11 +27,11 @@ const identityConfiguration = async () => {
 };
 
 const identity = createIdentityProfileReader(identityConfiguration);
-const drivers = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation);
+const drivers = createDriverRepository(connect, policyConfirmation, createMongoAssignmentConfirmation, createMongoAuditWriter);
 const vehicles = createVehicleRepository(connect, (connection, session) => ({ policy: policyConfirmation(connection, session),
-  authority: vehicleAuthorityConfirmation(connection, session), assignments: createMongoAssignmentConfirmation(connection, session) }));
+  authority: vehicleAuthorityConfirmation(connection, session), assignments: createMongoAssignmentConfirmation(connection, session), audit: createMongoAuditWriter(connection, session) }));
 const repository = createMongoAssignmentRepository(connect, (connection, session) => ({ policy: policyConfirmation(connection, session),
-  authority: vehicleAuthorityConfirmation(connection, session), audit: createMongoAssignmentAudit(connection, session) }));
+  authority: vehicleAuthorityConfirmation(connection, session), audit: createMongoAssignmentAudit(connection, session, createMongoAuditWriter(connection, session)) }));
 const assignmentAuthorization = createAssignmentAuthorizationPort({ authorization, policies: policyRepository });
 
 export const assignments = createAssignments({

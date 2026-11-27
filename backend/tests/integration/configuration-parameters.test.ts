@@ -4,16 +4,17 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { createMongoParameterRepository, inventoryParameters } from '@/modules/configuration/infrastructure/mongodb/parameter-repository';
 import { createPolicyRepository, policyConfirmation } from '@/modules/identity/infrastructure/mongodb/policy-repository';
 import { grantCeiling } from '@/modules/identity/domain/permissions';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('MONGODB_TEST_URI must name an isolated _test database');
 const database = `configuration_${randomUUID().replaceAll('-', '')}_test`;
 const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 5000 });
 const policies = createPolicyRepository(async () => connection);
 let policyVersion = '1';
-const repository = createMongoParameterRepository(async () => connection, undefined, policyConfirmation);
+const repository = createMongoParameterRepository(async () => connection, undefined, policyConfirmation, createMongoAuditWriter);
 beforeAll(async () => { await connection.asPromise(); });
 beforeEach(async () => {
-  await connection.collection('functional_parameters').deleteMany({}); await connection.collection('configuration_events').deleteMany({});
+  await connection.collection('functional_parameters').deleteMany({}); await connection.collection('configuration_events').deleteMany({}); await connection.collection('audit_events').deleteMany({});
   await policies.initialize();
   const current = await connection.collection('authorization_policies').findOne({ _id: 'active' as never });
   if (JSON.stringify(current?.grants) !== JSON.stringify(grantCeiling)) {
@@ -59,12 +60,18 @@ it('initializes once, preserves an edited value, versions updates and keeps no-o
   expect(before).toMatchObject({ total: 2 });
   expect(await repository.update({ key: initial!.key, expectedVersion: 2, value: 21600, actor: 'admin:test', correlationId: randomUUID(), policyVersion })).toMatchObject({ version: 2 });
   expect((await repository.history(initial!.key, 1, 100)).total).toBe(2);
+  const central = await connection.collection('audit_events').find({ source: 'configuration' }).sort({ occurredAt: 1 }).toArray();
+  expect(central).toHaveLength(2);
+  expect(central[0]).toMatchObject({ action: 'PARAMETER_INITIALIZED', resource: { type: 'functional-parameter', id: 'invoice:manual-edit-window-seconds' }, beforeVersion: '0', afterVersion: '1' });
+  expect(central[1]).toMatchObject({ action: 'PARAMETER_UPDATED', beforeVersion: '1', afterVersion: '2' });
+  expect(JSON.stringify(central)).not.toContain('43200');
+  expect(JSON.stringify(central)).not.toContain('21600');
 });
 
 it('rolls back initialization and updates when their audit event cannot be written', async () => {
   const key = 'invoice.manual-edit-window-seconds';
   await connection.collection('configuration_events').insertOne({ eventId: 'collision', correlationId: 'seed', key, actor: 'seed', at: new Date(), previousValue: 43200, value: 43200, previousVersion: 0, version: 1 });
-  const collisionRepository = createMongoParameterRepository(async () => connection, { next: () => 'collision' }, policyConfirmation);
+  const collisionRepository = createMongoParameterRepository(async () => connection, { next: () => 'collision' }, policyConfirmation, createMongoAuditWriter);
 
   await expect(collisionRepository.initialize('technical:test', randomUUID())).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE' });
   expect(await connection.collection('functional_parameters').findOne({ key, scope: 'global' })).toBeNull();

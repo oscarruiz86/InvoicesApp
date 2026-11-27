@@ -22,8 +22,9 @@ unset KC_CLI_CLIENT_SECRET
 
 client_uuid=$("$kcadm" get clients -r invoices -q clientId=invoices-web --fields id --format csv --noquotes --config "$config")
 [[ -n "$client_uuid" ]] || { echo "Could not resolve the invoices-web client" >&2; exit 1; }
-"$kcadm" update realms/invoices -s registrationAllowed=true -s registrationEmailAsUsername=true -s loginWithEmailAllowed=true -s verifyEmail=true -s editUsernameAllowed=false -s 'attributes."actionTokenGeneratedByUserLifespan.verify-email"=3600' --config "$config"
-"$kcadm" update "clients/$client_uuid" -r invoices -s "baseUrl=${INVOICES_WEB_ORIGIN:-http://localhost:5173}/login" --config "$config"
+"$kcadm" update realms/invoices -s registrationAllowed=true -s registrationEmailAsUsername=true -s loginWithEmailAllowed=true -s verifyEmail=true -s rememberMe=true -s loginTheme=invoices -s ssoSessionIdleTimeoutRememberMe=604800 -s ssoSessionMaxLifespanRememberMe=2592000 -s editUsernameAllowed=false -s 'attributes."actionTokenGeneratedByUserLifespan.verify-email"=3600' --config "$config"
+origin="${INVOICES_WEB_ORIGIN:-http://localhost:5173}"
+"$kcadm" update "clients/$client_uuid" -r invoices -s "baseUrl=$origin/login" -s "redirectUris=[\"$origin/auth/callback\",\"$origin/silent-check-sso.html\"]" --config "$config"
 "$kcadm" update users/profile -r invoices -f /opt/keycloak/data/import/invoices-user-profile.json --config "$config"
 "$kcadm" get realms/invoices --fields registrationAllowed,registrationEmailAsUsername,verifyEmail,attributes --config "$config" >/dev/null
 echo "Keycloak profile initialized"

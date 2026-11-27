@@ -6,6 +6,8 @@ import type { InvoiceAuditEvent, InvoiceAuditPort, InvoicePage, InvoiceRepositor
   InvoiceImageDocumentInput, InvoiceTransactionAuthorityPort, InvoiceEditPolicyConfirmationPort, InvoiceImageReference } from '../../application/invoice-ports';
 import type { PolicyConfirmation } from '@/modules/identity/application/policy-confirmation';
 import { inventoryInvoices } from './invoice-inventory';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
+import { offlineResolutionAuditEvent } from '@/modules/invoice-sync/application/audit-event';
 
 const collectionName = 'invoices';
 const imageCollectionName = 'invoice_images';
@@ -136,9 +138,13 @@ function ensureReady(connection: Connection): Promise<void> {
   return pending;
 }
 
-export function createMongoInvoiceAudit(connection: Connection, session: ClientSession): InvoiceAuditPort {
+export function createMongoInvoiceAudit(connection: Connection, session: ClientSession, audit: AuditWriter): InvoiceAuditPort {
   return { async record(event: InvoiceAuditEvent) {
     await connection.collection(eventCollectionName).insertOne({ ...event, at: new Date(event.at) }, { session });
+    await audit.record({ eventId: event.eventId, occurredAt: event.at, source: 'invoices',
+      actor: { kind: 'user', subject: event.actorSubject }, action: event.action, captureOrigin: event.captureOrigin, changedFields: event.changedFields,
+      result: 'allowed', reason: event.captureOrigin === 'QR' ? 'INVOICE_QR' : 'INVOICE_MANUAL', correlationId: event.correlationId,
+      scope: { companyId: null, thirdPartyId: event.thirdPartyId }, resource: { type: 'invoice', id: event.invoiceId }, afterVersion: String(event.version) });
   } };
 }
 
@@ -151,7 +157,7 @@ function imageDocument(invoice: Invoice, image: InvoiceImageDocumentInput): Row 
 }
 
 export function createMongoInvoiceRepository(connect: () => Promise<Connection>, participants: InvoiceTransactionParticipants,
-  options: { readonly clock?: { now(): Date } } = {}): InvoiceRepositoryPort {
+  options: { readonly clock?: { now(): Date }; readonly auditFactory: (connection: Connection, session: ClientSession) => AuditWriter }): InvoiceRepositoryPort {
   const clock = options.clock ?? { now: () => new Date() };
   async function transaction<T>(fn: (connection: Connection, session: ClientSession, ports: InvoiceTransactionPorts) => Promise<T>): Promise<T> {
     try {
@@ -187,10 +193,15 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
     if (result.modifiedCount !== 1) throw new InvoiceRepositoryError('INVOICE_VERSION_CONFLICT');
     if (value.resolution) {
       if (!actorSubject || value.resolution.action !== 'APPROVE_CLOSED_ASSIGNMENT') throw new InvoiceRepositoryError('INVALID_REQUEST');
-      await connection.collection(offlineResolutionCollectionName).insertOne({ eventId: `${value.id}:${value.expectedVersion + 1}`,
+      const eventId = `${value.id}:${value.expectedVersion + 1}`;
+      const resolvedAt = clock.now();
+      await connection.collection(offlineResolutionCollectionName).insertOne({ eventId,
         actorSubject, thirdPartyId: invoice.thirdPartyId, submissionId: value.id, action: value.resolution.action,
-        reason: value.resolution.reason, at: clock.now(), fromVersion: value.expectedVersion, toVersion: value.expectedVersion + 1,
+        reason: value.resolution.reason, at: resolvedAt, fromVersion: value.expectedVersion, toVersion: value.expectedVersion + 1,
         resultInvoiceId: invoice.id }, { session });
+      await options.auditFactory(connection, session).record(offlineResolutionAuditEvent({ eventId, at: resolvedAt, actorSubject,
+        action: value.resolution.action, submissionId: value.id, thirdPartyId: invoice.thirdPartyId,
+        beforeVersion: value.expectedVersion, afterVersion: value.expectedVersion + 1 }));
     }
   }
   const repo: InvoiceRepositoryPort = {
@@ -272,8 +283,8 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
             actorSubject: input.invoice.ownerSubject, key: input.idempotencyKey, requestHash: input.requestHash, invoiceId: input.invoice.id,
             createdAt: input.invoice.createdAt }, { session });
           try { await ports.audit.record({ eventId: randomUUID(), correlationId: input.correlationId, action: 'INVOICE_CREATED',
-            actorSubject: input.actorSubject, invoiceId: input.invoice.id, thirdPartyId: input.invoice.thirdPartyId,
-            at: input.invoice.createdAt.toISOString(), changedFields: ['origin', 'captureChannel', ...(input.invoice.origin === 'QR' ? ['qrMetadata'] : []), ...(exceptionalApproval ? ['offlineException'] : []),
+            actorSubject: input.actorSubject, invoiceId: input.invoice.id, thirdPartyId: input.invoice.thirdPartyId, captureOrigin: input.invoice.origin,
+            at: input.invoice.createdAt.toISOString(), version: input.invoice.version, changedFields: ['origin', 'captureChannel', ...(input.invoice.origin === 'QR' ? ['qrMetadata'] : []), ...(exceptionalApproval ? ['offlineException'] : []),
             'assignmentId', 'invoiceDate', 'invoiceTime', 'invoiceNumber', 'issuerNit', 'buyerDocument', 'amounts', 'imageId'] }); }
           catch { throw new InvoiceRepositoryError('INVOICE_AUDIT_UNAVAILABLE'); }
           await commitOfflineSubmission(connection, session, input.invoice, input.offlineSubmission, input.actorSubject);
@@ -334,8 +345,8 @@ export function createMongoInvoiceRepository(connect: () => Promise<Connection>,
             : input.current[field as keyof Invoice] !== input.next[field as keyof Invoice]);
         if (changedFields.length) {
           try { await ports.audit.record({ eventId: randomUUID(), correlationId: input.correlationId, action: 'INVOICE_UPDATED',
-            actorSubject: input.actorSubject, invoiceId: input.current.id, thirdPartyId: input.current.thirdPartyId,
-            at: decisionAt.toISOString(), changedFields }); }
+            actorSubject: input.actorSubject, invoiceId: input.current.id, thirdPartyId: input.current.thirdPartyId, captureOrigin: input.next.origin,
+            at: decisionAt.toISOString(), version: input.next.version, changedFields }); }
           catch { throw new InvoiceRepositoryError('INVOICE_AUDIT_UNAVAILABLE'); }
         }
         const row = await connection.collection(collectionName).findOne({ _id: new Types.ObjectId(input.current.id), thirdPartyId: input.current.thirdPartyId }, { session });

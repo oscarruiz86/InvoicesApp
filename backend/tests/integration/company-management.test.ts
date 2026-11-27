@@ -8,6 +8,9 @@ import { createOrganizationRepository } from '@/modules/organizations/infrastruc
 import { grantCeiling } from '@/modules/identity/domain/permissions';
 import type { CompanyAccess, CompanyRepository } from '@/modules/organizations/application/company-ports';
 import { companyResponse } from '@/modules/organizations/presentation/companies';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
+import { createManagementAuditOutboxWorker } from '@/modules/organizations/application/management-audit-outbox-worker';
+import { createMongoManagementAuditOutbox } from '@/modules/organizations/infrastructure/mongodb/management-audit-outbox';
 const uri = process.env.MONGODB_TEST_URI;
 if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated _test database required');
 const database = `company_management_${randomUUID().replaceAll('-', '')}_test`;
@@ -17,7 +20,7 @@ const events: unknown[] = [];
 const serviceFor = (repo = repository) => createCompanies({ repository: repo, audit: { record: async event => { events.push(event); } }, now: () => new Date(), nextEventId: randomUUID });
 const service = serviceFor();
 const global: CompanyAccess = { actor: { subject: 'app-admin', roles: ['APP_ADMIN'], permissions: [], username: null, name: null, email: null }, scope: { kind: 'global', companyId: null, thirdPartyId: null } };
-const profile = (documentNumber: string) => ({ documentNumber, businessName: 'Empresa ' + documentNumber, email: ' CONTACT@Example.COM ' });
+const profile = (documentNumber: string) => ({ documentNumber, verificationDigit: '1', businessName: 'Empresa ' + documentNumber, email: ' CONTACT@Example.COM ' });
 beforeAll(async () => { await connection.asPromise(); await createPolicyRepository(async () => connection).initialize(); });
 afterAll(async () => { if (connection.readyState === 1 && connection.name === database && /^company_management_[a-f0-9]{32}_test$/.test(database)) await connection.dropDatabase(); await connection.close(); });
 
@@ -53,6 +56,20 @@ it('creates, isolates, edits, changes state and preserves history without direct
   expect(history.every(event => event.delivered === false && event.subject && !('token' in event))).toBe(true);
   expect(history.map(event => event.action)).toEqual(['COMPANY_CREATED', 'COMPANY_UPDATED', 'COMPANY_DEACTIVATED', 'COMPANY_ACTIVATED']);
   expect(history.every(event => event.correlationId && event.afterVersion)).toBe(true);
+});
+
+it('delivers transactional company captures once to the shared journal without profile fields', async () => {
+  const worker = createManagementAuditOutboxWorker({ outbox: createMongoManagementAuditOutbox(async () => connection),
+    audit: { async record(event) { await createMongoAuditWriter(connection).record(event); } } });
+  while (await worker.deliverBatch()) { /* drain captures created by preceding test cases */ }
+  const first = await service.create(global, profile('301'));
+  await service.update(global, first.company.id, first.version, { businessName: 'Audit company' });
+  const captures = await connection.collection('company_management_events').find({ companyId: first.company.id }).toArray();
+  expect(await worker.deliverBatch()).toBe(captures.length);
+  const journal = await connection.collection('audit_events').find({ _id: { $in: captures.map(event => event.eventId) } }).toArray();
+  expect(journal.map(event => event._id)).toEqual(expect.arrayContaining(captures.map(event => event.eventId)));
+  expect(journal.every(event => !('documentNumber' in event) && !('email' in event) && !('before' in event) && !('after' in event))).toBe(true);
+  expect(await worker.deliverBatch()).toBe(0);
 });
 
 it('has unique concurrent registration and rolls back a failed audit with the projection', async () => {

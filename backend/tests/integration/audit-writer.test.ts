@@ -27,8 +27,17 @@ it('stores one immutable event on retry, detects conflicting reuse, and creates 
   expect(stored?.expiresAt.toISOString()).toBe('2028-01-31T12:00:00.000Z');
   expect(stored).not.toHaveProperty('token');
   expect(stored).not.toHaveProperty('payload');
-  await expect(audit.record({ ...input, action: 'OTHER_ACTION' })).rejects.toThrow('AUDIT_EVENT_CONFLICT');
+  await expect(audit.record({ ...input, reason: 'OTHER_REASON' })).rejects.toThrow('AUDIT_EVENT_CONFLICT');
   expect((await connection.collection('audit_events').findOne({ _id: input.eventId as never }))?.action).toBe('POLICY_CHANGED');
   const index = (await connection.collection('audit_events').indexes()).find(item => item.name === 'audit_retention_two_years');
   expect(index).toMatchObject({ key: { expiresAt: 1 }, expireAfterSeconds: 0 });
+});
+
+it('rolls the journal write back with its owning transaction', async () => {
+  const input = event(randomUUID());
+  await expect(connection.transaction(async session => {
+    await createMongoAuditWriter(connection, session).record(input);
+    throw new Error('ROLLBACK_FIXTURE');
+  })).rejects.toThrow('ROLLBACK_FIXTURE');
+  expect(await connection.collection('audit_events').countDocuments({ _id: input.eventId as never })).toBe(0);
 });

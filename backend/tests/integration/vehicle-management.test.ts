@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createVehicleRepository } from '@/modules/fleet/infrastructure/mongodb/vehicle-repository';
 import { inventoryVehicles } from '@/modules/fleet/infrastructure/mongodb/vehicle-inventory';
 import { vehicleAuthorityConfirmation } from '@/modules/organizations/infrastructure/mongodb/vehicle-authority';
+import { createMongoAuditWriter } from '@/modules/audit/infrastructure/mongodb/audit-writer';
 import { policyConfirmation, createPolicyRepository } from '@/modules/identity/infrastructure/mongodb/policy-repository';
 import { unavailableAssignments } from '@/modules/fleet/infrastructure/unavailable-assignments';
 const uri = process.env.MONGODB_TEST_URI;
@@ -11,7 +12,7 @@ if (!uri || !new URL(uri).pathname.endsWith('_test')) throw new Error('Isolated 
 const database = `vehicle_management_${randomUUID().replaceAll('-', '')}_test`;
 const connection = mongoose.createConnection(uri, { dbName: database, serverSelectionTimeoutMS: 5000 });
 const connect = async () => connection;
-const repository = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s), authority: vehicleAuthorityConfirmation(c, s), assignments: unavailableAssignments }));
+const repository = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s), authority: vehicleAuthorityConfirmation(c, s), assignments: unavailableAssignments, audit: createMongoAuditWriter(c, s) }));
 let version = '1';
 beforeAll(async () => { await connection.asPromise(); version = (await createPolicyRepository(connect).initialize()).version; });
 afterAll(async () => { if (connection.readyState === 1 && /^vehicle_management_[a-f0-9]{32}_test$/.test(database)) await connection.dropDatabase(); await connection.close(); });
@@ -43,8 +44,14 @@ it('versions own edits, keeps no-ops quiet and isolates IDs and paginated assign
   const auth = await owner(), record = await repository.create({ ...auth, fields: fields() });
   const input = { ...auth, id: record.id, expectedVersion: 1, changes: { plate: record.plate } };
   expect(await repository.update(input)).toMatchObject({ version: 1 });
-  expect(await connection.collection('vehicle_management_events').countDocuments({ vehicleId: record.id })).toBe(1);
+  const localCreate = await connection.collection('vehicle_management_events').findOne({ vehicleId: record.id });
+  expect(localCreate).toBeTruthy();
+  const centralCreate = await connection.collection('audit_events').findOne({ _id: localCreate!.eventId as never });
+  expect(centralCreate).toMatchObject({ source: 'fleet', action: 'VEHICLE_CREATED', resource: { type: 'vehicle', id: record.id }, scope: { thirdPartyId: auth.authority.thirdPartyId } });
+  expect(centralCreate).not.toHaveProperty('plate'); expect(centralCreate).not.toHaveProperty('propertyCardNumber');
   expect(await repository.update({ ...input, changes: { internalNumber: 'NEW' } })).toMatchObject({ version: 2, internalNumber: 'NEW' });
+  const localUpdate = await connection.collection('vehicle_management_events').findOne({ vehicleId: record.id, version: 2 });
+  expect(await connection.collection('audit_events').findOne({ _id: localUpdate!.eventId as never })).toMatchObject({ action: 'VEHICLE_UPDATED', afterVersion: '2' });
   await expect(repository.update(input)).rejects.toMatchObject({ code: 'VEHICLE_VERSION_CONFLICT' });
   expect(await repository.find({ id: record.id, thirdPartyId: new mongoose.Types.ObjectId().toString() })).toBeNull();
   const query = { thirdPartyId: record.thirdPartyId, page: 1, pageSize: 1, sort: 'plate' as const, direction: 'asc' as const };
@@ -52,6 +59,16 @@ it('versions own edits, keeps no-ops quiet and isolates IDs and paginated assign
   expect(await repository.list({ ...query, assignedVehicleIds: [record.id] })).toMatchObject({ total: 1, items: [{ id: record.id }] });
   expect(await repository.list({ ...query, q: '.*' })).toMatchObject({ total: 0 });
   expect(await repository.eligibility({ id: record.id, thirdPartyId: record.thirdPartyId })).toMatchObject({ eligible: true, version: 2 });
+});
+it('rolls back vehicle state and its local capture when the central Audit writer fails', async () => {
+  const auth = await owner();
+  const failingRepository = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s), authority: vehicleAuthorityConfirmation(c, s),
+    assignments: unavailableAssignments, audit: { async record() { throw new Error('AUDIT_UNAVAILABLE'); } } }));
+  const vehiclesBefore = await connection.collection('vehicles').countDocuments();
+  const eventsBefore = await connection.collection('vehicle_management_events').countDocuments();
+  await expect(failingRepository.create({ ...auth, fields: fields() })).rejects.toThrow();
+  expect(await connection.collection('vehicles').countDocuments()).toBe(vehiclesBefore);
+  expect(await connection.collection('vehicle_management_events').countDocuments()).toBe(eventsBefore);
 });
 it('confirms policy, membership, association and third-party fences before writes', async () => {
   for (const target of ['policy', 'membership', 'association', 'organization', 'thirdParty']) {
@@ -101,7 +118,7 @@ it('fails closed without assignment confirmation; a coordinated double can deact
   await expect(repository.transition({ ...auth, id: record.id, expectedVersion: 1, status: 'INACTIVE' })).rejects.toMatchObject({ code: 'ASSIGNMENT_PROVIDER_UNAVAILABLE' });
   const withDouble = createVehicleRepository(connect, (c, s) => ({ policy: policyConfirmation(c, s), authority: vehicleAuthorityConfirmation(c, s), assignments: {
     async confirmNoOpenForVehicle(input) { expect(input).toMatchObject({ vehicleId: record.id, revision: 'test-only' }); },
-  } }));
+  }, audit: createMongoAuditWriter(c, s) }));
   expect(await withDouble.transition({ ...auth, id: record.id, expectedVersion: 1, status: 'INACTIVE', assignmentRevision: 'test-only' })).toMatchObject({ version: 2, status: 'INACTIVE' });
   expect(await repository.eligibility({ id: record.id, thirdPartyId: record.thirdPartyId })).toMatchObject({ eligible: false });
   expect(await repository.transition({ ...auth, id: record.id, expectedVersion: 2, status: 'ACTIVE' })).toMatchObject({ version: 3, status: 'ACTIVE' });

@@ -1,6 +1,6 @@
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router';
 import { useStore } from 'zustand';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Box, Button, CssBaseline, Stack, ThemeProvider, Typography } from '@mui/material';
 import { theme } from '@/shared/theme/theme';
 import { AppLayout } from '@/shared/components/app-layout';
@@ -44,7 +44,11 @@ import type { ParameterApi } from '@/modules/parameter-management/application/pa
 import { ParametersPage } from '@/modules/parameter-management/presentation/parameters-page';
 import type { CatalogApi } from '@/modules/parameter-management/application/catalog-api';
 import { CatalogsPage } from '@/modules/parameter-management/presentation/catalogs-page';
-import { prepareOfflineLogout, subscribeOfflineInvoiceLifecycle } from './offline-invoice-lifecycle';
+import { prepareOfflineLogout, subscribeOfflineInvoiceLifecycle, subscribeOfflineInvoiceSyncLifecycle } from './offline-invoice-lifecycle';
+import { createOfflinePreparation, type OfflinePreparationSnapshot } from '@/modules/invoices/application/offline-preparation';
+import { InstallPwaButton } from '@/shared/components/install-pwa-button';
+import type { AuditHistoryReadPort } from '@/modules/audit/application/audit-history-api';
+import { AuditHistoryPage } from '@/modules/audit/presentation/audit-history-page';
 
 const driverModule = markerModules.find(module => module.key === 'drivers')!;
 
@@ -76,12 +80,13 @@ function OrganizationManagementNavigation({ authorization, context, invitationsA
 }
 
 
-function MarkerModuleContext({ module, context, children }: { module: MarkerModuleDefinition; context: ContextStore; children: ReactNode }) {
+export function MarkerModuleContext({ module, context, children }: { module: MarkerModuleDefinition; context: ContextStore; children: ReactNode }) {
   const state = useStore(context);
   if (state.status !== 'ready' || !state.activeContext) return null;
   if (module.context === 'organization' && state.activeContext.kind !== 'ORGANIZATION') {
     return <Alert severity="warning">Selecciona una organización para continuar.</Alert>;
   }
+  if (module.context === 'global' && state.activeContext.kind !== 'GLOBAL') return <Alert severity="warning">Auditoría solo está disponible en el contexto GLOBAL.</Alert>;
   return children;
 }
 
@@ -111,10 +116,53 @@ function OfflineInvoiceLifecycle({ authentication, offlineQueue }: { readonly au
   return null;
 }
 
+function OfflineInvoiceSyncLifecycle({ authentication, context, invoices, offlineQueue }: { readonly authentication: AuthenticationStore; readonly context?: ContextStore; readonly invoices?: InvoiceApi; readonly offlineQueue?: OfflineInvoiceQueuePort }) {
+  useEffect(() => {
+    if (!context || !invoices || !offlineQueue) return;
+    const unsubscribe = subscribeOfflineInvoiceSyncLifecycle({ authentication, queue: offlineQueue, api: invoices, readContext: () => {
+      const state = context.getState();
+      const active = state.activeContext;
+      if (state.status !== 'ready' || !active || active.kind !== 'ORGANIZATION' || active.organizationType !== 'THIRD_PARTY') return null;
+      return { scope: active.authorization.scope, subject: active.authorization.subject, thirdPartyId: active.organizationId };
+    } });
+    return unsubscribe;
+  }, [authentication, context, invoices, offlineQueue]);
+  return null;
+}
+
+function OfflinePreparationLifecycle({ authentication, authorization, context, invoices, assignments, offlineQueue, publicJwks, verifyCredential }: {
+  readonly authentication: AuthenticationStore; readonly authorization?: AuthorizationStore; readonly context?: ContextStore;
+  readonly invoices?: InvoiceApi; readonly assignments?: AssignmentApi; readonly offlineQueue?: OfflineInvoiceQueuePort;
+  readonly publicJwks?: readonly OfflineCredentialPublicJwk[]; readonly verifyCredential?: OfflineCredentialVerifier;
+}) {
+  const [snapshot, setSnapshot] = useState<OfflinePreparationSnapshot>({ state: 'idle', assignments: 0, expiresAt: null, persistent: null, reason: null, pending: 0 });
+  const retry = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!authorization || !context || !invoices || !assignments || !offlineQueue || !publicJwks || !verifyCredential) return;
+    const coordinator = createOfflinePreparation({ api: invoices, assignments, context, authorization, queue: offlineQueue, publicJwks, verifyCredential,
+      loadQrDecoder: () => import('@/modules/invoices/infrastructure/qr-scanner-adapter').then(adapter => adapter.createQrScannerAdapter()) }, setSnapshot);
+    const run = () => { if (['authenticated', 'refreshing'].includes(authentication.getState().status)) void coordinator.prepare(); };
+    retry.current = run;
+    const unsubAuth = authentication.subscribe(run), unsubAuthz = authorization.subscribe(run), unsubContext = context.subscribe(run);
+    run();
+    return () => { unsubAuth(); unsubAuthz(); unsubContext(); coordinator.dispose(); };
+  }, [assignments, authentication, authorization, context, invoices, offlineQueue, publicJwks, verifyCredential]);
+  if (snapshot.state === 'idle' || !authorization?.getState().snapshot?.roles.includes('DRIVER')) return null;
+  const label = snapshot.state === 'preparing' ? 'Preparando captura offline…' : snapshot.state === 'ready' ? `Captura offline lista · ${snapshot.assignments} asignaciones` : snapshot.state === 'expired' ? 'Credencial offline vencida' : 'Captura offline no disponible';
+  return <Alert severity={snapshot.state === 'ready' ? 'success' : snapshot.state === 'preparing' ? 'info' : 'warning'} role="status" sx={{ mb: 1 }} action={snapshot.state !== 'ready' ? <Button color="inherit" size="small" onClick={() => retry.current()}>Reintentar</Button> : undefined}>{label}{snapshot.expiresAt ? ` · válida hasta ${new Date(snapshot.expiresAt).toLocaleString('es-CO')}` : ''} · {snapshot.pending} pendientes{snapshot.persistent === false ? ' · almacenamiento no persistente' : ''}</Alert>;
+}
+
 function AuthorizationConnectivityNotice({ authorization }: { readonly authorization: AuthorizationStore }) {
   const state = useStore(authorization);
   if (!state.snapshot || !['NETWORK', 'TIMEOUT'].includes(state.error ?? '')) return null;
   return <Alert severity="info" role="status">No se pudo actualizar la autorización por la conexión. Se conservan temporalmente los permisos verificados para este contexto mientras se reintenta; el servidor seguirá validando cada operación.</Alert>;
+}
+
+function ServiceWorkerUpdateNotice() {
+  const [available, setAvailable] = useState(false);
+  useEffect(() => { const onUpdate = () => setAvailable(true); window.addEventListener('lola:service-worker-update', onUpdate); return () => window.removeEventListener('lola:service-worker-update', onUpdate); }, []);
+  if (!available) return null;
+  return <Alert severity="info" role="status" action={<Button color="inherit" size="small" onClick={() => { navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' }); window.location.reload(); }}>Actualizar</Button>}>Hay una nueva versión disponible.</Alert>;
 }
 
 function RouteAppFrame({ authenticated, sessionStatus, navigation, account, children }: { authenticated: boolean; sessionStatus: SessionStatus; navigation: ReactNode; account: ReactNode; children: ReactNode }) {
@@ -124,10 +172,10 @@ function RouteAppFrame({ authenticated, sessionStatus, navigation, account, chil
   return <Box component="main" sx={{ minHeight: '100dvh', px: { xs: 2, sm: 3, md: 6 }, py: { xs: 3, md: 6 } }}>{children}</Box>;
 }
 
-export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, assignmentApi, invoices, notificationDeliveries, rolePolicy, parameters, catalogs, offlineCredentialPublicJwks, offlineQueue, verifyOfflineCredential }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; assignmentApi?: AssignmentApi; invoices?: InvoiceApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi; parameters?: ParameterApi; catalogs?: CatalogApi; offlineCredentialPublicJwks?: readonly OfflineCredentialPublicJwk[]; offlineQueue?: OfflineInvoiceQueuePort; verifyOfflineCredential?: OfflineCredentialVerifier }) {
+export function App({ store, authentication, authorization, organizationContext, companies, thirdParties, invitations, fleet, vehicles, assignmentApi, invoices, notificationDeliveries, rolePolicy, parameters, catalogs, auditHistory, offlineCredentialPublicJwks, offlineQueue, verifyOfflineCredential }: { store: HealthStore; authentication: AuthenticationStore; authorization?: AuthorizationStore; organizationContext?: ContextStore; companies?: CompanyApi; thirdParties?: ThirdPartyApi; invitations?: InvitationApi; fleet?: DriverApi; vehicles?: VehicleApi; assignmentApi?: AssignmentApi; invoices?: InvoiceApi; notificationDeliveries?: NotificationDeliveryReadPort; rolePolicy?: RolePolicyApi; parameters?: ParameterApi; catalogs?: CatalogApi; auditHistory?: AuditHistoryReadPort; offlineCredentialPublicJwks?: readonly OfflineCredentialPublicJwk[]; offlineQueue?: OfflineInvoiceQueuePort; verifyOfflineCredential?: OfflineCredentialVerifier }) {
   const session = useStore(authentication);
   const authenticated = ['authenticated', 'refreshing'].includes(session.status);
-  const content = <><RouteHeadingFocus /><OfflineInvoiceLifecycle authentication={authentication} offlineQueue={offlineQueue} /><AuthenticationActions store={authentication} authorization={authorization} />{authorization && <AuthorizationConnectivityNotice authorization={authorization} />}
+  const content = <><RouteHeadingFocus />{authenticated && <Stack direction="row" sx={{ justifyContent: 'flex-end' }}><InstallPwaButton /></Stack>}<ServiceWorkerUpdateNotice /><OfflineInvoiceLifecycle authentication={authentication} offlineQueue={offlineQueue} /><OfflineInvoiceSyncLifecycle authentication={authentication} context={organizationContext} invoices={invoices} offlineQueue={offlineQueue} /><OfflinePreparationLifecycle authentication={authentication} authorization={authorization} context={organizationContext} invoices={invoices} assignments={assignmentApi} offlineQueue={offlineQueue} publicJwks={offlineCredentialPublicJwks} verifyCredential={verifyOfflineCredential} /><AuthenticationActions store={authentication} authorization={authorization} />{authorization && <AuthorizationConnectivityNotice authorization={authorization} />}
     {organizationContext && <ContextSessionBootstrap authentication={authentication} />}
     <Routes>
     <Route path="/" element={authenticated ? <Navigate to="/home" replace /> : session.status === 'initializing' ? <HomePage store={store} authorization={authorization} authentication={authentication} /> : <LandingPage authentication={authentication} />} />
@@ -161,6 +209,7 @@ export function App({ store, authentication, authorization, organizationContext,
                     loadQrDecoder={() => import('@/modules/invoices/infrastructure/qr-scanner-adapter').then(adapter => adapter.createQrScannerAdapter())} />
                 : module.key === 'notification-deliveries' && notificationDeliveries ? <NotificationDeliveriesPage api={notificationDeliveries} />
                 : module.key === 'parameters' && parameters && authorization ? <ParametersPage api={parameters} authorization={authorization} context={organizationContext} />
+                : module.key === 'audit' && auditHistory ? <AuditHistoryPage api={auditHistory} />
                 : <MarkerModulePage module={module} />}
           </MarkerModuleContext>
         </OrganizationContextGuard>

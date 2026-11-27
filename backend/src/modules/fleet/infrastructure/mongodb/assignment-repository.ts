@@ -4,6 +4,8 @@ import { AssignmentError, closeAssignment, type Assignment } from '../../domain/
 import { AssignmentConfirmationError, type AssignmentAuditEvent, type AssignmentAuditPort, type AssignmentAuthorityConfirmationPort, type AssignmentConfirmationPort, type AssignmentListQuery, type AssignmentPage, type AssignmentPolicyConfirmationPort, type AssignmentPresence, type AssignmentReadEvidence, type AssignmentReadPort, type AssignmentRepositoryPort } from '../../application/assignment-ports';
 import { AuthorizationError } from '@/modules/identity/application/authentication-error';
 import { AuthorizationUnavailable } from '@/modules/identity/application/authorization-errors';
+import { recordFleetAudit } from './fleet-audit';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 
 const collectionName = 'vehicle_assignments';
 type Row = Record<string, unknown>;
@@ -293,10 +295,13 @@ export function createMongoAssignmentConfirmation(connection: Connection, sessio
   };
 }
 
-export function createMongoAssignmentAudit(connection: Connection, session: ClientSession): AssignmentAuditPort {
+export function createMongoAssignmentAudit(connection: Connection, session: ClientSession, audit: AuditWriter): AssignmentAuditPort {
   return {
     async record(event) {
       await connection.collection('assignment_events').insertOne({ ...event, at: new Date(event.at) }, { session });
+      await recordFleetAudit(audit, { eventId: event.eventId, correlationId: event.correlationId, at: event.at,
+        action: event.action, actorSubject: event.actorSubject, resourceType: 'assignment', resourceId: event.assignmentId,
+        thirdPartyId: event.thirdPartyId, beforeVersion: event.beforeVersion, afterVersion: event.version });
     },
   };
 }

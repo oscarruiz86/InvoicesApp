@@ -6,6 +6,8 @@ import { AuthorizationUnavailable } from '@/modules/identity/application/authori
 import { AssignmentConfirmationError, type AssignmentConfirmationPort } from '../../application/assignment-ports';
 import { createDriver, DriverError, isDriverEligible, transitionDriver, type Driver, type DriverMembershipFacts } from '../../domain/driver';
 import type { DriverFactsReader, DriverRepositoryPort } from '../../application/driver-ports';
+import { recordFleetAudit } from './fleet-audit';
+import type { AuditWriter } from '@/modules/audit/application/audit-ports';
 
 export class DriverRepositoryError extends Error {
   constructor(readonly code: 'INVALID_REQUEST' | 'NOT_FOUND' | 'FORBIDDEN' | 'VERSION_CONFLICT'
@@ -68,7 +70,7 @@ export async function provisionDriverInSession(connection: Connection, session: 
   readonly actor: string;
   readonly now: Date;
   readonly source: 'INVITATION' | 'MEMBERSHIP' | 'MIGRATION';
-}): Promise<Driver> {
+}, audit: AuditWriter): Promise<Driver> {
   const model = driverModel(connection);
   const existing = await model.findOne({ membershipId: input.membershipId }).session(session).lean().exec();
   if (existing) {
@@ -90,10 +92,14 @@ export async function provisionDriverInSession(connection: Connection, session: 
   await model.create([{ _id: new Types.ObjectId(driver.id), subject: driver.subject, membershipId: driver.membershipId,
     thirdPartyId: driver.thirdPartyId, status: driver.status, version: driver.version, createdAt: driver.createdAt,
     updatedAt: driver.updatedAt, createdBy: driver.createdBy, updatedBy: driver.updatedBy }], { session });
-  await connection.collection('driver_management_events').insertOne({ eventId: randomUUID(), driverId: driver.id,
+  const eventId = randomUUID(); const action = input.source === 'MIGRATION' ? 'DRIVER_MIGRATED' : 'DRIVER_PROVISIONED';
+  await connection.collection('driver_management_events').insertOne({ eventId, driverId: driver.id,
     membershipId: driver.membershipId, subject: driver.subject, thirdPartyId: driver.thirdPartyId, actorSubject: input.actor,
-    action: input.source === 'MIGRATION' ? 'DRIVER_MIGRATED' : 'DRIVER_PROVISIONED', source: input.source,
+    action, source: input.source,
     beforeVersion: null, version: driver.version, at: input.now }, { session });
+  await recordFleetAudit(audit, { eventId, correlationId: eventId, at: input.now, action,
+    actorSubject: input.actor, actorKind: input.source === 'MIGRATION' ? 'system' : 'user', resourceType: 'driver', resourceId: driver.id,
+    thirdPartyId: driver.thirdPartyId, beforeVersion: null, afterVersion: driver.version });
   return driver;
 }
 
@@ -106,14 +112,14 @@ export async function synchronizeDriverMembershipInSession(connection: Connectio
   readonly membershipStatus: 'ACTIVE' | 'INACTIVE';
   readonly actor: string;
   readonly now: Date;
-}): Promise<void> {
+}, audit: AuditWriter): Promise<void> {
   const hadDriver = input.beforeRoles.includes('DRIVER');
   const hasDriver = input.afterRoles.includes('DRIVER');
   if (hadDriver === hasDriver) return;
   const model = driverModel(connection);
   if (hasDriver) {
     if (input.membershipStatus !== 'ACTIVE') throw new DriverRepositoryError('MEMBERSHIP_NOT_ELIGIBLE');
-    await provisionDriverInSession(connection, session, { ...input, id: new Types.ObjectId().toString(), source: 'MEMBERSHIP' });
+    await provisionDriverInSession(connection, session, { ...input, id: new Types.ObjectId().toString(), source: 'MEMBERSHIP' }, audit);
     return;
   }
   const raw = await model.findOne({ membershipId: input.membershipId, subject: input.subject, thirdPartyId: input.thirdPartyId }).session(session).lean().exec();
@@ -124,14 +130,19 @@ export async function synchronizeDriverMembershipInSession(connection: Connectio
     $set: { status: 'INACTIVE', version: driver.version + 1, updatedAt: input.now, updatedBy: input.actor },
   }, { session, runValidators: true });
   if (result.modifiedCount !== 1) throw new DriverRepositoryError('VERSION_CONFLICT');
-  await connection.collection('driver_management_events').insertOne({ eventId: randomUUID(), driverId: driver.id,
+  const eventId = randomUUID();
+  await connection.collection('driver_management_events').insertOne({ eventId, driverId: driver.id,
     membershipId: driver.membershipId, subject: driver.subject, thirdPartyId: driver.thirdPartyId, actorSubject: input.actor,
     action: 'DRIVER_DEACTIVATED', source: 'MEMBERSHIP_ROLE_REMOVED', beforeVersion: driver.version,
     version: driver.version + 1, at: input.now }, { session });
+  await recordFleetAudit(audit, { eventId, correlationId: eventId, at: input.now, action: 'DRIVER_DEACTIVATED',
+    actorSubject: input.actor, resourceType: 'driver', resourceId: driver.id, thirdPartyId: driver.thirdPartyId,
+    beforeVersion: driver.version, afterVersion: driver.version + 1 });
 }
 
 export function createDriverRepository(connect: () => Promise<Connection>, policyFactory: (connection: Connection, session: ClientSession) => PolicyConfirmation,
-  assignmentConfirmation: (connection: Connection, session: ClientSession) => Pick<AssignmentConfirmationPort, 'confirmNoOpenForDriver'>): DriverRepositoryPort & DriverFactsReader & {
+  assignmentConfirmation: (connection: Connection, session: ClientSession) => Pick<AssignmentConfirmationPort, 'confirmNoOpenForDriver'>,
+  auditFactory: (connection: Connection, session: ClientSession) => AuditWriter): DriverRepositoryPort & DriverFactsReader & {
   nextId(): string;
 } {
   let initialized: Promise<void> | undefined;
@@ -252,10 +263,14 @@ export function createDriverRepository(connect: () => Promise<Connection>, polic
             version: input.expectedVersion }, { $set: { status: changed.driver.status, version: changed.driver.version,
               updatedAt: changed.driver.updatedAt, updatedBy: changed.driver.updatedBy } }, { session, runValidators: true });
           if (update.modifiedCount !== 1) throw new DriverRepositoryError('VERSION_CONFLICT');
-          await connection.collection('driver_management_events').insertOne({ eventId: randomUUID(), driverId: driver.id,
+          const eventId = randomUUID(); const correlationId = randomUUID();
+          await connection.collection('driver_management_events').insertOne({ eventId, correlationId, driverId: driver.id,
             membershipId: driver.membershipId, subject: driver.subject, thirdPartyId: driver.thirdPartyId, actorSubject: input.actor,
             action: input.status === 'ACTIVE' ? 'DRIVER_ACTIVATED' : 'DRIVER_DEACTIVATED', source: 'STATUS_TRANSITION',
             beforeVersion: driver.version, version: changed.driver.version, at: changed.driver.updatedAt }, { session });
+          await recordFleetAudit(auditFactory(connection, session), { eventId, correlationId, at: changed.driver.updatedAt,
+            action: input.status === 'ACTIVE' ? 'DRIVER_ACTIVATED' : 'DRIVER_DEACTIVATED', actorSubject: input.actorSubject,
+            resourceType: 'driver', resourceId: driver.id, thirdPartyId: driver.thirdPartyId, beforeVersion: driver.version, afterVersion: changed.driver.version });
           return changed.driver;
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority', j: true }, maxCommitTimeMS: 5000 });
       } catch (error) { return mapError(error); }
