@@ -47,6 +47,7 @@ services:
       KEYCLOAK_DIRECTORY_ISSUER_URL: ${KEYCLOAK_PRIVATE_ISSUER_URL:?Set private Keycloak issuer URL}
       KEYCLOAK_DIRECTORY_CLIENT_ID: ${KEYCLOAK_DIRECTORY_CLIENT_ID:?Set the private directory client id}
       KEYCLOAK_DIRECTORY_CLIENT_SECRET_FILE: /run/secrets/keycloak-directory-client
+      NOTIFICATION_PAYLOAD_KEY_FILES: 1=/run/secrets/notification-payload-keys/v1
       INVOICE_IMAGE_STORAGE_PROVIDER: local
       INVOICE_IMAGE_STORAGE_LOCAL_ROOT: /var/lib/invoices/images
       INVOICE_IMAGE_STORAGE_COMPANY_ID: ${INVOICE_IMAGE_STORAGE_COMPANY_ID:?Set image namespace}
@@ -55,6 +56,10 @@ services:
       - type: bind
         source: ${INVOICE_IMAGES_PATH:?Set private dataset path for invoice images}
         target: /var/lib/invoices/images
+      - type: bind
+        source: ${NOTIFICATION_KEYS_PATH:?Set private notification key directory}
+        target: /run/secrets/notification-payload-keys
+        read_only: true
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
