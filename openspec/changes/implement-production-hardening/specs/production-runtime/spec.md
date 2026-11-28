@@ -35,13 +35,13 @@ La primera operación de producción MUST instalar frontend, API y workers como 
 - **THEN** un operador actualiza los tags de las imágenes en la Custom App de TrueNAS y verifica estado y rutas
 - **AND** GitHub Actions no llama a la API de TrueNAS ni inicia una conexión administrativa hacia el NAS
 
-### Requirement: MongoDB aislado y preparado para transacciones
-La configuración productiva MUST mantener MongoDB accesible solo por la red privada de la aplicación, exigir autenticación con una cuenta de mínimo privilegio para una base exclusiva de Invoices App y habilitar el modo replica set requerido por las operaciones transaccionales.
+### Requirement: MongoDB preparado para transacciones en la red compartida
+La configuración productiva MUST conectar MongoDB y los servicios de Invoices App mediante la red Docker compartida `traefik_net`, exigir autenticación con una cuenta de mínimo privilegio para una base exclusiva de Invoices App y habilitar el modo replica set requerido por las operaciones transaccionales. MongoDB MUST NOT publicar su puerto en el host ni exponerse mediante una ruta de Traefik.
 
 #### Scenario: Conexión de la aplicación a MongoDB
 - **WHEN** el backend de producción se conecta a MongoDB
-- **THEN** usa una credencial suministrada por archivo y una URI con configuración de replica set validada
-- **AND** MongoDB no tiene puerto publicado a Internet ni acceso anónimo
+- **THEN** usa una credencial suministrada por archivo y una URI con configuración de replica set validada que resuelve MongoDB en `traefik_net`
+- **AND** MongoDB no tiene puerto publicado en el host ni acceso anónimo
 
 #### Scenario: Preparación o cambio de configuración MongoDB
 - **WHEN** se habilitan autenticación o replica set en el servidor MongoDB existente

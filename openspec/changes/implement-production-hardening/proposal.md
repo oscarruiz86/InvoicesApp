@@ -8,7 +8,7 @@ Invoices App ya tiene aplicaciones, servicios y workers, pero aún no dispone de
 
 - Crear imágenes frontend y backend públicas, versionadas por commit, en Docker Hub mediante GitHub Actions tras integrar cambios aprobados en `main`; no publicar imágenes desde pull requests.
 - Preparar una Custom App/YAML para TrueNAS SCALE 25.10.2.1, con frontend, API y workers; la primera actualización de imágenes será manual desde TrueNAS.
-- Integrar la entrada existente `invoice.oarg.casa` mediante Cloudflare Tunnel y Traefik, exponiendo solo el frontend; mantener API, MongoDB y administración de Keycloak en redes privadas.
+- Integrar la entrada existente `invoice.oarg.casa` mediante Cloudflare Tunnel y Traefik, exponiendo solo el frontend; conectar frontend, API, workers y dependencias externas a la red Docker compartida `traefik_net`, sin publicar puertos de API o datos en el host.
 - Preparar MongoDB para Invoices App con base y usuario propios, autenticación y replica set requerido por las transacciones; hacer respaldo antes de cambiar configuración.
 - Definir el uso de Keycloak existente `https://auth.oarg.casa/`, realm `invoices`, preservando el issuer público y usando conectividad privada desde backend cuando esté disponible.
 - Establecer controles mínimos de privilegios de contenedores, límites de recursos, sondas y manejo de secretos; documentar publicación, validación, respaldo/restauración y rollback.
