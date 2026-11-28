@@ -39,12 +39,22 @@ try {
   assert.equal(response.status, 200);
   const headers = response.headers;
   const csp = headers.get('content-security-policy') ?? '';
-  assert(csp.includes("default-src 'self'") && csp.includes('https://auth.oarg.casa'));
+  assert(csp.includes("default-src 'self'") && csp.includes("frame-src 'self' https://auth.oarg.casa"));
   assert(!/script-src[^;]*unsafe-(?:inline|eval)/.test(csp));
   assert.equal(headers.get('x-content-type-options'), 'nosniff');
   assert.equal(headers.get('x-frame-options'), 'DENY');
   assert.equal(headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
   assert(headers.get('permissions-policy')?.includes('camera=(self)'));
+  const silentResponse = await fetch(`http://127.0.0.1:${port}/silent-check-sso.html`, { signal: AbortSignal.timeout(1000) });
+  assert.equal(silentResponse.status, 200);
+  const silentCsp = silentResponse.headers.get('content-security-policy') ?? '';
+  assert(silentCsp.includes("script-src 'self'") && silentCsp.includes("frame-ancestors 'self'"));
+  assert.equal(silentResponse.headers.get('x-frame-options'), 'SAMEORIGIN');
+  const silentPage = await silentResponse.text();
+  assert(silentPage.includes('src="/silent-check-sso.js"'));
+  const silentScript = await fetch(`http://127.0.0.1:${port}/silent-check-sso.js`, { signal: AbortSignal.timeout(1000) });
+  assert.equal(silentScript.status, 200);
+  assert((await silentScript.text()).includes('parent.postMessage'));
   console.log('Restricted production Nginx served the frontend and required security headers over HTTP.');
 } finally {
   if (container) spawnSync('docker', ['stop', container], { stdio: 'ignore', windowsHide: true, timeout: 20_000 });
