@@ -49,7 +49,7 @@ describe('OIDC session lifecycle', () => {
     await Promise.all([session.initialize(), session.initialize()]);
     expect(client.init).toHaveBeenCalledOnce();
     expect(client.init).toHaveBeenCalledWith(expect.objectContaining({ flow: 'standard', pkceMethod: 'S256', useNonce: true, checkLoginIframe: false,
-      onLoad: 'check-sso', redirectUri: `${window.location.origin}/auth/callback`, silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`, silentCheckSsoFallback: true }));
+      onLoad: 'check-sso', redirectUri: `${window.location.origin}/auth/callback`, silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`, silentCheckSsoFallback: false }));
     await session.login('https://untrusted.invalid');
     expect(client.createLoginUrl).toHaveBeenCalledWith(expect.objectContaining({ redirectUri: `${window.location.origin}/auth/callback` }));
     expect(navigate).toHaveBeenCalledWith('https://identity.invalid/auth');
