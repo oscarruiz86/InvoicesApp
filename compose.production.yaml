@@ -61,7 +61,7 @@ services:
       timeout: 6s
       retries: 3
       start_period: 45s
-    networks: [private]
+    networks: [private, traefik]
   notification-worker:
     image: ${DOCKERHUB_NAMESPACE:?Set the public Docker Hub namespace}/invoices-workers:${IMAGE_TAG:?Set an immutable commit tag}
     command: [node, --experimental-loader, ./scripts/typescript-loader.mjs, ./scripts/notification-worker-production-entrypoint.mjs]
@@ -100,7 +100,7 @@ services:
         source: ${NOTIFICATION_KEYS_PATH:?Set private notification key directory}
         target: /run/secrets/notification-payload-keys
         read_only: true
-    networks: [private]
+    networks: [private, traefik]
   audit-outbox-worker:
     image: ${DOCKERHUB_NAMESPACE:?Set the public Docker Hub namespace}/invoices-workers:${IMAGE_TAG:?Set an immutable commit tag}
     command: [node, --experimental-loader, ./scripts/typescript-loader.mjs, src/bootstrap/run-audit-outbox-worker.ts]
@@ -117,7 +117,7 @@ services:
       NODE_ENV: production
       MONGODB_URI_FILE: /run/secrets/mongodb-uri
     secrets: [mongodb-uri]
-    networks: [private]
+    networks: [private, traefik]
   invoice-sync-retention-worker:
     image: ${DOCKERHUB_NAMESPACE:?Set the public Docker Hub namespace}/invoices-workers:${IMAGE_TAG:?Set an immutable commit tag}
     command: [node, --experimental-loader, ./scripts/typescript-loader.mjs, src/bootstrap/run-invoice-sync-retention-worker.ts]
@@ -141,7 +141,7 @@ services:
       - type: bind
         source: ${INVOICE_IMAGES_PATH:?Set private dataset path for invoice images}
         target: /var/lib/invoices/images
-    networks: [private]
+    networks: [private, traefik]
 secrets:
   mongodb-uri:
     file: ${MONGODB_URI_SECRET_FILE:?Set host path to Mongo URI secret file}

@@ -2,7 +2,7 @@
 
 ## Context
 
-See `proposal.md` for motivation. The target is TrueNAS SCALE 25.10.2.1, using Apps → Custom App/YAML. Its existing `cloudflared` app routes `invoice.oarg.casa` through Traefik at `https://traefik.oarg.casa/`; the route must end at the frontend only. Keycloak 26.4.1 is available as `https://auth.oarg.casa/`, realm `invoices`, and backend has private-network reachability. MongoDB is on the same TrueNAS, currently without authentication, TLS, or replica set, and is intended only for Invoices App.
+See `proposal.md` for motivation. The target is TrueNAS SCALE 25.10.2.1, using Apps → Custom App/YAML. Its existing `cloudflared` app routes `invoice.oarg.casa` through Traefik at `https://traefik.oarg.casa/`; the route must end at the frontend only. Keycloak 26.4.1 is available as `https://auth.oarg.casa/`, realm `invoices`. MongoDB and the Invoices App containers share `traefik_net`; MongoDB has authentication and a single-member `invoices-rs` primary, with a least-privilege `invoicesApp` user. MongoDB TLS is not yet confirmed.
 
 Existing Compose is otherwise local-development oriented. `compose.notifications.production.yaml` is a hardened production slice for the notification worker; the API production image runs as `node` but does not declare the full container restrictions in the Compose profile. The frontend production image uses Nginx but its current configuration has no production security headers. The repository also has audit-outbox, invoice-sync-retention, and optional Keycloak admin audit workers, currently wired through development profiles. `GET /api/health` is deliberately liveness-only. File-based secret handling and secret rotation are already documented in `docs/runtime-secrets.md`.
 
@@ -27,7 +27,7 @@ Existing Compose is otherwise local-development oriented. `compose.notifications
 
 ### Use TrueNAS Custom App/YAML as the deployment boundary
 
-Keep the production Compose configuration in the repository and adapt it to the Custom App/YAML interface supported by TrueNAS 25.10.2.1. The manifest contains only Invoices App frontend, API, and workers; MongoDB and Keycloak stay as existing private dependencies. Validate the exact YAML and storage/network semantics on the target TrueNAS version before a production update. Do not invoke raw Docker commands behind TrueNAS Apps management.
+Keep the production Compose configuration in the repository and adapt it to the Custom App/YAML interface supported by TrueNAS 25.10.2.1. The manifest contains only Invoices App frontend, API, and workers; MongoDB and Keycloak stay as existing dependencies. All Invoices services join the external `traefik_net` for service-name connectivity, while retaining the app's private network. Do not publish MongoDB or backend ports on the host and do not add Traefik routes for them. Since `traefik_net` is shared with other projects, enforce MongoDB authentication and the database-scoped `invoicesApp` role. Validate the exact YAML and storage/network semantics on the target TrueNAS version before a production update. Do not invoke raw Docker commands behind TrueNAS Apps management.
 
 ### Publish public Docker Hub images, update TrueNAS manually first
 
@@ -41,9 +41,9 @@ Use the existing public hostname `invoice.oarg.casa`; Cloudflare Tunnel sends it
 
 The frontend uses the public Keycloak issuer `https://auth.oarg.casa/realms/invoices`. The backend may fetch JWKS and call directory APIs through private service addresses, but token issuer validation remains the public issuer. Verify the private hostname, TLS trust, and Docker-network reachability from the app containers.
 
-### Prepare a dedicated MongoDB security boundary
+### Prepare MongoDB on the shared Docker network
 
-Before the application writes production data, back up the current MongoDB dataset, create an Invoices-only database and least-privilege user, enable authentication, and configure a replica set compatible with the installed MongoDB version so the application's multi-document transactions work. Keep MongoDB off public and host-published ports and provide credentials by file. The chosen replica topology and TLS policy must be documented; a single TrueNAS host remains a single point of failure even if replica-set mode is enabled.
+Before the application writes production data, back up the current MongoDB dataset, create an Invoices-only database and least-privilege user, enable authentication, and configure a replica set compatible with the installed MongoDB version so the application's multi-document transactions work. Resolve MongoDB by its `mongodb` network alias on `traefik_net`, keep its port unpublished on the host, and provide credentials by file. Because other projects also share `traefik_net`, database authentication and least privilege remain mandatory. The chosen replica topology and TLS policy must be documented; a single TrueNAS host remains a single point of failure even if replica-set mode is enabled.
 
 ### Apply one container baseline to application workloads
 
