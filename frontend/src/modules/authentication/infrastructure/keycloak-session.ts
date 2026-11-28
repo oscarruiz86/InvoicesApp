@@ -108,9 +108,10 @@ export function createKeycloakSession(configuration: OidcConfiguration | null, o
         publish({ status: 'initializing' });
         instance.onTokenExpired = () => { void port.getAccessToken().catch(() => {}); };
         try {
+          // Keep check-sso silent when third-party cookies are blocked; the landing page owns interactive login.
           const operation = instance.init({ flow: 'standard', pkceMethod: 'S256', useNonce: true, responseMode: 'query', scope: 'openid profile email',
             ...(checkSso ? { onLoad: 'check-sso' as const, redirectUri: `${window.location.origin}/auth/callback`,
-              silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`, silentCheckSsoFallback: true } : {}),
+              silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`, silentCheckSsoFallback: false } : {}),
             checkLoginIframe: false, enableLogging: false });
           void operation.then(() => { if (epoch !== generation) clear(instance); }, () => {});
           const authenticated = await bounded(operation);
